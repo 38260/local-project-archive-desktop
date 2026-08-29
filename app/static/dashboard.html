@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>本地项目档案 · 首页</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📁</text></svg>">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div id="app" v-cloak>
+  <header class="topbar">
+    <span class="logo">📁 本地项目档案 <span class="dim">/ 本机索引库 · 数据不出本机</span></span>
+    <span class="spacer"></span>
+    <button class="btn" @click="openScan">🔎 批量扫描导入</button>
+    <button class="btn primary" @click="openAdd">＋ 手动录入</button>
+    <button class="btn" @click="exportJson" title="导出全部档案为 JSON 备份">⬇ 导出 JSON</button>
+    <button class="btn" @click="toggleTheme" :title="'切换主题（当前：' + themeName + '）'">☀/🌙</button>
+  </header>
+
+  <main class="container">
+    <!-- 统计 -->
+    <div class="stats-row">
+      <span class="stat"><b>{{ stats.total }}</b>全部项目</span>
+      <span class="stat"><b>{{ stats.active }}</b>活跃项目</span>
+      <span class="stat"><b>{{ stats.archived }}</b>已归档</span>
+      <span class="stat lost" :class="{lost: stats.lost > 0}"><b>{{ stats.lost }}</b>路径丢失</span>
+    </div>
+
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+      <input type="search" v-model.trim="q" placeholder="搜索名称 / 别名 / 路径 / 标签…">
+      <select v-model="statusFilter">
+        <option value="">全部状态</option>
+        <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+      </select>
+      <select v-model="tagFilter">
+        <option value="">全部标签</option>
+        <option v-for="t in allTags" :key="t" :value="t">{{ t }}</option>
+      </select>
+      <label class="check-label">
+        <input type="checkbox" v-model="showArchived"> 显示归档项目
+      </label>
+      <span class="spacer"></span>
+      <span class="section-note">共 {{ filtered.length }} 个项目</span>
+    </div>
+
+    <!-- 项目卡片 -->
+    <div class="card-grid" v-if="filtered.length">
+      <div v-for="p in filtered" :key="p.id" class="card"
+           :class="{'is-lost': p.is_lost, 'is-archived': p.status === '归档废弃'}"
+           @click="goto(p)">
+        <div class="title-row">
+          <h3 :title="p.name">{{ p.name }}</h3>
+          <span class="alias" v-if="p.alias">{{ p.alias }}</span>
+          <span class="spacer"></span>
+          <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
+          <span :class="statusBadgeClass(p.status)">{{ p.status }}</span>
+        </div>
+        <div class="path-row" :title="p.path">
+          <span class="path">{{ p.path }}</span>
+          <button class="icon-btn copy-btn" title="复制路径"
+                  @click.stop="copyText(p.path)">⧉</button>
+        </div>
+        <div class="meta-row">
+          <span v-if="p.category">🗂 {{ p.category }}</span>
+          <span v-if="p.stack_summary" title="自动识别技术栈">{{ p.stack_summary }}</span>
+          <span class="fill"></span>
+          <span :title="'档案更新于 ' + fmtTime(p.updated_at)">修改 {{ fmtTime(p.fs_modified) }}</span>
+        </div>
+        <div class="meta-row" v-if="p.tags.length">
+          <span><span class="tag" v-for="t in p.tags" :key="t">{{ t }}</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="empty-tip" v-else-if="!loading">
+      <template v-if="stats.total === 0">
+        档案库还是空的。<br><br>
+        点击右上角 <b>＋ 手动录入</b> 添加第一个项目路径，<br>
+        或使用 <b>🔎 批量扫描导入</b> 自动发现磁盘上的项目。
+      </template>
+      <template v-else>没有符合筛选条件的项目。</template>
+    </div>
+    <div class="loading" v-if="loading">正在加载…</div>
+  </main>
+
+  <!-- 手动录入 -->
+  <div class="modal-mask" v-if="showAdd" @click.self="showAdd = false">
+    <div class="modal">
+      <h3>手动录入项目</h3>
+      <div class="field">
+        <label>本地项目文件夹路径（必填）</label>
+        <input type="text" v-model.trim="form.path" placeholder="D:\code\my-project"
+               @keyup.enter="submitAdd" ref="pathInput">
+        <div class="hint">支持 Windows 路径与 WSL 路径（如 wsl:Ubuntu:/home/user/project 或 \\wsl.localhost\Ubuntu\…）。系统仅读取解析，不会改动项目文件。</div>
+      </div>
+      <div class="field">
+        <label>项目名称（留空则取文件夹名）</label>
+        <input type="text" v-model.trim="form.name" placeholder="My Project">
+      </div>
+      <div class="field">
+        <label>别名</label>
+        <input type="text" v-model.trim="form.alias" placeholder="可选">
+      </div>
+      <div class="field">
+        <label>项目分类</label>
+        <input type="text" v-model.trim="form.category" list="category-suggestions" placeholder="如：Web 工具 / 爬虫 / 学习实验">
+        <datalist id="category-suggestions">
+          <option v-for="c in allCategories" :key="c" :value="c"></option>
+        </datalist>
+      </div>
+      <div class="field">
+        <label>项目状态</label>
+        <select v-model="form.status">
+          <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>技术栈标签（逗号分隔，留空则自动识别）</label>
+        <input type="text" v-model="form.tagsText" placeholder="如：Python, FastAPI, 爬虫">
+      </div>
+      <div class="actions">
+        <button class="btn" @click="showAdd = false">取消</button>
+        <button class="btn primary" @click="submitAdd" :disabled="submitting">
+          {{ submitting ? "解析中…" : "录入并解析" }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 批量扫描 -->
+  <div class="modal-mask" v-if="showScan" @click.self="closeScan">
+    <div class="modal wide">
+      <h3>批量扫描导入</h3>
+      <div class="field" v-if="!candidates">
+        <label>扫描根目录</label>
+        <input type="text" v-model.trim="scanRoot" placeholder="D:\code 或 wsl:Ubuntu:/home/user"
+               @keyup.enter="doScan">
+        <div class="hint">递归扫描子目录，通过 .git、package.json、pyproject.toml、CMakeLists.txt 等标记自动识别候选项目（跳过 node_modules 等依赖目录）。默认深度 {{ scanDepth }} 层。</div>
+      </div>
+      <div class="field" v-if="!candidates">
+        <label>扫描深度：{{ scanDepth }} 层</label>
+        <input type="range" min="1" max="6" v-model.number="scanDepth" style="width:100%">
+      </div>
+      <div class="actions" v-if="!candidates">
+        <button class="btn" @click="closeScan">取消</button>
+        <button class="btn primary" @click="doScan" :disabled="scanning || !scanRoot">
+          {{ scanning ? "扫描中…" : "开始扫描" }}
+        </button>
+      </div>
+
+      <template v-if="candidates">
+        <div class="section-note" style="margin-bottom:8px">
+          在 <code>{{ candidates.root }}</code> 中扫描了 {{ candidates.scanned_dirs }} 个目录，
+          发现 <b>{{ candidates.candidates.length }}</b> 个候选项目。
+          <span v-if="candidates.truncated">（已达扫描上限，结果可能不完整）</span>
+        </div>
+        <div class="cand-list">
+          <label class="cand-item" v-for="c in candidates.candidates" :key="c.path"
+                 :class="{dup: c.imported}">
+            <input type="checkbox" :disabled="c.imported" v-model="c.checked">
+            <span class="cpath" :title="c.path">{{ c.path }}</span>
+            <span class="mark">{{ c.markers.join(" / ") }}</span>
+            <span class="mark" v-if="c.imported" style="color:var(--muted)">已导入</span>
+          </label>
+          <div class="cand-item" v-if="!candidates.candidates.length">
+            <span class="section-note">未发现候选项目，可尝试增大扫描深度。</span>
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px">
+          <label>导入时的分类（可选）</label>
+          <input type="text" v-model.trim="importForm.category" placeholder="为本次导入的所有项目设置统一分类">
+        </div>
+        <div class="actions">
+          <button class="btn" @click="candidates = null">← 重新扫描</button>
+          <button class="btn primary" @click="doImport" :disabled="importing || checkedCount === 0">
+            {{ importing ? "导入中…" : `导入选中项目（${checkedCount}）` }}
+          </button>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/vendor/vue.global.prod.js"></script>
+<script src="/static/js/common.js"></script>
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>

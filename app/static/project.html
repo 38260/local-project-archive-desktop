@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>本地项目档案 · 项目详情</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📁</text></svg>">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div id="app" v-cloak>
+  <header class="topbar">
+    <a class="btn" href="/">← 返回首页</a>
+    <span class="logo">📁 本地项目档案 <span class="dim">/ 项目详情</span></span>
+    <span class="spacer"></span>
+    <button class="btn" @click="toggleTheme" :title="'切换主题（当前：' + themeName + '）'">☀/🌙</button>
+  </header>
+
+  <main class="container" v-if="p">
+    <!-- 标题与状态 -->
+    <div class="detail-head">
+      <h1>{{ p.name }}</h1>
+      <span class="alias" v-if="p.alias">{{ p.alias }}</span>
+      <span class="spacer"></span>
+      <label class="check-label">状态：</label>
+      <select v-model="p.status" @change="saveStatus">
+        <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+      </select>
+    </div>
+
+    <!-- 快捷操作 -->
+    <div class="action-row">
+      <button class="btn" @click="openIn('explorer')" :disabled="p.is_lost">📂 资源管理器打开</button>
+      <button class="btn" @click="openIn('vscode')" :disabled="p.is_lost">⌨ VSCode 打开</button>
+      <button class="btn" @click="copyText(p.path)">⧉ 复制路径</button>
+      <button class="btn" @click="rescan" :disabled="rescanning">🔄 {{ rescanning ? "解析中…" : "重新解析" }}</button>
+      <button class="btn" @click="openEdit">✏ 编辑档案</button>
+      <button class="btn danger" @click="removeProject">🗑 删除档案</button>
+    </div>
+
+    <!-- 丢失项目提示与路径修复 -->
+    <div class="banner-lost" v-if="p.is_lost">
+      <span>⚠️ <b>丢失项目</b>：{{ p.lost_reason || "项目路径不存在，文件夹可能已被删除或移动" }}</span>
+      <input type="text" v-model.trim="newPath" placeholder="输入项目的新路径，如 D:\code\new-location"
+             @keyup.enter="updatePath">
+      <button class="btn primary" @click="updatePath" :disabled="!newPath">更新路径</button>
+    </div>
+
+    <!-- 基础元信息 -->
+    <section class="panel">
+      <h2>基础信息</h2>
+      <div class="meta-grid">
+        <div class="kv" style="grid-column: 1 / -1">
+          <span class="k">本地路径</span>
+          <span class="v">{{ p.path }}
+            <button class="icon-btn" title="复制路径" @click="copyText(p.path)">⧉</button>
+          </span>
+        </div>
+        <div class="kv"><span class="k">项目分类</span><span class="v">{{ p.category || "－" }}</span></div>
+        <div class="kv"><span class="k">状态</span><span class="v">{{ p.status }}</span></div>
+        <div class="kv"><span class="k">创建时间</span><span class="v">{{ fmtTime(p.fs_created) }}</span></div>
+        <div class="kv"><span class="k">最后修改</span><span class="v">{{ fmtTime(p.fs_modified) }}</span></div>
+        <div class="kv"><span class="k">档案建立</span><span class="v">{{ fmtTime(p.created_at) }}</span></div>
+        <div class="kv"><span class="k">档案更新</span><span class="v">{{ fmtTime(p.updated_at) }}</span></div>
+        <div class="kv" style="grid-column: 1 / -1">
+          <span class="k">技术栈标签</span>
+          <span class="v">
+            <span class="tag" v-for="t in p.tags" :key="t">{{ t }}</span>
+            <span v-if="!p.tags.length" style="color:var(--muted)">（无，可在编辑档案中添加）</span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Git 信息 -->
+    <section class="panel" v-if="meta">
+      <h2>Git 信息 <span class="right section-note">解析于 {{ fmtTime(meta.parsed_at) }}</span></h2>
+      <div class="meta-grid" v-if="gitInfo.is_repo">
+        <div class="kv"><span class="k">当前分支</span><span class="v">{{ gitInfo.branch || "－" }}</span></div>
+        <div class="kv"><span class="k">提交总数</span><span class="v">{{ fmtNum(gitInfo.commit_count) }}</span></div>
+        <div class="kv"><span class="k">远端仓库</span><span class="v">{{ gitInfo.remote || "（无远端）" }}</span></div>
+        <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.last_commit">
+          <span class="k">最近提交</span>
+          <span class="v">{{ gitInfo.last_commit.hash }} · {{ gitInfo.last_commit.author }} ·
+            {{ fmtTime(gitInfo.last_commit.date) }} · {{ gitInfo.last_commit.message }}</span>
+        </div>
+      </div>
+      <div class="section-note" v-else>非 Git 仓库<span v-if="gitInfo.error">（{{ gitInfo.error }}）</span></div>
+    </section>
+
+    <!-- 构建配置与依赖 -->
+    <section class="panel" v-if="meta && meta.configs.length">
+      <h2>构建配置与依赖</h2>
+      <div class="meta-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+        <div v-for="c in meta.configs" :key="c.file"
+             style="border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+          <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:6px">
+            <b style="font-size:13px">{{ c.kind }}</b>
+            <span class="section-note">{{ c.file }}</span>
+            <span class="spacer"></span>
+            <span class="section-note" v-if="c.version">v{{ c.version }}</span>
+          </div>
+          <div class="section-note" v-if="c.name" style="font-family:var(--mono)">{{ c.name }}</div>
+          <div style="margin-top:6px" v-if="c.scripts && Object.keys(c.scripts).length">
+            <div class="section-note">脚本命令：</div>
+            <span class="tag" v-for="(cmd, name) in c.scripts" :key="name"
+                  :title="cmd" style="margin-top:2px">{{ name }}</span>
+          </div>
+          <div style="margin-top:6px" v-if="c.dependencies && c.dependencies.length">
+            <div class="section-note">
+              依赖 {{ c.dependencies_total || c.dependencies.length }} 项<template v-if="c.dev_dependencies_total">，开发依赖 {{ c.dev_dependencies_total }} 项</template>：
+            </div>
+            <span class="tag" v-for="d in c.dependencies.slice(0, 12)" :key="d"
+                  style="background:var(--panel-2);color:var(--text);margin-top:2px">{{ d }}</span>
+            <span class="section-note" v-if="c.dependencies.length > 12">… 等共 {{ c.dependencies.length }} 项</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 文件统计 -->
+    <section class="panel" v-if="meta && meta.stats">
+      <h2>文件统计 <span class="right section-note">仅只读统计，不改动任何文件</span></h2>
+      <div class="meta-grid">
+        <div class="kv"><span class="k">文件数量</span><span class="v">{{ fmtNum(meta.stats.file_count) }}<template v-if="meta.stats.truncated">+（已达统计上限）</template></span></div>
+        <div class="kv"><span class="k">子目录数</span><span class="v">{{ fmtNum(meta.stats.dir_count) }}</span></div>
+        <div class="kv"><span class="k">总体积</span><span class="v">{{ fmtSize(meta.stats.total_size) }}</span></div>
+        <div class="kv" style="grid-column: 1 / -1" v-if="meta.stats.top_extensions.length">
+          <span class="k">文件类型</span>
+          <span class="v"><span class="tag" v-for="e in meta.stats.top_extensions" :key="e[0]"
+                style="background:var(--panel-2);color:var(--text)">{{ e[0] }} × {{ fmtNum(e[1]) }}</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 项目描述（存数据库，不写入原项目目录） -->
+    <section class="panel">
+      <h2>项目描述
+        <span class="right section-note">存储于本机数据库，不会写入原项目文件夹</span>
+      </h2>
+      <div class="md-tabs">
+        <button class="chip" :class="{on: descTab === 'edit'}" @click="descTab = 'edit'">✏ 编辑 Markdown</button>
+        <button class="chip" :class="{on: descTab === 'preview'}" @click="previewDesc">👁 预览</button>
+      </div>
+      <textarea v-if="descTab === 'edit'" class="md-editor" v-model="p.description"
+                placeholder="用 Markdown 记录：&#10;## 项目背景&#10;## 实现功能&#10;## 运行部署命令"></textarea>
+      <div v-else class="md-preview md-body" v-html="descHtml"></div>
+      <div style="margin-top:10px;text-align:right" v-if="descTab === 'edit'">
+        <button class="btn primary" @click="saveDesc" :disabled="savingDesc">💾 保存描述</button>
+      </div>
+    </section>
+
+    <!-- 自定义开发笔记（多条） -->
+    <section class="panel">
+      <h2>开发笔记
+        <span class="right section-note">开发体会 / 思考心得 / 踩坑点 / 解决方案 · 共 {{ notes.length }} 条</span>
+      </h2>
+      <div v-if="noteDraft !== null">
+        <textarea class="md-editor" style="min-height:110px" v-model="noteDraft"
+                  placeholder="记录开发体会、思考心得、踩坑点、解决方案…（Markdown，保存后自动记录创建时间）"></textarea>
+        <div class="editor-actions">
+          <button class="btn" @click="noteDraft = null">取消</button>
+          <button class="btn primary" @click="saveNewNote" :disabled="!noteDraft.trim()">💾 保存笔记</button>
+        </div>
+      </div>
+      <button v-else class="btn" @click="noteDraft = ''">＋ 新建笔记</button>
+
+      <div class="note-list">
+        <div class="note-item" v-for="n in notes" :key="n.id">
+          <template v-if="editingNoteId === n.id">
+            <textarea class="md-editor" style="min-height:110px" v-model="editingNoteContent"></textarea>
+            <div class="editor-actions">
+              <button class="btn" @click="editingNoteId = null">取消</button>
+              <button class="btn primary" @click="saveEditNote(n)" :disabled="!editingNoteContent.trim()">💾 保存修改</button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="md-body" v-html="n.content_html"></div>
+            <div class="note-meta">
+              <span>创建 {{ fmtTime(n.created_at) }}</span>
+              <span v-if="n.updated_at !== n.created_at">· 编辑于 {{ fmtTime(n.updated_at) }}</span>
+              <span class="fill"></span>
+              <button class="icon-btn" title="编辑笔记" @click="startEditNote(n)">✏ 编辑</button>
+              <button class="icon-btn" title="删除笔记" @click="deleteNote(n)">🗑 删除</button>
+            </div>
+          </template>
+        </div>
+        <div class="section-note" v-if="!notes.length && noteDraft === null">暂无笔记，点击上方「＋ 新建笔记」开始记录。</div>
+      </div>
+    </section>
+
+    <!-- 自定义变更日志（手写，独立于 git 提交） -->
+    <section class="panel">
+      <h2>变更日志
+        <span class="right section-note">手动记录版本改动 / 功能新增 / 重大调整 · 共 {{ changelogs.length }} 条</span>
+      </h2>
+      <div v-if="logDraft !== null">
+        <div class="log-form-row">
+          <input type="text" v-model.trim="logDraftTitle" placeholder="条目标题，如：v1.1.0 新增导出功能">
+          <input type="date" v-model="logDraftDate" title="条目日期">
+        </div>
+        <textarea class="md-editor" style="min-height:100px" v-model="logDraft"
+                  placeholder="记录人为的版本改动、功能新增、重大调整…（Markdown，与 git 提交记录相互独立）"></textarea>
+        <div class="editor-actions">
+          <button class="btn" @click="logDraft = null">取消</button>
+          <button class="btn primary" @click="saveNewLog" :disabled="!logDraft.trim()">💾 保存条目</button>
+        </div>
+      </div>
+      <button v-else class="btn" @click="openLogDraft">＋ 新增条目</button>
+
+      <div class="note-list">
+        <div class="note-item" v-for="c in changelogs" :key="c.id">
+          <template v-if="editingLogId === c.id">
+            <div class="log-form-row">
+              <input type="text" v-model.trim="editLogForm.title" placeholder="条目标题">
+              <input type="date" v-model="editLogForm.entry_date" title="条目日期">
+            </div>
+            <textarea class="md-editor" style="min-height:100px" v-model="editLogForm.content"></textarea>
+            <div class="editor-actions">
+              <button class="btn" @click="editingLogId = null">取消</button>
+              <button class="btn primary" @click="saveEditLog(c)" :disabled="!editLogForm.content.trim()">💾 保存修改</button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="log-head">
+              <b>{{ c.title || "未命名条目" }}</b>
+              <span class="log-date">{{ c.entry_date }}</span>
+            </div>
+            <div class="md-body" v-html="c.content_html"></div>
+            <div class="note-meta">
+              <span>记录于 {{ fmtTime(c.created_at) }}</span>
+              <span v-if="c.updated_at !== c.created_at">· 编辑于 {{ fmtTime(c.updated_at) }}</span>
+              <span class="fill"></span>
+              <button class="icon-btn" title="编辑条目" @click="startEditLog(c)">✏ 编辑</button>
+              <button class="icon-btn" title="删除条目" @click="deleteLog(c)">🗑 删除</button>
+            </div>
+          </template>
+        </div>
+        <div class="section-note" v-if="!changelogs.length && logDraft === null">暂无变更日志，点击上方「＋ 新增条目」记录人为的版本改动。</div>
+      </div>
+    </section>
+
+    <!-- Git 提交记录（可视化时间线） -->
+    <section class="panel">
+      <h2>Git 提交记录
+        <span class="right section-note" v-if="commitData && commitData.is_repo && commitData.commits.length">
+          共 {{ fmtNum(commitData.total_count) }} 次提交 · 显示最近 {{ commitData.commits.length }} 条（点击单条展开详情）
+        </span>
+      </h2>
+      <div class="loading" v-if="commitLoading">加载中…</div>
+      <template v-else-if="commitData && commitData.is_repo && commitData.commits.length">
+        <div class="commit-stats">
+          <div class="stat-block" v-for="m in commitMonths" :key="m.key">
+            <div class="stat-label">{{ m.label }}</div>
+            <div class="stat-bar-wrap"><div class="stat-bar" :style="{width: m.pct + '%'}"></div></div>
+            <div class="stat-num">{{ m.count }}</div>
+          </div>
+        </div>
+        <div class="section-note" style="margin-bottom:6px">统计基于当前加载的提交</div>
+        <ul class="commit-timeline">
+          <li v-for="c in commitData.commits" :key="c.hash">
+            <div class="ct-row" @click="toggleCommit(c.hash)">
+              <span class="ct-dot"></span>
+              <span class="ct-hash">{{ c.short }}</span>
+              <span class="ct-msg" :title="firstLine(c.message)">{{ firstLine(c.message) }}</span>
+              <span class="ct-meta">{{ c.author }} · {{ fmtTime(c.date) }}</span>
+              <span class="ct-caret">{{ expandedCommits.includes(c.hash) ? "▾" : "▸" }}</span>
+            </div>
+            <div class="ct-detail" v-if="expandedCommits.includes(c.hash)">
+              <div class="kv-line"><span class="k">完整哈希</span><span class="v">{{ c.hash }}</span></div>
+              <div class="kv-line"><span class="k">作者</span><span class="v">{{ c.author }} &lt;{{ c.email }}&gt;</span></div>
+              <div class="kv-line"><span class="k">提交时间</span><span class="v">{{ fmtTime(c.date) }}</span></div>
+              <div class="kv-line" v-if="c.stats"><span class="k">变更规模</span>
+                <span class="v">{{ c.stats.files }} 个文件，+{{ c.stats.insertions }} / -{{ c.stats.deletions }}</span>
+              </div>
+              <pre class="ct-fullmsg">{{ c.message }}</pre>
+            </div>
+          </li>
+        </ul>
+      </template>
+      <div class="section-note" v-else-if="commitData && commitData.is_repo">该仓库还没有任何提交。</div>
+      <div class="section-note" v-else-if="commitData">当前目录不是 Git 仓库，无法展示提交记录。</div>
+      <div class="section-note" v-else>提交记录不可用（路径丢失或读取失败）。</div>
+    </section>
+
+    <!-- 项目 README -->
+    <section class="panel">
+      <h2>项目 README
+        <span class="right section-note" v-if="readme">{{ readme.file }}</span>
+      </h2>
+      <div class="md-body" v-if="readme && readme.exists" v-html="readme.html"></div>
+      <div class="section-note" v-else-if="readme">项目根目录未找到 README.md 文件</div>
+      <div class="loading" v-else>加载中…</div>
+    </section>
+
+    <!-- 目录树 -->
+    <section class="panel">
+      <h2>目录树（只读预览）</h2>
+      <div class="tree" v-if="tree">
+        <ul style="padding-left:0">
+          <li class="t-row">
+            📂 <span class="t-name" style="font-weight:600">{{ p.name }}</span>
+            <ul>
+              <tree-node v-for="c in tree.children" :key="c.name" :node="c" :depth="1"></tree-node>
+            </ul>
+          </li>
+        </ul>
+        <div class="section-note" v-if="tree.truncated">
+          目录内容较多，仅展示前几层（已跳过 node_modules、.git 等依赖与构建目录）。
+        </div>
+      </div>
+      <div class="loading" v-else-if="tree === null">加载中…</div>
+      <div class="section-note" v-else>目录树不可用（路径丢失或读取失败）</div>
+    </section>
+  </main>
+
+  <main class="container" v-else-if="notFound">
+    <div class="empty-tip">
+      项目不存在或档案已被删除。<br><br>
+      <a class="btn primary" href="/">← 返回首页</a>
+    </div>
+  </main>
+  <main class="container" v-else>
+    <div class="loading">正在加载…</div>
+  </main>
+
+  <!-- 编辑档案 -->
+  <div class="modal-mask" v-if="showEdit" @click.self="showEdit = false">
+    <div class="modal">
+      <h3>编辑档案信息</h3>
+      <div class="field">
+        <label>本地项目文件夹路径</label>
+        <input type="text" v-model.trim="editForm.path">
+        <div class="hint">修改路径会立即重新解析（用于项目移动后的路径更新）。</div>
+      </div>
+      <div class="field">
+        <label>项目名称</label>
+        <input type="text" v-model.trim="editForm.name">
+      </div>
+      <div class="field">
+        <label>别名</label>
+        <input type="text" v-model.trim="editForm.alias">
+      </div>
+      <div class="field">
+        <label>项目分类</label>
+        <input type="text" v-model.trim="editForm.category">
+      </div>
+      <div class="field">
+        <label>项目状态</label>
+        <select v-model="editForm.status">
+          <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>技术栈标签（逗号分隔）</label>
+        <input type="text" v-model="editForm.tagsText">
+      </div>
+      <div class="actions">
+        <button class="btn" @click="showEdit = false">取消</button>
+        <button class="btn primary" @click="saveEdit" :disabled="savingEdit">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/vendor/vue.global.prod.js"></script>
+<script src="/static/js/common.js"></script>
+<script src="/static/js/project.js"></script>
+</body>
+</html>
