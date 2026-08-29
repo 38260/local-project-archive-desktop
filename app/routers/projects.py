@@ -4,16 +4,18 @@ import logging
 import os
 import shutil
 import subprocess
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
+from app.config import DATA_DIR, STATUS_VALUES
 from app.db import get_db
 from app.models import (
     ChangelogCreate, ChangelogUpdate, NoteCreate, NoteUpdate, OpenRequest,
     ProjectCreate, ProjectUpdate,
 )
-from app.config import STATUS_VALUES
 from app.services import gitinfo, parser
 from app.services.paths import (
     PathError, basename, dir_not_exists_hint, is_wsl_path, normalize_input_path,
@@ -22,6 +24,11 @@ from app.services.render import render_markdown
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+# 截图存储与限制
+SHOT_DIR = DATA_DIR / "screenshots"
+SHOT_MAX_SIZE = 5 * 1024 * 1024
+SHOT_EXTS = {".png": ".png", ".jpg": ".jpg", ".jpeg": ".jpg", ".webp": ".webp"}
 
 
 # ---------------------------------------------------------------------------
@@ -247,10 +254,12 @@ def update_project(project_id: int, body: ProjectUpdate):
 
 @router.delete("/{project_id}")
 def delete_project(project_id: int):
-    """删除档案记录（仅删除索引数据，不触碰原项目文件夹）。"""
+    """删除档案记录（仅删除索引数据与本系统内截图，不触碰原项目文件夹）。"""
     with get_db() as conn:
         row = _get_row_or_404(conn, project_id)
         conn.execute("DELETE FROM projects WHERE id=?", (project_id,))
+    # 级联清理本系统内保存的截图（位于 data/screenshots，与原项目无关）
+    shutil.rmtree(SHOT_DIR / str(project_id), ignore_errors=True)
     return {"ok": True, "deleted": row["name"],
             "note": "仅删除档案记录，原项目文件未做任何改动"}
 
@@ -266,34 +275,39 @@ def _merge_tags(old_tags: str, new_tech_tags: list[str]) -> str:
 def rescan_all():
     """批量重新解析全部项目（解析器升级后一键刷新；跳过路径丢失的）。
 
-    标签采用合并策略：保留已有标签，补充新识别的技术栈，不删除手动添加的。
+    解析是磁盘 IO（git 命令、目录遍历），用线程池并发加速；
+    SQLite 写回在主线程串行完成。标签合并策略：保留已有，补充新识别。
     """
     with get_db() as conn:
-        ids = [r["id"] for r in conn.execute("SELECT id FROM projects").fetchall()]
-    ok, failed = 0, []
-    for pid in ids:
+        rows = conn.execute("SELECT * FROM projects").fetchall()
+
+    def parse_one(row):
+        if not os.path.isdir(row["path"]):
+            return row, None, "路径丢失"
         try:
+            return row, parser.parse_project(row["path"]), None
+        except OSError as exc:
+            return row, None, f"解析失败：{exc}"
+
+    ok, failed = 0, []
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for row, parsed, error in pool.map(parse_one, rows):
+            if error:
+                failed.append({"id": row["id"], "name": row["name"], "reason": error})
+                if error == "路径丢失":
+                    with get_db() as conn:
+                        conn.execute("UPDATE projects SET is_lost=1, lost_reason=? "
+                                     "WHERE id=?", (dir_not_exists_hint(row["path"]), row["id"]))
+                continue
             with get_db() as conn:
-                row = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
-                if row is None:
-                    continue
-                if not os.path.isdir(row["path"]):
-                    reason = dir_not_exists_hint(row["path"])
-                    conn.execute("UPDATE projects SET is_lost=1, lost_reason=? WHERE id=?",
-                                 (reason, pid))
-                    failed.append({"id": pid, "name": row["name"], "reason": "路径丢失"})
-                    continue
-                parsed = parser.parse_project(row["path"])
                 conn.execute(
                     "UPDATE projects SET auto_meta=?, fs_created=?, fs_modified=?, "
                     "tags=?, is_lost=0, lost_reason='', updated_at=? WHERE id=?",
                     (json.dumps(parsed["auto_meta"], ensure_ascii=False),
                      parsed["fs_created"], parsed["fs_modified"],
                      _merge_tags(row["tags"], parsed["auto_meta"]["tech_tags"]),
-                     _now(), pid))
-                ok += 1
-        except OSError as exc:
-            failed.append({"id": pid, "reason": f"解析失败：{exc}"})
+                     _now(), row["id"]))
+            ok += 1
     return {"rescanned": ok, "failed": failed}
 
 
@@ -534,3 +548,179 @@ def delete_changelog(project_id: int, log_id: int):
         if cur.rowcount == 0:
             raise HTTPException(404, "变更日志条目不存在或不属于该项目")
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# 项目截图（保存在本系统 data/screenshots，与原项目目录无关）
+# ---------------------------------------------------------------------------
+
+def _shot_dir(project_id: int):
+    d = SHOT_DIR / str(project_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _shot_list(project_id: int) -> list[dict]:
+    d = SHOT_DIR / str(project_id)
+    items = []
+    if d.is_dir():
+        for f in sorted(d.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
+            if f.is_file() and f.suffix.lower() in SHOT_EXTS:
+                items.append({
+                    "file": f.name,
+                    "url": f"/media/screenshots/{project_id}/{f.name}",
+                    "size": f.stat().st_size,
+                    "mtime": datetime.fromtimestamp(f.stat().st_mtime).astimezone().isoformat(),
+                })
+    return items
+
+
+@router.get("/{project_id}/screenshots")
+def list_screenshots(project_id: int):
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+    return {"screenshots": _shot_list(project_id)}
+
+
+@router.post("/{project_id}/screenshots", status_code=201)
+async def upload_screenshots(project_id: int, files: list[UploadFile] = File(...)):
+    """上传项目截图（每张 ≤5MB，png/jpg/webp），存本系统 data 目录。"""
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+    d = _shot_dir(project_id)
+    saved, errors = [], []
+    for f in files:
+        ext = os.path.splitext(f.filename or "")[1].lower()
+        if ext not in SHOT_EXTS:
+            errors.append({"file": f.filename, "reason": "仅支持 png/jpg/webp"})
+            continue
+        data = await f.read()
+        if len(data) > SHOT_MAX_SIZE:
+            errors.append({"file": f.filename, "reason": "超过 5MB 限制"})
+            continue
+        if not data:
+            errors.append({"file": f.filename, "reason": "空文件"})
+            continue
+        name = uuid.uuid4().hex + SHOT_EXTS[ext]
+        (d / name).write_bytes(data)
+        saved.append({"file": name, "url": f"/media/screenshots/{project_id}/{name}"})
+    return {"saved": saved, "errors": errors}
+
+
+@router.delete("/{project_id}/screenshots/{filename}")
+def delete_screenshot(project_id: int, filename: str):
+    # basename 防路径穿越，只允许删除本项目目录内的图片文件
+    safe = os.path.basename(filename)
+    target = SHOT_DIR / str(project_id) / safe
+    if not target.is_file() or target.suffix.lower() not in SHOT_EXTS:
+        raise HTTPException(404, "截图不存在")
+    target.unlink()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# 导出单个项目为静态 HTML 档案（自包含单文件，可直接浏览器打开/分享）
+# ---------------------------------------------------------------------------
+
+@router.get("/{project_id}/export-html")
+def export_project_html(project_id: int):
+    from fastapi.responses import HTMLResponse
+    import html as _html
+
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+        notes = conn.execute("SELECT * FROM notes WHERE project_id=? ORDER BY id DESC",
+                             (project_id,)).fetchall()
+        logs = conn.execute("SELECT * FROM changelogs WHERE project_id=? "
+                            "ORDER BY entry_date DESC, id DESC",
+                            (project_id,)).fetchall()
+    meta = json.loads(row["auto_meta"] or "{}")
+    git = meta.get("git") or {}
+
+    def esc(s):
+        return _html.escape(str(s or ""))
+
+    tags_html = "".join(f"<span class='tag'>{esc(t)}</span>"
+                        for t in json.loads(row["tags"] or "[]")) or "<span class='tag'>无标签</span>"
+    notes_html = "".join(
+        f"<div class='card-item'><div class='md'>{render_markdown(n['content'], 'notes')}</div>"
+        f"<div class='meta'>创建 {esc(n['created_at'][:16])}</div></div>"
+        for n in notes) or "<p class='dim'>暂无笔记</p>"
+    logs_html = "".join(
+        f"<div class='card-item'><div class='log-head'><b>{esc(c['title'] or '未命名条目')}</b>"
+        f"<span class='date'>{esc(c['entry_date'])}</span></div>"
+        f"<div class='md'>{render_markdown(c['content'], 'notes')}</div>"
+        f"<div class='meta'>记录于 {esc(c['created_at'][:16])}</div></div>"
+        for c in logs) or "<p class='dim'>暂无变更日志</p>"
+    deps_html = ""
+    for c in meta.get("configs", []):
+        deps = c.get("dependencies") or []
+        scripts = c.get("scripts") or {}
+        if not deps and not scripts:
+            continue
+        dep_chips = "".join(f"<span class='tag'>{esc(dp)}</span>" for dp in deps[:40])
+        script_chips = "".join(f"<span class='tag'>{esc(k)}</span>" for k in scripts)
+        deps_html += (f"<div class='card-item'><b>{esc(c.get('kind'))}</b> "
+                      f"<span class='dim'>{esc(c.get('file'))}</span> "
+                      f"<span class='dim'>v{esc(c.get('version'))}</span>"
+                      f"<div style='margin-top:6px'>{dep_chips}{script_chips}</div></div>")
+    lc = git.get("last_commit") or {}
+    git_html = ""
+    if git.get("is_repo"):
+        git_html = (f"<p>分支 <b>{esc(git.get('branch'))}</b> · 共 "
+                    f"<b>{git.get('commit_count') or '?'}</b> 次提交 · 首次提交 "
+                    f"{esc(str(git.get('first_commit_date'))[:10])}</p>"
+                    f"<p class='dim'>最近：{esc(lc.get('hash'))} {esc(lc.get('message'))}</p>")
+
+    doc = f"""<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<title>{esc(row['name'])} · 项目档案</title>
+<style>
+body {{ font: 15px/1.7 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: #1f2328; background: #f6f7f9; margin: 0; }}
+.wrap {{ max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; }}
+h1 {{ font-size: 28px; margin: 0 0 4px; }}
+h2 {{ font-size: 17px; border-left: 3px solid #0969da; padding-left: 10px; margin: 28px 0 12px; }}
+.meta {{ font-size: 12px; color: #656d76; margin-top: 6px; }}
+.dim {{ color: #656d76; }}
+.md p {{ margin: 6px 0; }}
+.md pre {{ background: #f0f2f4; padding: 10px 12px; border-radius: 6px; overflow-x: auto; }}
+.md code {{ font-family: Consolas, monospace; background: #f0f2f4; padding: 1px 5px; border-radius: 4px; }}
+.tag {{ display: inline-block; background: rgba(9,105,218,.1); color: #0969da;
+      border-radius: 4px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 13px; }}
+.card-item {{ background: #fff; border: 1px solid #d8dee4; border-radius: 10px;
+            padding: 12px 16px; margin-bottom: 10px; }}
+.log-head b {{ margin-right: 8px; }} .date {{ color: #0969da; font-size: 13px; }}
+table.kv td {{ padding: 3px 12px 3px 0; vertical-align: top; }}
+.k {{ color: #656d76; white-space: nowrap; }}
+.foot {{ margin-top: 40px; font-size: 12px; color: #8b949e; border-top: 1px solid #d8dee4; padding-top: 12px; }}
+</style></head><body><div class="wrap">
+<h1>{esc(row['name'])}</h1>
+<p class="dim">{esc(row['alias'])} · 状态：{esc(row['status'])} · 分类：{esc(row['category']) or '－'}</p>
+<p>{tags_html}</p>
+<h2>基础信息</h2>
+<table class="kv">
+<tr><td class="k">本地路径</td><td>{esc(row['path'])}</td></tr>
+<tr><td class="k">README 简介</td><td>{esc(meta.get('intro') or '－')}</td></tr>
+<tr><td class="k">磁盘时间</td><td>{esc(str(row['fs_created'])[:16])} → {esc(str(row['fs_modified'])[:16])}</td></tr>
+</table>
+<h2>Git 信息</h2>
+{git_html or "<p class='dim'>非 Git 仓库</p>"}
+<h2>依赖与脚本</h2>
+{deps_html or "<p class='dim'>未识别到构建配置</p>"}
+<h2>项目描述</h2>
+<div class="md">{render_markdown(row['description'], 'notes') or "<p class='dim'>暂无描述</p>"}</div>
+<h2>开发笔记（{len(notes)}）</h2>
+{notes_html}
+<h2>变更日志（{len(logs)}）</h2>
+{logs_html}
+<div class="foot">由 本地项目档案 系统导出于 {esc(datetime.now().astimezone().isoformat()[:16])} ·
+数据仅含本机档案索引，原项目文件未做任何改动</div>
+</div></body></html>"""
+
+    import re as _re
+    safe_name = _re.sub(r'[\\/:*?"<>|]', "_", row["name"]) or "project"
+    return HTMLResponse(
+        content=doc,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}-archive.html"},
+    )

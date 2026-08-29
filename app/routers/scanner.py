@@ -38,6 +38,7 @@ def import_candidates(body: ScanImportRequest):
         raise HTTPException(400, f"无效的项目状态：{status}")
 
     imported, skipped, failed = 0, 0, []
+    created_ids = []
     now = datetime.now().astimezone().isoformat()
     with get_db() as conn:
         existing = {r["path"].lower() for r in
@@ -61,7 +62,7 @@ def import_candidates(body: ScanImportRequest):
                 continue
             tags = [t.strip() for t in body.tags if t.strip()] \
                 or parsed["auto_meta"]["tech_tags"]
-            conn.execute(
+            cur = conn.execute(
                 "INSERT INTO projects (path, name, alias, category, status, tags, "
                 "auto_meta, fs_created, fs_modified, created_at, updated_at) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
@@ -70,6 +71,8 @@ def import_candidates(body: ScanImportRequest):
                  json.dumps(parsed["auto_meta"], ensure_ascii=False),
                  parsed["fs_created"], parsed["fs_modified"], now, now),
             )
+            created_ids.append(cur.lastrowid)
             existing.add(path.lower())
             imported += 1
-    return {"imported": imported, "skipped": skipped, "failed": failed}
+    return {"imported": imported, "skipped": skipped, "failed": failed,
+            "created_ids": created_ids}

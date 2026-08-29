@@ -15,7 +15,7 @@
     <button class="btn" @click="openScan">🔎 批量扫描导入</button>
     <button class="btn" @click="rescanAll" :disabled="rescanningAll"
             title="用最新解析器重新解析全部项目（保留已有标签，补充新识别）">
-      🔄 {{ rescanningAll ? "解析中…" : "全部重新解析" }}
+      🔄 {{ rescanningAll ? (rescanProgress ? `解析中 ${rescanProgress.done + 1}/${rescanProgress.total}` : "解析中…") : "全部重新解析" }}
     </button>
     <button class="btn primary" @click="openAdd">＋ 手动录入</button>
     <button class="btn" @click="exportJson" title="导出全部档案为 JSON 备份">⬇ 导出 JSON</button>
@@ -45,7 +45,8 @@
 
     <!-- 筛选栏 -->
     <div class="filter-bar">
-      <input type="search" v-model.trim="q" placeholder="搜索名称 / 别名 / 路径 / 标签…">
+      <input type="search" v-model.trim="q" placeholder="搜索名称 / 别名 / 路径 / 标签…（按 / 聚焦）"
+             style="flex:1;min-width:200px;max-width:460px">
       <lpa-select v-model="statusFilter" :options="statuses" all-label="全部状态"></lpa-select>
       <lpa-select v-model="tagFilter" :options="allTags" all-label="全部标签"></lpa-select>
       <label class="check-label">
@@ -57,7 +58,7 @@
 
     <!-- 项目卡片：按状态分组 -->
     <template v-if="filtered.length">
-      <section v-for="g in grouped" :key="g.status" class="status-group" :data-status="g.status">
+      <section v-for="g in displayGroups" :key="g.status" class="status-group" :data-status="g.status">
         <div class="group-head">
           <span class="g-dot"></span>
           <span class="g-label">{{ g.status }}</span>
@@ -78,8 +79,13 @@
             </div>
             <div class="path-row" :title="p.path">
               <span class="path">{{ p.path }}</span>
-              <button class="icon-btn copy-btn" title="复制路径"
-                      @click.stop="copyText(p.path)">⧉</button>
+              <span class="row-actions">
+                <button class="icon-btn" title="资源管理器打开" :disabled="p.is_lost"
+                        @click.stop="quickOpen(p, 'explorer')">📂</button>
+                <button class="icon-btn" title="VSCode 打开" :disabled="p.is_lost"
+                        @click.stop="quickOpen(p, 'vscode')">⌨</button>
+                <button class="icon-btn" title="复制路径" @click.stop="copyText(p.path)">⧉</button>
+              </span>
             </div>
             <div class="intro-row" v-if="p.intro" :title="p.intro">{{ p.intro }}</div>
             <div class="meta-row" v-if="p.last_commit">

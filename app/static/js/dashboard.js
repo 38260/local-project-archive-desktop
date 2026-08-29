@@ -9,6 +9,7 @@
         loading: true,
         dataPath: "",
         rescanningAll: false,
+        rescanProgress: null,
         projects: [],
         stats: { total: 0, active: 0, archived: 0, lost: 0 },
         statuses: [],
@@ -60,8 +61,11 @@
       checkedCount() {
         return this.candidates ? this.candidates.candidates.filter(c => c.checked).length : 0;
       },
-      // 按状态分组（后端已按优先级排序，分组保持组内顺序）
-      grouped() {
+      // 有搜索或筛选时合成单个"搜索结果"组（平铺），默认视图按状态分组
+      displayGroups() {
+        if (this.q || this.statusFilter || this.tagFilter) {
+          return [{ status: "搜索结果", items: this.filtered }];
+        }
         const order = ["进行中", "已完成", "暂停", "归档废弃"];
         const map = {};
         for (const p of this.filtered) {
@@ -86,18 +90,34 @@
         }
       },
       goto(p) { location.href = "/project/" + p.id; },
+      async quickOpen(p, target) {
+        try {
+          await api(`/api/projects/${p.id}/open`, { method: "POST", body: { target } });
+          toast(target === "vscode" ? "已在 VS Code 打开" : "已在资源管理器打开", "ok");
+        } catch (e) { /* toast 已提示 */ }
+      },
       exportJson() { location.href = "/api/export"; },
       async rescanAll() {
-        if (!confirm("用最新解析器重新解析全部项目？\n\n已有标签会保留，新识别的技术栈会补充进来。")) return;
+        if (!this.projects.length) { toast("暂无项目可解析", "error"); return; }
+        if (!confirm(`用最新解析器重新解析全部 ${this.projects.length} 个项目？\n\n已有标签会保留，新识别的技术栈会补充进来。`)) return;
         this.rescanningAll = true;
+        let ok = 0, lost = 0;
         try {
-          const r = await api("/api/projects/rescan-all", { method: "POST" });
-          let msg = `已重新解析 ${r.rescanned} 个项目`;
-          if (r.failed.length) msg += `，跳过 ${r.failed.length} 个（路径丢失）`;
-          toast(msg, r.failed.length ? "error" : "ok");
+          for (const p of this.projects) {
+            this.rescanProgress = { done: ok + lost, total: this.projects.length, name: p.name };
+            try {
+              const r = await api(`/api/projects/${p.id}/rescan`, { method: "POST", silent: true });
+              r.parse_ok === false ? lost++ : ok++;
+            } catch (e) { lost++; }
+          }
+          let msg = `已重新解析 ${ok} 个项目`;
+          if (lost) msg += `，${lost} 个路径丢失或失败`;
+          toast(msg, lost ? "error" : "ok");
           this.load();
-        } catch (e) { /* toast 已提示 */ }
-        finally { this.rescanningAll = false; }
+        } finally {
+          this.rescanningAll = false;
+          this.rescanProgress = null;
+        }
       },
 
       // ---- 手动录入 ----
@@ -169,7 +189,27 @@
       api("/api/health", { silent: true })
         .then(h => { this.dataPath = h.data_path || ""; })
         .catch(() => {});
+      // 全局快捷键：/ 聚焦搜索；Esc 关弹窗或清空搜索
+      this._onKey = (e) => {
+        const tag = (e.target.tagName || "").toLowerCase();
+        const typing = tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable;
+        if (e.key === "/" && !typing) {
+          e.preventDefault();
+          const s = document.querySelector('input[type="search"]');
+          if (s) s.focus();
+          return;
+        }
+        if (e.key === "Escape") {
+          if (this.showAdd || this.showScan) { this.showAdd = false; this.showScan = false; return; }
+          if (typing && document.activeElement.type === "search") {
+            this.q = "";
+            document.activeElement.blur();
+          }
+        }
+      };
+      document.addEventListener("keydown", this._onKey);
     },
+    beforeUnmount() { document.removeEventListener("keydown", this._onKey); },
   });
 
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用

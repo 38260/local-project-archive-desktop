@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.config import APP_NAME, APP_VERSION, STATIC_DIR, STATUS_VALUES
+from app.config import APP_NAME, APP_VERSION, DATA_DIR, STATIC_DIR, STATUS_VALUES
 from app.db import init_db
 from app.models import RenderRequest
 from app.routers import projects, scanner
@@ -139,6 +139,11 @@ def project_page(project_id: int):
 
 # 其余静态资源（css / js / vendor）
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# 截图等用户媒体文件（位于 data/screenshots，运行时生成，不入库不入 Git）
+MEDIA_DIR = DATA_DIR / "screenshots"
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 
 
 @app.middleware("http")

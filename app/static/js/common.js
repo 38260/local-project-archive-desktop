@@ -216,7 +216,7 @@
     },
     beforeUnmount() { document.removeEventListener("click", this.onDocClick); },
     template: `
-      <span class="lsel" :class="{ open, accent }" @keydown="onKeydown">
+      <span class="lsel" :class="[{ open, accent }, modelValue ? 'sv-' + modelValue : '']" @keydown="onKeydown">
         <button type="button" class="lsel-trigger" @click="toggle"
                 :aria-expanded="open ? 'true' : 'false'" aria-haspopup="listbox">
           <span :class="{ 'lsel-placeholder': isPlaceholder }">{{ display }}</span>

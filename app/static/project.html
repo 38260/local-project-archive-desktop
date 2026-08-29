@@ -33,6 +33,7 @@
       <button class="btn" @click="copyText(p.path)">⧉ 复制路径</button>
       <button class="btn" @click="rescan" :disabled="rescanning">🔄 {{ rescanning ? "解析中…" : "重新解析" }}</button>
       <button class="btn" @click="openEdit">✏ 编辑档案</button>
+      <button class="btn" @click="exportHtml" title="导出包含描述/笔记/变更日志的自包含 HTML 档案">📥 导出 HTML</button>
       <button class="btn danger" @click="removeProject">🗑 删除档案</button>
     </div>
 
@@ -44,7 +45,7 @@
       <button class="btn primary" @click="updatePath" :disabled="!newPath">更新路径</button>
     </div>
 
-    <div class="detail-layout">
+    <div class="detail-layout" :class="{ 'tree-collapsed': treeCollapsed }">
     <!-- 左侧锚点目录 -->
     <nav class="toc-nav">
       <span class="toc-title">页面目录</span>
@@ -150,6 +151,17 @@
           <span class="v"><span class="tag" v-for="e in meta.stats.top_extensions" :key="e[0]"
                 style="background:var(--panel-2);color:var(--text)">{{ e[0] }} × {{ fmtNum(e[1]) }}</span></span>
         </div>
+      </div>
+    </section>
+
+      <div class="dep-stats" v-if="depStats.total">
+        📦 依赖共 <b>{{ depStats.total }}</b> 项：
+        固定版本 <b class="c-ok">{{ depStats.pinned }}</b> ·
+        范围约束 <b class="c-warn">{{ depStats.ranged }}</b> ·
+        未标注版本 <b class="c-danger">{{ depStats.unpinned }}</b>
+        <span class="section-note" v-if="depStats.unpinnedList.length">
+          （未标注：{{ depStats.unpinnedList.join("、") }}）
+        </span>
       </div>
     </section>
 
@@ -315,6 +327,28 @@
       <div class="section-note" v-else>提交记录不可用（路径丢失或读取失败）。</div>
     </section>
 
+    <!-- 项目截图（保存在本系统 data 目录） -->
+    <section class="panel" id="sec-shots">
+      <h2>项目截图
+        <span class="count">{{ screenshots.length }} 张</span>
+        <span class="right">
+          <label class="btn sm" style="cursor:pointer">⬆ 上传截图
+            <input type="file" accept="image/png,image/jpeg,image/webp" multiple
+                   style="display:none" @change="uploadShots">
+          </label>
+        </span>
+      </h2>
+      <div class="shot-grid" v-if="screenshots.length">
+        <div class="shot" v-for="s in screenshots" :key="s.file">
+          <img :src="s.url" :alt="s.file" loading="lazy" @click="previewShot = s">
+          <button class="icon-btn shot-del" title="删除截图"
+                  @click="deleteShot(s)">🗑</button>
+          <span class="shot-size">{{ fmtSize(s.size) }}</span>
+        </div>
+      </div>
+      <div class="section-note" v-else>暂无截图，点击右上角「⬆ 上传截图」保存项目界面图（存本系统 data 目录，每张 ≤5MB）。</div>
+    </section>
+
     <!-- 项目 README -->
     <section class="panel" id="sec-readme">
       <h2>项目 README
@@ -368,6 +402,11 @@
   <main class="container" v-else>
     <div class="loading">正在加载…</div>
   </main>
+
+  <!-- 截图预览 -->
+  <div class="lightbox" v-if="previewShot" @click="previewShot = null">
+    <img :src="previewShot.url" alt="截图预览">
+  </div>
 
   <!-- 编辑档案 -->
   <div class="modal-mask" v-if="showEdit" @click.self="showEdit = false">

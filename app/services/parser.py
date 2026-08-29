@@ -8,7 +8,6 @@ import json
 import logging
 import os
 import re
-import stat
 import tomllib
 from configparser import ConfigParser
 from datetime import datetime

@@ -74,6 +74,10 @@
         commitData: null,
         commitLoading: true,
         expandedCommits: [],
+        // 截图
+        screenshots: [],
+        previewShot: null,
+        uploadingShots: false,
         // 目录树收起状态（记忆在 localStorage，默认展开）
         treeCollapsed: localStorage.getItem("lpa-tree-collapsed") === "1",
         // 左侧锚点目录
@@ -86,6 +90,7 @@
           { id: "sec-notes", label: "开发笔记" },
           { id: "sec-changelogs", label: "变更日志" },
           { id: "sec-commits", label: "提交记录" },
+          { id: "sec-shots", label: "截图" },
           { id: "sec-readme", label: "README" },
         ],
         activeSection: "sec-info",
@@ -98,6 +103,24 @@
       },
       themeName() {
         return document.documentElement.getAttribute("data-theme") === "dark" ? "暗色" : "亮色";
+      },
+      // 依赖版本统计：固定(==) / 范围(^ ~ > <) / 未标注
+      depStats() {
+        const all = [];
+        for (const c of (this.meta && this.meta.configs) || []) {
+          for (const d of c.dependencies || []) all.push(d);
+        }
+        const pinnedList = all.filter(d => d.includes("=="));
+        const isRange = d => /[~^><=]/.test(d) && !d.includes("==");
+        const rangedList = all.filter(d => !d.includes("==") && isRange(d));
+        const unpinnedList = all.filter(d => !d.includes("==") && !isRange(d));
+        return {
+          total: all.length,
+          pinned: pinnedList.length,
+          ranged: rangedList.length,
+          unpinned: unpinnedList.length,
+          unpinnedList: unpinnedList.slice(0, 8),
+        };
       },
       // 按月统计提交数（基于当前加载的记录），简易柱状图数据
       commitMonths() {
@@ -131,6 +154,7 @@
           this.loadNotes();
           this.loadChangelogs();
           this.loadCommits();
+          this.loadShots();
         } catch (e) {
           if (e.status === 404) this.notFound = true;
         }
@@ -218,6 +242,49 @@
           toast("变更日志条目已删除", "ok");
           this.loadChangelogs();
         } catch (e) { /* toast 已提示 */ }
+      },
+      // ---- 项目截图 ----
+      async loadShots() {
+        try {
+          const r = await api(`/api/projects/${this.projectId}/screenshots`, { silent: true });
+          this.screenshots = r.screenshots;
+        } catch (e) { this.screenshots = []; }
+      },
+      async uploadShots(e) {
+        const files = [...(e.target.files || [])];
+        if (!files.length) return;
+        this.uploadingShots = true;
+        try {
+          const fd = new FormData();
+          files.forEach(f => fd.append("files", f));
+          const resp = await fetch(`/api/projects/${this.projectId}/screenshots`, {
+            method: "POST", body: fd,
+          });
+          const r = await resp.json();
+          if (!resp.ok) throw new Error(r.detail || "上传失败");
+          let msg = `已保存 ${r.saved.length} 张截图`;
+          if (r.errors.length) msg += `，${r.errors.length} 张失败（${r.errors[0].reason}）`;
+          toast(msg, r.errors.length ? "error" : "ok");
+          this.loadShots();
+        } catch (err) {
+          toast("截图上传失败：" + err.message, "error");
+        } finally {
+          this.uploadingShots = false;
+          e.target.value = "";
+        }
+      },
+      async deleteShot(s) {
+        if (!confirm("确定删除这张截图吗？")) return;
+        try {
+          await api(`/api/projects/${this.projectId}/screenshots/${encodeURIComponent(s.file)}`,
+                    { method: "DELETE" });
+          toast("截图已删除", "ok");
+          this.loadShots();
+        } catch (e) { /* toast 已提示 */ }
+      },
+      // ---- 导出 HTML 档案 ----
+      exportHtml() {
+        location.href = `/api/projects/${this.projectId}/export-html`;
       },
       // ---- Git 提交记录 ----
       async loadCommits() {
@@ -395,9 +462,15 @@
     mounted() {
       this.load();
       window.addEventListener("scroll", this.onScroll, { passive: true });
+      // Esc 关闭编辑弹窗
+      this._onKey = (e) => {
+        if (e.key === "Escape" && this.showEdit) this.showEdit = false;
+      };
+      document.addEventListener("keydown", this._onKey);
     },
     beforeUnmount() {
       window.removeEventListener("scroll", this.onScroll);
+      document.removeEventListener("keydown", this._onKey);
     },
   });
 

@@ -55,6 +55,32 @@ def req(method: str, path: str, body=None, want_status: int = 200):
             return e.code, {"detail": text}
 
 
+def multipart_body(fields, files):
+    """构造最简 multipart/form-data 请求体（标准库实现）。"""
+    boundary = "----lpaboundary123"
+    sep = chr(13) + chr(10)  # CRLF
+    body = b""
+    for k, v in fields:
+        body += (f"--{boundary}{sep}"
+                 f'Content-Disposition: form-data; name="{k}"{sep}{sep}').encode()
+        body += v.encode() + sep.encode()
+    for k, fname, data in files:
+        ext = os.path.splitext(fname)[1]
+        ctype = f"image/{'jpeg' if ext in ('.jpg', '.jpeg') else 'png'}"
+        body += (f"--{boundary}{sep}"
+                 f'Content-Disposition: form-data; name="{k}"; filename="{fname}"{sep}'
+                 f"Content-Type: {ctype}{sep}{sep}").encode()
+        body += data + sep.encode()
+    body += (f"--{boundary}--" + sep).encode()
+    return body, f"multipart/form-data; boundary={boundary}"
+
+
+# 最小合法 PNG（1x1 像素）
+PNG_1PX = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+    "0000000d4944415478da63fcffff3f030005fe02fea72d1e480000000049454e44ae426082")
+
+
 def make_samples(root: str):
     """创建示例项目。"""
     def write(path, content):
@@ -226,7 +252,7 @@ def main():
         st, imp = req("POST", "/api/scan/import",
                       {"paths": [py, cpp], "category": "测试"})
         check("批量导入 2 个", st == 200 and imp["imported"] == 2 and imp["skipped"] == 0)
-        _created_ids.extend(range(p1["id"] + 1, p1["id"] + 1 + imp["imported"]))
+        _created_ids.extend(imp.get("created_ids") or [])
         st, imp2 = req("POST", "/api/scan/import", {"paths": [py, cpp]})
         check("重复导入被跳过", imp2["skipped"] == 2 and imp2["imported"] == 0)
 
@@ -240,6 +266,29 @@ def main():
         st, d3 = req("GET", f"/api/projects/{p1['id']}")
         check("重解析保留手动标签并合并新识别",
               "手动标签" in d3["tags"] and "Node.js" in d3["tags"])
+
+        # ---- 项目截图 ----
+        body, ctype = multipart_body([], [("files", "shot1.png", PNG_1PX),
+                                          ("files", "shot2.png", PNG_1PX)])
+        r = urllib.request.Request(f"{BASE}/api/projects/{p1['id']}/screenshots",
+                                   data=body, method="POST", headers={"Content-Type": ctype})
+        up = json.load(urllib.request.urlopen(r))
+        check("上传 2 张截图", len(up["saved"]) == 2 and not up["errors"])
+        st, sl = req("GET", f"/api/projects/{p1['id']}/screenshots")
+        check("截图列表", st == 200 and len(sl["screenshots"]) == 2)
+        st, _ = req("DELETE", f"/api/projects/{p1['id']}/screenshots/{sl['screenshots'][0]['file']}")
+        check("删除截图", st == 200)
+        st, sl2 = req("GET", f"/api/projects/{p1['id']}/screenshots")
+        check("删除后剩 1 张", len(sl2["screenshots"]) == 1)
+
+        # ---- 导出单项目静态 HTML ----
+        r = urllib.request.Request(f"{BASE}/api/projects/{p1['id']}/export-html")
+        with urllib.request.urlopen(r) as resp:
+            html_text = resp.read().decode()
+            cd = resp.headers.get("Content-Disposition", "")
+        check("导出单项目 HTML", "archive.html" in cd
+              and "开发笔记" in html_text and "踩坑" in html_text
+              and "变更日志" in html_text)
 
         # ---- 列表与统计 ----
         st, lst = req("GET", "/api/projects")
