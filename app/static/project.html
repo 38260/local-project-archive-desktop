@@ -365,10 +365,11 @@
     <aside class="detail-side">
       <section class="panel tree-panel">
         <h2>
-          目录树（只读预览）
+          <span v-if="!treeCollapsed">目录树（只读预览）</span>
+          <span v-else title="目录树（只读预览）">目录树</span>
           <span class="right">
             <button class="icon-btn" @click="toggleTree"
-                    :title="treeCollapsed ? '展开目录树' : '收起目录树'">{{ treeCollapsed ? "▸ 展开目录树" : "▾ 收起目录树" }}</button>
+                    :title="treeCollapsed ? '展开目录树' : '收起目录树'">{{ treeCollapsed ? "▸ 展开" : "▾ 收起" }}</button>
           </span>
         </h2>
         <div class="tree-scroll" v-show="!treeCollapsed">
