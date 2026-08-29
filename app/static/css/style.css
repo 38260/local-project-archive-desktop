@@ -710,6 +710,29 @@ input[type="search"] { width: 320px; }
 .stat-bar { background: var(--accent); height: 100%; border-radius: 3px; min-width: 2px; }
 .stat-num { font-size: 14px; font-weight: 600; margin-top: 3px; }
 
+.commit-scroll {
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  margin-right: -2px;
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 55%, transparent) transparent;
+}
+.commit-scroll::-webkit-scrollbar { width: 8px; }
+.commit-scroll::-webkit-scrollbar-track { background: transparent; }
+.commit-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.commit-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
 .commit-timeline { list-style: none; margin: 0; padding: 0; }
 .commit-timeline li { position: relative; padding-left: 22px; }
 .commit-timeline li::before {
