@@ -568,7 +568,7 @@ def _shot_list(project_id: int) -> list[dict]:
             if f.is_file() and f.suffix.lower() in SHOT_EXTS:
                 items.append({
                     "file": f.name,
-                    "url": f"/media/screenshots/{project_id}/{f.name}",
+                    "url": f"/media/{project_id}/{f.name}",
                     "size": f.stat().st_size,
                     "mtime": datetime.fromtimestamp(f.stat().st_mtime).astimezone().isoformat(),
                 })
@@ -603,7 +603,7 @@ async def upload_screenshots(project_id: int, files: list[UploadFile] = File(...
             continue
         name = uuid.uuid4().hex + SHOT_EXTS[ext]
         (d / name).write_bytes(data)
-        saved.append({"file": name, "url": f"/media/screenshots/{project_id}/{name}"})
+        saved.append({"file": name, "url": f"/media/{project_id}/{name}"})
     return {"saved": saved, "errors": errors}
 
 

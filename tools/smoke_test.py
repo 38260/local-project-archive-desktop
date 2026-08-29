@@ -276,6 +276,11 @@ def main():
         check("上传 2 张截图", len(up["saved"]) == 2 and not up["errors"])
         st, sl = req("GET", f"/api/projects/{p1['id']}/screenshots")
         check("截图列表", st == 200 and len(sl["screenshots"]) == 2)
+        # 截图 URL 必须真实可访问（回归：曾因 URL 多一层路径全部 404）
+        shot_url = sl["screenshots"][0]["url"]
+        with urllib.request.urlopen(f"{BASE}{shot_url}") as img_resp:
+            check("截图 URL 可访问且为图片", img_resp.status == 200
+                  and img_resp.read()[:4] == bytes([0x89]) + b"PNG")
         st, _ = req("DELETE", f"/api/projects/{p1['id']}/screenshots/{sl['screenshots'][0]['file']}")
         check("删除截图", st == 200)
         st, sl2 = req("GET", f"/api/projects/{p1['id']}/screenshots")
