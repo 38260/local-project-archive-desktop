@@ -77,6 +77,8 @@ def _row_to_dict(row, *, live_check: bool = True) -> dict:
     meta = json.loads(row["auto_meta"] or "{}")
     record["stack_summary"] = parser.summarize_stack(meta)
     record["intro"] = meta.get("intro")
+    # 卡片直接展示最近一条提交（摘要）
+    record["last_commit"] = (meta.get("git") or {}).get("last_commit")
     return record
 
 

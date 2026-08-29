@@ -55,35 +55,51 @@
       <span class="section-note">共 {{ filtered.length }} 个项目</span>
     </div>
 
-    <!-- 项目卡片 -->
-    <div class="card-grid" v-if="filtered.length">
-      <div v-for="p in filtered" :key="p.id" class="card"
-           :class="{'is-lost': p.is_lost, 'is-archived': p.status === '归档废弃'}"
-           :data-status="p.status"
-           @click="goto(p)">
-        <div class="title-row">
-          <h3 :title="p.name">{{ p.name }}</h3>
-          <span class="alias-chip" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
-          <span class="spacer"></span>
-          <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
-          <span :class="statusBadgeClass(p.status)">{{ p.status }}</span>
+    <!-- 项目卡片：按状态分组 -->
+    <template v-if="filtered.length">
+      <section v-for="g in grouped" :key="g.status" class="status-group" :data-status="g.status">
+        <div class="group-head">
+          <span class="g-dot"></span>
+          <span class="g-label">{{ g.status }}</span>
+          <span class="g-count">{{ g.items.length }}</span>
+          <span class="g-line"></span>
         </div>
-        <div class="path-row" :title="p.path">
-          <span class="path">{{ p.path }}</span>
-          <button class="icon-btn copy-btn" title="复制路径"
-                  @click.stop="copyText(p.path)">⧉</button>
+        <div class="card-grid">
+          <div v-for="p in g.items" :key="p.id" class="card"
+               :class="{'is-lost': p.is_lost, 'is-archived': p.status === '归档废弃'}"
+               :data-status="p.status"
+               @click="goto(p)">
+            <div class="title-row">
+              <h3 :title="p.name">{{ p.name }}</h3>
+              <span class="alias-chip" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
+              <span class="spacer"></span>
+              <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
+              <span :class="statusBadgeClass(p.status)">{{ p.status }}</span>
+            </div>
+            <div class="path-row" :title="p.path">
+              <span class="path">{{ p.path }}</span>
+              <button class="icon-btn copy-btn" title="复制路径"
+                      @click.stop="copyText(p.path)">⧉</button>
+            </div>
+            <div class="intro-row" v-if="p.intro" :title="p.intro">{{ p.intro }}</div>
+            <div class="meta-row" v-if="p.last_commit">
+              <span class="ct-type" :class="'ct-' + (commitType(p.last_commit.message) || 'plain')"
+                    v-if="commitType(p.last_commit.message)">{{ commitType(p.last_commit.message) }}</span>
+              <span class="commit-line" :title="p.last_commit.message">{{ commitMsgText(p.last_commit.message) }}</span>
+              <span style="flex:none">{{ p.last_commit.hash }}</span>
+            </div>
+            <div class="meta-row">
+              <span v-if="p.category" class="cat-chip">🗂 {{ p.category }}</span>
+              <span class="fill"></span>
+              <span :title="'档案更新于 ' + fmtTime(p.updated_at)">修改 {{ fmtTime(p.fs_modified) }}</span>
+            </div>
+            <div class="meta-row" v-if="p.tags.length">
+              <span><span v-for="t in p.tags" :key="t" :class="tagClass(t)">{{ t }}</span></span>
+            </div>
+          </div>
         </div>
-        <div class="intro-row" v-if="p.intro" :title="p.intro">{{ p.intro }}</div>
-        <div class="meta-row">
-          <span v-if="p.category" class="cat-chip">🗂 {{ p.category }}</span>
-          <span class="fill"></span>
-          <span :title="'档案更新于 ' + fmtTime(p.updated_at)">修改 {{ fmtTime(p.fs_modified) }}</span>
-        </div>
-        <div class="meta-row" v-if="p.tags.length">
-          <span><span v-for="t in p.tags" :key="t" :class="tagClass(t)">{{ t }}</span></span>
-        </div>
-      </div>
-    </div>
+      </section>
+    </template>
     <div class="empty-tip" v-else-if="!loading">
       <template v-if="stats.total === 0">
         <div class="empty-ico">

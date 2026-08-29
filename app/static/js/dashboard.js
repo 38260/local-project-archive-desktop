@@ -60,6 +60,15 @@
       checkedCount() {
         return this.candidates ? this.candidates.candidates.filter(c => c.checked).length : 0;
       },
+      // 按状态分组（后端已按优先级排序，分组保持组内顺序）
+      grouped() {
+        const order = ["进行中", "已完成", "暂停", "归档废弃"];
+        const map = {};
+        for (const p of this.filtered) {
+          (map[p.status] = map[p.status] || []).push(p);
+        }
+        return order.filter(s => map[s]).map(s => ({ status: s, items: map[s] }));
+      },
     },
     methods: {
       emptyForm() {

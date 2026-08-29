@@ -259,8 +259,8 @@ input[type="search"] { width: 320px; }
 .container { max-width: 1360px; margin: 0 auto; padding: 24px 28px 64px; }
 .stats-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 .stat {
+  flex: 1 1 150px;
   display: flex; flex-direction: column; gap: 0;
-  min-width: 140px;
   padding: 16px 22px 14px; background: var(--panel);
   border: 1px solid var(--border); border-radius: 12px;
   font-size: 13px; color: var(--muted);
@@ -295,7 +295,32 @@ input[type="search"] { width: 320px; }
 .check-label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 14px; cursor: pointer; }
 
 /* ---- 项目卡片（状态色条 + 悬浮层次 + 入场 stagger） ---- */
-.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+
+/* ---- 状态分组小节标题 ---- */
+.status-group { margin-bottom: 20px; }
+.status-group:last-child { margin-bottom: 0; }
+.group-head {
+  display: flex; align-items: center; gap: 8px;
+  margin: 2px 0 12px;
+}
+.g-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.status-group[data-status="进行中"] .g-dot { background: var(--accent); }
+.status-group[data-status="已完成"] .g-dot { background: var(--ok); }
+.status-group[data-status="暂停"] .g-dot { background: var(--warn); }
+.status-group[data-status="归档废弃"] .g-dot { background: var(--muted); }
+.g-label { font-size: 15px; font-weight: 700; }
+.g-count {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  background: var(--panel-2); border-radius: 999px; padding: 0 8px;
+}
+.g-line { flex: 1; height: 1px; background: var(--border); }
+/* 卡片上的最近提交行 */
+.commit-line {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--muted);
+}
 .card {
   position: relative; overflow: hidden;
   background: var(--panel);
