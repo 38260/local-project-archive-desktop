@@ -16,9 +16,15 @@
     },
     computed: {
       isDir() { return this.node.type === "dir"; },
+      // 文件相对路径：后端 rel 为父目录，需拼上文件名
+      fileRel() {
+        if (this.node.type === "dir") return this.node.rel || this.node.name;
+        const base = this.node.rel || "";
+        return base ? `${base}/${this.node.name}` : this.node.name;
+      },
     },
     template: `
-      <li class="t-row" :class="{ 't-file': !isDir }">
+      <li class="t-row" :class="{ 't-file': !isDir, clickable: !isDir }">
         <template v-if="isDir">
           <span class="t-dir" @click="open = !open">
             <span class="t-caret">{{ open ? "▾" : "▸" }}</span>{{ open ? "📂" : "📁" }}
@@ -30,8 +36,11 @@
           </ul>
         </template>
         <template v-else>
-          <span class="t-caret"></span>📄
-          <span class="t-name">{{ node.name }}</span>
+          <span class="t-caret"></span>
+          <span class="f-dot" :style="{ background: fileColor(node.name) }"></span>
+          <span class="t-name" :style="{ color: fileColor(node.name) }"
+                :title="'点击复制：' + fileRel"
+                @click="copyText(fileRel)">{{ node.name }}</span>
           <span class="t-size">{{ fmtSize(node.size) }}</span>
         </template>
       </li>
@@ -114,6 +123,7 @@
         return b;
       },
       // 近 12 周提交热力格（基于已加载提交）
+      // 按周一对齐：含本周在内共 12 列×7 行，覆盖到本周日（一定包含今天）
       heatmap() {
         if (!this.commitData || !this.commitData.commits.length) return [];
         const days = {};
@@ -122,14 +132,16 @@
         }
         const cells = [];
         const now = new Date();
-        const start = new Date(now);
-        start.setDate(start.getDate() - 83 - ((now.getDay() + 6) % 7));
+        const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const mondayOffset = (now.getDay() + 6) % 7; // 距本周一的天数
+        // 用本地年月日构造，避免时区把日期拨到前一天
+        const start = new Date(now.getFullYear(), now.getMonth(),
+                               now.getDate() - mondayOffset - 7 * 11);
         for (let i = 0; i < 84; i++) {
-          const d = new Date(start);
-          d.setDate(start.getDate() + i);
+          const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
           const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
           const n = days[key] || 0;
-          cells.push({ key: key + i, count: n,
+          cells.push({ key: key + i, count: n, today: key === todayKey,
                        level: n === 0 ? 0 : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 3 : 4,
                        label: `${key}：${n} 次提交` });
         }
@@ -556,8 +568,12 @@
           toast("拖拽上传失败：" + err.message, "error");
         }
       },
-      // 目录树：点击文件复制相对路径
-      copyRel(node) { this.copyText(node.rel || node.name); },
+      // 目录树：点击文件复制相对路径（兼容父目录 rel）
+      copyRel(node) {
+        if (!node) return;
+        if (node.type === "file" && node.rel) this.copyText(`${node.rel}/${node.name}`);
+        else this.copyText(node.rel || node.name);
+      },
       async removeProject() {
         if (!confirm(`确定删除「${this.p.name}」的档案记录吗？\n\n仅删除本系统中的索引数据，不会改动原项目文件夹的任何文件。`)) return;
         try {
