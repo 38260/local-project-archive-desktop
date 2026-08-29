@@ -1,5 +1,34 @@
-# 本子项目的运行时产物，不纳入版本库（工作区根目录无 .gitignore，此文件仅作用于本目录）
-.venv/
-__pycache__/
-*.pyc
+# ===== 运行时数据（档案数据库、自动备份、依赖环境，绝不入库） =====
 data/
+.venv/
+venv/
+env/
+
+# ===== Python 缓存与构建产物 =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# ===== 日志与本地环境变量 =====
+*.log
+.env
+.env.local
+.env.*.local
+
+# ===== 编辑器 / IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+desktop.ini
