@@ -547,7 +547,7 @@ input[type="search"] { width: 320px; }
 /* ---- 详情页三栏布局：左侧目录导航 + 主内容 + 右侧目录树 ---- */
 .detail-layout {
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr) 360px;
+  grid-template-columns: 184px minmax(0, 1fr) 360px;
   gap: 14px;
   align-items: start;
 }
@@ -555,11 +555,11 @@ input[type="search"] { width: 320px; }
 .detail-main section.panel { scroll-margin-top: 64px; }
 .toc-nav { position: sticky; top: 56px; display: flex; flex-direction: column; gap: 1px; }
 .toc-nav .toc-title {
-  font-size: 13px; font-weight: 700; color: var(--muted);
-  padding: 0 10px 6px;
+  font-size: 14px; font-weight: 800; color: var(--muted);
+  padding: 0 12px 8px;
 }
 .toc-nav a {
-  padding: 6px 12px; font-size: 14px;
+  padding: 7px 12px; font-size: 15px;
   color: var(--muted);
   border-left: 2px solid var(--border);
   cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -575,7 +575,7 @@ input[type="search"] { width: 320px; }
 .tree-panel { max-height: calc(100vh - 72px); display: flex; flex-direction: column; }
 .tree-panel .tree-scroll { overflow-y: auto; min-height: 60px; }
 /* 树收起时回收侧栏宽度给主内容 */
-.detail-layout.tree-collapsed { grid-template-columns: 160px minmax(0, 1fr); }
+.detail-layout.tree-collapsed { grid-template-columns: 184px minmax(0, 1fr); }
 .detail-layout.tree-collapsed .detail-side { display: none; }
 @media (max-width: 1024px) {
   .detail-layout, .detail-layout.tree-collapsed { grid-template-columns: 1fr; }
