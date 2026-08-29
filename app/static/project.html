@@ -65,6 +65,10 @@
             <button class="icon-btn" title="复制路径" @click="copyText(p.path)">⧉</button>
           </span>
         </div>
+        <div class="kv" style="grid-column: 1 / -1" v-if="meta && meta.intro">
+          <span class="k">简介</span>
+          <span class="v" style="font-family: var(--sans); font-weight: 400; font-size: 13.5px;">{{ meta.intro }}</span>
+        </div>
         <div class="kv"><span class="k">项目分类</span><span class="v">{{ p.category || "－" }}</span></div>
         <div class="kv"><span class="k">状态</span><span class="v">{{ p.status }}</span></div>
         <div class="kv"><span class="k">创建时间</span><span class="v">{{ fmtTime(p.fs_created) }}</span></div>
@@ -88,6 +92,15 @@
         <div class="kv"><span class="k">当前分支</span><span class="v"><span class="chip-value">{{ gitInfo.branch || "－" }}</span></span></div>
         <div class="kv"><span class="k">提交总数</span><span class="v" style="font-size:15px;font-weight:700">{{ fmtNum(gitInfo.commit_count) }}</span></div>
         <div class="kv"><span class="k">远端仓库</span><span class="v">{{ gitInfo.remote || "（无远端）" }}</span></div>
+        <div class="kv" v-if="gitInfo.first_commit_date"><span class="k">首次提交</span><span class="v">{{ fmtTime(gitInfo.first_commit_date) }}</span></div>
+        <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.branches && gitInfo.branches.length">
+          <span class="k">分支</span>
+          <span class="v"><span class="chip-soft" v-for="b in gitInfo.branches" :key="b">{{ b }}</span></span>
+        </div>
+        <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.contributors && gitInfo.contributors.length">
+          <span class="k">贡献者</span>
+          <span class="v"><span class="chip-soft" v-for="c in gitInfo.contributors" :key="c.name">{{ c.name }} · {{ c.commits }} 次</span></span>
+        </div>
         <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.last_commit">
           <span class="k">最近提交</span>
           <span class="v">{{ gitInfo.last_commit.hash }} · {{ gitInfo.last_commit.author }} ·

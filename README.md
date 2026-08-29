@@ -104,6 +104,7 @@ local-project-archive/
 ## 功能说明
 
 - **录入**：手动填路径，或指定根目录批量扫描（按 `.git`、`package.json`、`pyproject.toml`、`CMakeLists.txt`、`go.mod`、`Cargo.toml` 等标记识别，自动跳过 node_modules、构建产物）。
+- **深度解析**：构建配置（含 requirements 变体、setup.cfg、Pipfile、environment.yml、setup.py、Docker）+ 依赖清单识别框架（FastAPI/Flask/Django/React/Vue/Next/Electron/Tailwind 等）+ **按文件构成推断语言**（.py/.ts/.go/.rs…）+ **README 简介提取**；git 读取分支列表、首次提交时间（项目起点）、贡献者 Top5、最近提交。解析器升级后可在首页一键「🔄 全部重新解析」刷新全部项目（保留已有标签，补充新识别）。
 - **路径兼容**：`D:\code\x`、带引号路径、`~`、`\\wsl.localhost\Ubuntu\…`、`wsl:Ubuntu:/home/user/x`。
 - **丢失项目**：文件夹被删除/移动后自动标记【丢失项目】并高亮，详情页可一键更新新路径并重解析。
 - **项目描述**：单篇 Markdown（项目背景/实现功能/运行部署命令），编辑 + 预览。

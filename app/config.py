@@ -47,6 +47,38 @@ PROJECT_MARKERS = {
     "build.gradle": "Gradle",
 }
 
+# 扩展名 → 语言（用于按文件构成自动识别技术栈）
+EXT_LANGUAGE = {
+    ".py": "Python", ".ipynb": "Jupyter",
+    ".js": "JavaScript", ".mjs": "JavaScript", ".cjs": "JavaScript",
+    ".ts": "TypeScript", ".mts": "TypeScript", ".cts": "TypeScript",
+    ".vue": "Vue", ".svelte": "Svelte",
+    ".jsx": "React", ".tsx": "React",
+    ".go": "Go", ".rs": "Rust", ".java": "Java", ".kt": "Kotlin",
+    ".c": "C", ".cpp": "C++", ".cc": "C++", ".cxx": "C++",
+    ".hpp": "C++", ".hh": "C++",
+    ".cs": "C#", ".php": "PHP", ".rb": "Ruby", ".swift": "Swift",
+    ".dart": "Dart", ".lua": "Lua",
+    ".sh": "Shell", ".ps1": "PowerShell", ".bat": "Batch",
+    ".sql": "SQL",
+}
+
+# 依赖名 → 框架标签（前缀匹配，小写）
+PY_FRAMEWORKS = {
+    "fastapi": "FastAPI", "flask": "Flask", "django": "Django",
+    "tornado": "Tornado", "scrapy": "Scrapy", "celery": "Celery",
+    "pyqt5": "Qt", "pyqt6": "Qt", "pyside2": "Qt", "pyside6": "Qt",
+    "pytest": "pytest", "selenium": "Selenium", "playwright": "Playwright",
+}
+NODE_FRAMEWORKS = {
+    "react": "React", "vue": "Vue", "svelte": "Svelte",
+    "@angular/core": "Angular", "next": "Next.js", "nuxt": "Nuxt",
+    "express": "Express", "koa": "Koa", "@nestjs/core": "NestJS",
+    "electron": "Electron", "tailwindcss": "Tailwind CSS",
+    "antd": "Ant Design", "element-plus": "Element Plus",
+    "vite": "Vite", "webpack": "Webpack", "esbuild": "esbuild",
+}
+
 # 解析与目录树的规模上限，防止超大目录拖垮服务
 STATS_MAX_FILES = 20000      # 文件统计最多遍历文件数
 TREE_MAX_DEPTH = 3           # 目录树最大深度

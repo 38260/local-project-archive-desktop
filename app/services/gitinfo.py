@@ -16,9 +16,10 @@ except ImportError:  # GitPython 未安装时优雅降级
 
 
 def collect_git_info(path: str) -> dict:
-    """读取指定目录的 git 基础信息（分支、最近提交、提交总数、远端）。"""
+    """读取指定目录的 git 基础信息（分支、最近提交、提交总数、远端、历史概况）。"""
     result = {"is_repo": False, "branch": None, "last_commit": None,
-              "commit_count": None, "remote": None}
+              "commit_count": None, "remote": None,
+              "first_commit_date": None, "branches": [], "contributors": []}
     if not _GITPY_AVAILABLE:
         result["error"] = "GitPython 未安装，无法读取 git 信息"
         return result
@@ -40,6 +41,12 @@ def collect_git_info(path: str) -> dict:
         except (TypeError, ValueError):
             result["branch"] = f"HEAD detached @ {repo.head.commit.hexsha[:7]}"
 
+        # 本地分支列表（最多 10 个）
+        try:
+            result["branches"] = [h.name for h in list(repo.heads)[:10]]
+        except Exception:
+            pass
+
         commit = repo.head.commit
         result["last_commit"] = {
             "hash": commit.hexsha[:8],
@@ -53,6 +60,28 @@ def collect_git_info(path: str) -> dict:
         # 提交总数：走 git 命令比遍历对象快得多
         try:
             result["commit_count"] = int(repo.git.rev_list("--count", "HEAD").strip())
+        except Exception:
+            pass
+
+        # 首次提交时间 = 根提交中最早的时间（即项目真正开始的日子）
+        try:
+            roots = repo.git.rev_list("--max-parents=0", "HEAD").split()
+            dates = [repo.commit(h).committed_datetime for h in roots]
+            if dates:
+                result["first_commit_date"] = min(dates).isoformat()
+        except Exception:
+            pass
+
+        # 贡献者统计（按提交数取前 5）
+        try:
+            raw = repo.git.shortlog("-s", "HEAD")
+            contribs = []
+            for line in raw.splitlines():
+                parts = line.strip().split("\t", 1)
+                if len(parts) == 2 and parts[0].strip().isdigit():
+                    contribs.append({"name": parts[1].strip(),
+                                     "commits": int(parts[0])})
+            result["contributors"] = sorted(contribs, key=lambda c: -c["commits"])[:5]
         except Exception:
             pass
 

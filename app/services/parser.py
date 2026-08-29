@@ -10,11 +10,13 @@ import os
 import re
 import stat
 import tomllib
+from configparser import ConfigParser
 from datetime import datetime
 from pathlib import Path
 
 from app.config import (
-    DEPS_MAX_ITEMS, JUNK_DIRS, STATS_MAX_FILES, TREE_MAX_DEPTH, TREE_MAX_NODES,
+    DEPS_MAX_ITEMS, EXT_LANGUAGE, JUNK_DIRS, NODE_FRAMEWORKS,
+    PY_FRAMEWORKS, STATS_MAX_FILES, TREE_MAX_DEPTH, TREE_MAX_NODES,
 )
 from app.services import gitinfo
 from app.services.render import render_markdown
@@ -173,6 +175,46 @@ def _parse_cargo(path: Path) -> dict | None:
     }
 
 
+def _parse_setup_cfg(path: Path) -> dict | None:
+    """解析 setup.cfg（INI 格式的 Python 打包配置）。"""
+    try:
+        cp = ConfigParser()
+        cp.read(path, encoding="utf-8-sig")
+        meta = cp["metadata"] if cp.has_section("metadata") else {}
+        return {
+            "file": "setup.cfg",
+            "kind": "Python",
+            "name": meta.get("name"),
+            "version": meta.get("version"),
+        }
+    except Exception as exc:
+        logger.debug("setup.cfg 解析失败 %s: %s", path, exc)
+        return None
+
+
+def _parse_pipfile(path: Path) -> dict | None:
+    data = _load_toml(path)
+    if data is None:
+        return None
+    deps = list((data.get("packages") or {}).keys())
+    return {
+        "file": "Pipfile",
+        "kind": "Python",
+        "dependencies": deps[:DEPS_MAX_ITEMS],
+        "dependencies_total": len(deps),
+    }
+
+
+def _parse_environment_yml(path: Path) -> dict | None:
+    """Conda 环境文件：仅提取环境名（不引入 yaml 依赖）。"""
+    try:
+        text = path.read_text(encoding="utf-8-sig", errors="replace")[:4000]
+    except OSError:
+        return None
+    m = re.search(r"^name\s*:\s*(\S+)", text, re.M)
+    return {"file": "environment.yml", "kind": "Conda", "name": m.group(1) if m else None}
+
+
 _CONFIG_PARSERS = {
     "package.json": _parse_package_json,
     "pyproject.toml": _parse_pyproject,
@@ -180,6 +222,16 @@ _CONFIG_PARSERS = {
     "CMakeLists.txt": _parse_cmake,
     "go.mod": _parse_go_mod,
     "Cargo.toml": _parse_cargo,
+    "setup.cfg": _parse_setup_cfg,
+    "Pipfile": _parse_pipfile,
+    "environment.yml": _parse_environment_yml,
+}
+
+# 额外的"存在即识别"文件：标签提示 + 配置占位
+_PRESENCE_CONFIGS = {
+    "setup.py": {"kind": "Python", "note": "setuptools 打包"},
+    "Dockerfile": {"kind": "Docker", "note": None},
+    "docker-compose.yml": {"kind": "Docker", "note": "compose"},
 }
 
 
@@ -193,29 +245,123 @@ def collect_configs(path: str) -> list[dict]:
             parsed = parser(f)
             if parsed:
                 configs.append(parsed)
+    # requirements 的常见变体（requirements-dev.txt 等），最多再收 2 个
+    try:
+        variants = [p.name for p in root.glob("requirements*.txt")
+                    if p.name != "requirements.txt"][:2]
+        for name in variants:
+            parsed = _parse_requirements(root / name)
+            if parsed:
+                parsed["file"] = name
+                configs.append(parsed)
+    except OSError:
+        pass
+    for filename, info in _PRESENCE_CONFIGS.items():
+        if (root / filename).is_file():
+            configs.append({"file": filename, "kind": info["kind"],
+                            "name": None, "note": info["note"]})
     return configs
 
 
-def detect_tech_tags(configs: list[dict], root: str) -> list[str]:
-    """根据配置文件与根目录特征推断技术栈标签（可被用户修改）。"""
-    tags = []
+def _languages_from_stats(stats: dict) -> list[str]:
+    """按文件数量从扩展名分布推断主要语言（过滤低占比噪音）。
+
+    小项目文件很少时，回退取首个可识别的扩展名语言，保证仍有产出。
+    """
+    counter: dict[str, int] = {}
+    fallback = None
+    for ext, count in stats.get("top_extensions", []):
+        lang = EXT_LANGUAGE.get(ext)
+        if not lang:
+            continue
+        if fallback is None:
+            fallback = lang
+        if count >= 2:
+            counter[lang] = counter.get(lang, 0) + count
+    ranked = sorted(counter.items(), key=lambda kv: -kv[1])
+    langs = [lang for lang, _ in ranked[:3]]
+    if not langs and fallback:
+        langs = [fallback]
+    return langs
+
+
+def _frameworks_from_deps(configs: list[dict]) -> list[str]:
+    """从依赖清单中识别已知框架（Python / Node 各一套映射）。"""
+    found = []
+    for c in configs:
+        deps = list(c.get("dependencies") or []) + list(c.get("dev_dependencies") or [])
+        if c.get("file") == "package.json":
+            table = NODE_FRAMEWORKS
+        elif c.get("file") in ("requirements.txt", "pyproject.toml",
+                               "Pipfile", "setup.cfg") or \
+                str(c.get("file", "")).startswith("requirements"):
+            table = PY_FRAMEWORKS
+        else:
+            continue
+        for dep in deps:
+            low = dep.lower()
+            for prefix, label in table.items():
+                if low.startswith(prefix) and label not in found:
+                    found.append(label)
+    return found[:6]
+
+
+def detect_tech_tags(configs: list[dict], root: str, stats: dict | None = None) -> list[str]:
+    """综合配置文件、依赖清单与文件构成，推断技术栈标签（可被用户修改）。"""
+    tags: list[str] = []
     for c in configs:
         kind = c.get("kind")
         if kind == "Node.js":
             tags.append("Node.js")
         elif kind and kind not in tags:
             tags.append(kind if kind != "CMake" else "C/C++")
-    # 前端框架细判：仅作提示，不覆盖用户输入
-    for c in configs:
-        deps = set(c.get("dependencies") or []) | set(c.get("dev_dependencies") or [])
-        for fw, name in (("vue", "Vue"), ("react", "React"), ("svelte", "Svelte"),
-                         ("next", "Next.js"), ("nuxt", "Nuxt")):
-            if any(d.lower().startswith(fw) for d in deps) and name not in tags:
-                tags.append(name)
+    # 文件构成 → 语言（这是无 requirements/monorepo 子包项目的主要识别手段）
+    if stats:
+        for lang in _languages_from_stats(stats):
+            if lang not in tags:
+                tags.append(lang)
+    # 依赖 → 框架
+    for fw in _frameworks_from_deps(configs):
+        if fw not in tags:
+            tags.append(fw)
     root_dir = Path(root)
     if (root_dir / "Dockerfile").is_file() and "Docker" not in tags:
         tags.append("Docker")
-    return tags[:8]
+    return tags[:10]
+
+
+_BADGE_LINE_RE = re.compile(r"^\s*(\[\!?|\[!\[|<img|<div|<p align|<!--|#)")
+_MD_MARKS_RE = re.compile(r"`{1,3}([^`]*)`{1,3}|\*\*([^*]+)\*\*|\*([^*]+)\*|\[([^\]]*)\]\([^)]*\)")
+
+
+def extract_readme_intro(readme_path: str, max_len: int = 120) -> str | None:
+    """提取 README 开头的简介纯文本（跳过标题行、徽章、图片、HTML 块）。"""
+    try:
+        with open(readme_path, encoding="utf-8-sig", errors="replace") as f:
+            text = f.read(64 * 1024)
+    except OSError:
+        return None
+    paragraph: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            if paragraph:
+                break  # 段落结束
+            continue
+        if stripped.startswith(("#", "!", "<", "[!", "|", "```", "---", "===")) \
+                or _BADGE_LINE_RE.match(stripped):
+            continue
+        if stripped.startswith(("- ", "* ", "+ ", "1. ")):
+            break  # 列表：简介通常在列表之前结束
+        paragraph.append(stripped)
+    if not paragraph:
+        return None
+    intro = " ".join(paragraph)
+    intro = _MD_MARKS_RE.sub(lambda m: next(g for g in m.groups() if g is not None), intro)
+    intro = re.sub(r"\s+", " ", intro).strip()
+    if len(intro) > max_len:
+        intro = intro[:max_len].rstrip() + "…"
+    return intro or None
 
 
 # ---------------------------------------------------------------------------
@@ -356,13 +502,16 @@ def parse_project(path: str) -> dict:
     全程只读；任何子步骤失败都不影响整体，只记录 error 信息。
     """
     st = os.stat(path)
+    stats = collect_stats(path)
     configs = collect_configs(path)
+    readme_path = find_readme(path)
     meta = {
         "git": gitinfo.collect_git_info(path),
         "configs": configs,
-        "stats": collect_stats(path),
-        "tech_tags": detect_tech_tags(configs, path),
-        "readme_file": os.path.basename(find_readme(path) or "") or None,
+        "stats": stats,
+        "tech_tags": detect_tech_tags(configs, path, stats),
+        "readme_file": os.path.basename(readme_path or "") or None,
+        "intro": extract_readme_intro(readme_path) if readme_path else None,
         "parsed_at": _to_iso(st.st_mtime),
     }
     return {
@@ -373,14 +522,30 @@ def parse_project(path: str) -> dict:
 
 
 def summarize_stack(auto_meta: dict) -> str:
-    """从 auto_meta 提炼一行技术栈摘要，供卡片列表展示。"""
+    """从 auto_meta 提炼一行技术栈摘要，供卡片列表展示。
+
+    组合：构建配置类型 + 主要语言 + 框架标签，最多 4 项。
+    """
     if not auto_meta:
         return ""
-    kinds = []
+    items: list[str] = []
     for c in auto_meta.get("configs", []):
         kind = c.get("kind")
-        if kind and kind not in kinds:
-            kinds.append(kind)
-    if auto_meta.get("git", {}).get("is_repo"):
-        kinds.append("Git")
-    return " · ".join(kinds)
+        if kind and kind not in items and kind != "Docker":
+            items.append(kind)
+    for lang in _languages_from_stats(auto_meta.get("stats") or {}):
+        if len(items) >= 4:
+            break
+        if lang not in items:
+            items.append(lang)
+    for tag in auto_meta.get("tech_tags") or []:
+        if len(items) >= 4:
+            break
+        # 框架类标签优先展示（与语言/类型不同名的）
+        if tag in ("FastAPI", "Flask", "Django", "React", "Vue", "Next.js",
+                   "Nuxt", "Electron", "Svelte", "Angular", "Express", "Qt") \
+                and tag not in items:
+            items.append(tag)
+    if auto_meta.get("git", {}).get("is_repo") and len(items) < 4:
+        items.append("Git")
+    return " · ".join(items[:4])

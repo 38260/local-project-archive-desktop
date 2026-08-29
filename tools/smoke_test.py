@@ -139,6 +139,9 @@ def main():
                                             for c in p1["auto_meta"]["configs"]))
         check("自动识别技术栈标签", "Node.js" in p1["tags"] and "Vue" in p1["tags"])
         check("README 已定位", p1["auto_meta"]["readme_file"] == "README.md")
+        check("README 简介已提取", bool(p1["auto_meta"].get("intro"))
+              and "本地测试项目" in p1["auto_meta"]["intro"])
+        check("文件构成识别语言", "JavaScript" in p1["tags"])
 
         # ---- 路径校验 ----
         st, err = req("POST", "/api/projects", {"path": os.path.join(_temp_root, "not-exist")})
@@ -208,6 +211,13 @@ def main():
         st, cm2 = req("GET", f"/api/projects/{p1['id']}/commits?limit=1")
         check("提交记录 limit 生效", st == 200 and len(cm2["commits"]) == 1)
 
+        # ---- 批量重新解析（解析器升级后刷新） ----
+        st, d2 = req("GET", f"/api/projects/{p1['id']}")
+        git_info = d2["auto_meta"]["git"]
+        check("git 深度信息（分支/贡献者/首次提交）",
+              git_info.get("branches") and git_info.get("contributors")
+              and git_info.get("first_commit_date"))
+
         # ---- 批量扫描与导入 ----
         st, scan = req("POST", "/api/scan", {"root": _temp_root, "max_depth": 2})
         paths = [c["path"] for c in scan["candidates"]]
@@ -223,6 +233,13 @@ def main():
         # 非 git 目录的提交记录提示
         st, cm3 = req("GET", f"/api/projects/{p1['id'] + 1}/commits")
         check("非 git 目录 is_repo=False", st == 200 and cm3["is_repo"] is False)
+
+        # ---- 批量重新解析（解析器升级后刷新） ----
+        st, ra = req("POST", "/api/projects/rescan-all")
+        check("批量重新解析全部项目", st == 200 and ra["rescanned"] >= 3 and not ra["failed"])
+        st, d3 = req("GET", f"/api/projects/{p1['id']}")
+        check("重解析保留手动标签并合并新识别",
+              "手动标签" in d3["tags"] and "Node.js" in d3["tags"])
 
         # ---- 列表与统计 ----
         st, lst = req("GET", "/api/projects")

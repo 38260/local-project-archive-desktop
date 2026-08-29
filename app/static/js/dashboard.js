@@ -8,6 +8,7 @@
       return {
         loading: true,
         dataPath: "",
+        rescanningAll: false,
         projects: [],
         stats: { total: 0, active: 0, archived: 0, lost: 0 },
         statuses: [],
@@ -77,6 +78,18 @@
       },
       goto(p) { location.href = "/project/" + p.id; },
       exportJson() { location.href = "/api/export"; },
+      async rescanAll() {
+        if (!confirm("用最新解析器重新解析全部项目？\n\n已有标签会保留，新识别的技术栈会补充进来。")) return;
+        this.rescanningAll = true;
+        try {
+          const r = await api("/api/projects/rescan-all", { method: "POST" });
+          let msg = `已重新解析 ${r.rescanned} 个项目`;
+          if (r.failed.length) msg += `，跳过 ${r.failed.length} 个（路径丢失）`;
+          toast(msg, r.failed.length ? "error" : "ok");
+          this.load();
+        } catch (e) { /* toast 已提示 */ }
+        finally { this.rescanningAll = false; }
+      },
 
       // ---- 手动录入 ----
       openAdd() {
