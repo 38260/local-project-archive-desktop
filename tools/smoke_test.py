@@ -244,6 +244,10 @@ def main():
         # ---- 列表与统计 ----
         st, lst = req("GET", "/api/projects")
         check("列表统计 total>=3", lst["stats"]["total"] >= 3)
+        # 状态排序：进行中 → 已完成 → 暂停 → 归档废弃
+        prio = {"进行中": 0, "已完成": 1, "暂停": 2, "归档废弃": 3}
+        seq = [prio.get(p["status"], 4) for p in lst["projects"]]
+        check("列表按状态优先级排序", seq == sorted(seq), f"实际顺序 {seq}")
 
         # ---- 丢失项目检测与路径更新 ----
         shutil.rmtree(py)

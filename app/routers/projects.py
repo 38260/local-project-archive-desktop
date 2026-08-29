@@ -144,9 +144,16 @@ def create_project(body: ProjectCreate):
 
 @router.get("")
 def list_projects():
-    """全部项目列表（含实时路径有效性），筛选由前端完成。"""
+    """全部项目列表（含实时路径有效性），按状态优先级排序：
+    进行中 → 已完成 → 暂停 → 归档废弃，同组内按更新时间倒序。筛选由前端完成。
+    """
     with get_db() as conn:
-        rows = conn.execute("SELECT * FROM projects ORDER BY updated_at DESC").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM projects ORDER BY "
+            "CASE status WHEN '进行中' THEN 0 WHEN '已完成' THEN 1 "
+            "WHEN '暂停' THEN 2 WHEN '归档废弃' THEN 3 ELSE 4 END ASC, "
+            "updated_at DESC"
+        ).fetchall()
         items = [_row_to_dict(r, live_check=True) for r in rows]
     stats = {
         "total": len(items),
