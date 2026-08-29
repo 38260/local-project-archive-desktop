@@ -300,6 +300,22 @@ input[type="search"] { width: 260px; }
 .toast.ok { border-left-color: var(--ok); }
 @keyframes slide-in { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+/* ---- 详情页双栏布局：主内容 + 目录树侧边栏 ---- */
+.detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 14px;
+  align-items: start;
+}
+.detail-side { position: sticky; top: 56px; }
+.tree-panel { max-height: calc(100vh - 72px); display: flex; flex-direction: column; }
+.tree-panel .tree-scroll { overflow-y: auto; min-height: 60px; }
+@media (max-width: 1024px) {
+  .detail-layout { grid-template-columns: 1fr; }
+  .detail-side { position: static; }
+  .tree-panel { max-height: 420px; }
+}
+
 /* ---- 笔记 / 变更日志条目 ---- */
 .note-list { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .note-item {

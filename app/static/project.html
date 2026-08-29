@@ -46,6 +46,9 @@
       <button class="btn primary" @click="updatePath" :disabled="!newPath">更新路径</button>
     </div>
 
+    <div class="detail-layout">
+    <div class="detail-main">
+
     <!-- 基础元信息 -->
     <section class="panel">
       <h2>基础信息</h2>
@@ -293,25 +296,32 @@
       <div class="loading" v-else>加载中…</div>
     </section>
 
-    <!-- 目录树 -->
-    <section class="panel">
-      <h2>目录树（只读预览）</h2>
-      <div class="tree" v-if="tree">
-        <ul style="padding-left:0">
-          <li class="t-row">
-            📂 <span class="t-name" style="font-weight:600">{{ p.name }}</span>
-            <ul>
-              <tree-node v-for="c in tree.children" :key="c.name" :node="c" :depth="1"></tree-node>
+    </div>
+
+    <!-- 目录树：右侧边栏 -->
+    <aside class="detail-side">
+      <section class="panel tree-panel">
+        <h2>目录树（只读预览）</h2>
+        <div class="tree-scroll">
+          <div class="tree" v-if="tree">
+            <ul style="padding-left:0">
+              <li class="t-row">
+                📂 <span class="t-name" style="font-weight:600">{{ p.name }}</span>
+                <ul>
+                  <tree-node v-for="c in tree.children" :key="c.name" :node="c" :depth="1"></tree-node>
+                </ul>
+              </li>
             </ul>
-          </li>
-        </ul>
-        <div class="section-note" v-if="tree.truncated">
-          目录内容较多，仅展示前几层（已跳过 node_modules、.git 等依赖与构建目录）。
+          </div>
+          <div class="loading" v-else-if="tree === undefined">加载中…</div>
+          <div class="section-note" v-else>目录树不可用（路径丢失或读取失败）</div>
         </div>
-      </div>
-      <div class="loading" v-else-if="tree === null">加载中…</div>
-      <div class="section-note" v-else>目录树不可用（路径丢失或读取失败）</div>
-    </section>
+        <div class="section-note" v-if="tree && tree.truncated" style="margin-top:8px">
+          内容较多，仅展示前几层（已跳过 node_modules、.git 等依赖与构建目录）。
+        </div>
+      </section>
+    </aside>
+    </div>
   </main>
 
   <main class="container" v-else-if="notFound">
