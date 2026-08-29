@@ -78,21 +78,14 @@
         screenshots: [],
         previewShot: null,
         uploadingShots: false,
+        shotsDrag: false,
+        // 更多菜单 / 描述实时预览
+        moreOpen: false,
+        descLive: "",
+        _descTimer: null,
         // 目录树收起状态（记忆在 localStorage，默认展开）
         treeCollapsed: localStorage.getItem("lpa-tree-collapsed") === "1",
-        // 左侧锚点目录
-        sections: [
-          { id: "sec-info", label: "基础信息" },
-          { id: "sec-git", label: "Git 信息" },
-          { id: "sec-configs", label: "构建配置" },
-          { id: "sec-stats", label: "文件统计" },
-          { id: "sec-desc", label: "项目描述" },
-          { id: "sec-notes", label: "开发笔记" },
-          { id: "sec-changelogs", label: "变更日志" },
-          { id: "sec-commits", label: "提交记录" },
-          { id: "sec-shots", label: "截图" },
-          { id: "sec-readme", label: "README" },
-        ],
+        // 左侧锚点目录（sections 已改为计算属性，空面板自动隐藏）
         activeSection: "sec-info",
         spySuspendedUntil: 0,
       };
@@ -103,6 +96,60 @@
       },
       themeName() {
         return document.documentElement.getAttribute("data-theme") === "dark" ? "暗色" : "亮色";
+      },
+      // 头部数据徽章
+      headBadges() {
+        const m = this.meta || {};
+        const b = [];
+        if (this.gitInfo.is_repo) {
+          b.push({ ico: "⑂", label: "提交", val: this.fmtNum(this.gitInfo.commit_count) });
+        }
+        if (m.stats) {
+          b.push({ ico: "▤", label: "文件", val: this.fmtNum(m.stats.file_count) });
+          b.push({ ico: "▣", label: "体积", val: this.fmtSize(m.stats.total_size) });
+        }
+        const langs = (this.p && this.p.tags || []).filter(t => this.tagClass(t) === "tag tag-lang")
+          .slice(0, 2).join(" / ");
+        if (langs) b.push({ ico: "◈", label: "语言", val: langs });
+        return b;
+      },
+      // 近 12 周提交热力格（基于已加载提交）
+      heatmap() {
+        if (!this.commitData || !this.commitData.commits.length) return [];
+        const days = {};
+        for (const c of this.commitData.commits) {
+          days[c.date.slice(0, 10)] = (days[c.date.slice(0, 10)] || 0) + 1;
+        }
+        const cells = [];
+        const now = new Date();
+        const start = new Date(now);
+        start.setDate(start.getDate() - 83 - ((now.getDay() + 6) % 7));
+        for (let i = 0; i < 84; i++) {
+          const d = new Date(start);
+          d.setDate(start.getDate() + i);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          const n = days[key] || 0;
+          cells.push({ key: key + i, count: n,
+                       level: n === 0 ? 0 : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 3 : 4,
+                       label: `${key}：${n} 次提交` });
+        }
+        return cells;
+      },
+      // 左侧目录：隐藏空内容面板的锚点
+      sections() {
+        const list = [
+          { id: "sec-info", label: "基础信息" },
+          { id: "sec-git", label: "Git 信息", hide: !this.gitInfo.is_repo },
+          { id: "sec-configs", label: "构建配置", hide: !(this.meta && this.meta.configs && this.meta.configs.length) },
+          { id: "sec-stats", label: "文件统计", hide: false },
+          { id: "sec-desc", label: "项目描述", hide: false },
+          { id: "sec-notes", label: "开发笔记", hide: this.notes.length === 0 && this.noteDraft === null },
+          { id: "sec-changelogs", label: "变更日志", hide: this.changelogs.length === 0 && this.logDraft === null },
+          { id: "sec-commits", label: "提交记录", hide: !(this.commitData && this.commitData.is_repo && this.commitData.commits.length) },
+          { id: "sec-shots", label: "截图", hide: this.screenshots.length === 0 },
+          { id: "sec-readme", label: "README", hide: !(this.readme && this.readme.exists) },
+        ];
+        return list.filter(x => !x.hide);
       },
       // 依赖版本统计：固定(==) / 范围(^ ~ > <) / 未标注
       depStats() {
@@ -148,6 +195,7 @@
           this.statuses = p.statuses || [];
           this.meta = p.auto_meta || {};
           this.descHtml = p.description_html || "";
+          this.descLive = p.description_html || "";
           this.newPath = p.is_lost ? "" : p.path;
           this.loadReadme();
           this.loadTree();
@@ -286,6 +334,30 @@
       exportHtml() {
         location.href = `/api/projects/${this.projectId}/export-html`;
       },
+      // ---- Markdown 工具栏：在光标处包裹/插入 ----
+      mdWrap(refName, before, after) {
+        const el = this.$refs[refName];
+        if (!el) return;
+        const s = el.selectionStart, e = el.selectionEnd;
+        const v = el.value;
+        el.value = v.slice(0, s) + before + v.slice(s, e) + after + v.slice(e);
+        el.selectionStart = s + before.length;
+        el.selectionEnd = e + before.length;
+        el.focus();
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      },
+      // 描述实时预览（500ms 防抖）
+      descLiveDebounce() {
+        clearTimeout(this._descTimer);
+        this._descTimer = setTimeout(async () => {
+          try {
+            const r = await api("/api/render-md", {
+              method: "POST", body: { text: this.p.description || "", mode: "notes" }, silent: true,
+            });
+            this.descLive = r.html;
+          } catch (e) { /* 静默 */ }
+        }, 500);
+      },
       // ---- Git 提交记录 ----
       async loadCommits() {
         this.commitLoading = true;
@@ -315,18 +387,24 @@
         this.activeSection = id;
         this.spySuspendedUntil = Date.now() + 1000;
         const el = document.getElementById(id);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+          el.classList.add("flash");
+          setTimeout(() => el.classList.remove("flash"), 1200);
+        }
       },
       // 滚动监听：高亮当前视口所在的面板
       onScroll() {
         if (Date.now() < (this.spySuspendedUntil || 0)) return;
         const offset = 90; // 与 sticky 顶栏高度对应
         let current = "";
-        for (const s of this.sections) {
+        const secs = this.sections;
+        if (!secs.length) return;
+        for (const s of secs) {
           const el = document.getElementById(s.id);
           if (el && el.getBoundingClientRect().top <= offset) current = s.id;
         }
-        this.activeSection = current || this.sections[0].id;
+        this.activeSection = current || secs[0].id;
       },
       async loadReadme() {
         if (this.p.is_lost) { this.readme = { exists: false }; return; }
@@ -450,6 +528,36 @@
         } catch (e) { /* toast 已提示 */ }
         finally { this.savingEdit = false; }
       },
+      // 灯箱左右切换（循环）
+      navShot(dir) {
+        const i = this.screenshots.indexOf(this.previewShot);
+        if (i < 0) return;
+        const n = this.screenshots.length;
+        this.previewShot = this.screenshots[(i + dir + n) % n];
+      },
+      // 拖拽文件到截图面板上传
+      async dropShots(e) {
+        this.shotsDrag = false;
+        const files = [...(e.dataTransfer?.files || [])];
+        if (!files.length) return;
+        const fd = new FormData();
+        files.forEach(f => fd.append("files", f));
+        try {
+          const resp = await fetch(`/api/projects/${this.projectId}/screenshots`, {
+            method: "POST", body: fd,
+          });
+          const r = await resp.json();
+          if (!resp.ok) throw new Error(r.detail || "上传失败");
+          let msg = `已保存 ${r.saved.length} 张截图`;
+          if (r.errors.length) msg += `，${r.errors.length} 张失败`;
+          toast(msg, r.errors.length ? "error" : "ok");
+          this.loadShots();
+        } catch (err) {
+          toast("拖拽上传失败：" + err.message, "error");
+        }
+      },
+      // 目录树：点击文件复制相对路径
+      copyRel(node) { this.copyText(node.rel || node.name); },
       async removeProject() {
         if (!confirm(`确定删除「${this.p.name}」的档案记录吗？\n\n仅删除本系统中的索引数据，不会改动原项目文件夹的任何文件。`)) return;
         try {
@@ -462,9 +570,12 @@
     mounted() {
       this.load();
       window.addEventListener("scroll", this.onScroll, { passive: true });
-      // Esc 关闭编辑弹窗
+      // Esc 关闭更多菜单 / 编辑弹窗
       this._onKey = (e) => {
-        if (e.key === "Escape" && this.showEdit) this.showEdit = false;
+        if (e.key === "Escape") {
+          if (this.moreOpen) { this.moreOpen = false; return; }
+          if (this.showEdit) this.showEdit = false;
+        }
       };
       document.addEventListener("keydown", this._onKey);
     },

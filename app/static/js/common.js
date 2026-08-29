@@ -146,11 +146,33 @@
     return USER_COLORS[h % USER_COLORS.length];
   }
 
+  // ---------- 目录树文件扩展名着色 ----------
+  const FILE_HUES = {
+    ".py": "#3fb950", ".ipynb": "#f0883e",
+    ".js": "#d29922", ".mjs": "#d29922", ".cjs": "#d29922",
+    ".ts": "#4493f8", ".tsx": "#4493f8", ".jsx": "#4493f8",
+    ".vue": "#3fb950", ".svelte": "#db61a2",
+    ".go": "#58a6ff", ".rs": "#f0883e", ".java": "#b083f0",
+    ".c": "#8b949e", ".cpp": "#8b949e", ".h": "#8b949e", ".hpp": "#8b949e",
+    ".cs": "#4493f8", ".php": "#a371f7", ".rb": "#f85149",
+    ".md": "#c4b5fd", ".txt": "#8b949e", ".json": "#d29922",
+    ".yml": "#a371f7", ".yaml": "#a371f7", ".toml": "#8b949e",
+    ".html": "#f0883e", ".css": "#4493f8", ".scss": "#db61a2",
+    ".sql": "#58a6ff", ".sh": "#3fb950", ".bat": "#8b949e",
+    ".png": "#a371f7", ".jpg": "#a371f7", ".jpeg": "#a371f7", ".gif": "#a371f7",
+    ".svg": "#f0883e", ".ico": "#d29922", ".lock": "#8b949e",
+  };
+  function fileColor(name) {
+    const dot = String(name || "").lastIndexOf(".");
+    if (dot < 0) return "var(--muted)";
+    return FILE_HUES[String(name).slice(dot).toLowerCase()] || "var(--muted)";
+  }
+
   // 模板表达式只能访问组件实例属性（Vue3 编译后为 _ctx.xxx），
   // window 上的工具函数必须通过 globalProperties 注入后模板才能调用
   window.LPA_HELPERS = {
     fmtTime, fmtSize, fmtNum, copyText, statusBadgeClass, toggleTheme, tagClass,
-    commitType, commitMsgText, userColor,
+    commitType, commitMsgText, userColor, fileColor,
   };
 
   // ---------- 自定义下拉组件（替代原生 select：统一样式 + 键盘可达） ----------

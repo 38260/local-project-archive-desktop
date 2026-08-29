@@ -26,14 +26,29 @@
       <lpa-select v-model="p.status" :options="statuses" accent @update:model-value="saveStatus"></lpa-select>
     </div>
 
-    <!-- 快捷操作 -->
+    <!-- 核心数据徽章条 -->
+    <div class="badge-row" v-if="headBadges.length">
+      <span class="dbadge" v-for="b in headBadges" :key="b.label">
+        <span class="db-ico">{{ b.ico }}</span><b>{{ b.val }}</b>{{ b.label }}
+      </span>
+    </div>
+
+    <!-- 快捷操作：常用三连 + 更多 + 删除独立右置 -->
     <div class="action-row">
-      <button class="btn" @click="openIn('explorer')" :disabled="p.is_lost">📂 资源管理器打开</button>
-      <button class="btn" @click="openIn('vscode')" :disabled="p.is_lost">⌨ VSCode 打开</button>
+      <button class="btn" @click="openIn('explorer')" :disabled="p.is_lost">📂 资源管理器</button>
+      <button class="btn" @click="openIn('vscode')" :disabled="p.is_lost">⌨ VSCode</button>
       <button class="btn" @click="copyText(p.path)">⧉ 复制路径</button>
-      <button class="btn" @click="rescan" :disabled="rescanning">🔄 {{ rescanning ? "解析中…" : "重新解析" }}</button>
-      <button class="btn" @click="openEdit">✏ 编辑档案</button>
-      <button class="btn" @click="exportHtml" title="导出包含描述/笔记/变更日志的自包含 HTML 档案">📥 导出 HTML</button>
+      <span class="more-wrap">
+        <button class="btn" @click.stop="moreOpen = !moreOpen">⋯ 更多</button>
+        <span class="more-mask" v-if="moreOpen" @click="moreOpen = false"
+              style="position:fixed;inset:0;z-index:70"></span>
+        <span class="more-list" v-if="moreOpen" style="z-index:80" @click="moreOpen = false">
+          <button class="btn" @click="rescan">🔄 重新解析</button>
+          <button class="btn" @click="openEdit">✏ 编辑档案</button>
+          <button class="btn" @click="exportHtml">📥 导出 HTML</button>
+        </span>
+      </span>
+      <span class="gap-left"></span>
       <button class="btn danger" @click="removeProject">🗑 删除档案</button>
     </div>
 
@@ -87,6 +102,11 @@
     <!-- Git 信息 -->
     <section class="panel" id="sec-git" v-if="meta">
       <h2>Git 信息 <span class="right section-note">解析于 {{ fmtTime(meta.parsed_at) }}</span></h2>
+      <div class="hm" v-if="commitData && commitData.commits.length"
+           title="最近 12 周提交活动（基于已加载的提交）">
+        <span v-for="c in heatmap" :key="c.key" class="hm-cell"
+              :class="'l' + c.level" :title="c.label"></span>
+      </div>
       <div class="meta-grid" v-if="gitInfo.is_repo">
         <div class="kv"><span class="k">当前分支</span><span class="v"><span class="chip-value">{{ gitInfo.branch || "－" }}</span></span></div>
         <div class="kv"><span class="k">提交总数</span><span class="v" style="font-size:16px;font-weight:700">{{ fmtNum(gitInfo.commit_count) }}</span></div>
@@ -170,14 +190,22 @@
       <h2>项目描述
         <span class="right section-note">存储于本机数据库，不会写入原项目文件夹</span>
       </h2>
-      <div class="md-tabs">
-        <button class="chip" :class="{on: descTab === 'edit'}" @click="descTab = 'edit'">✏ 编辑 Markdown</button>
-        <button class="chip" :class="{on: descTab === 'preview'}" @click="previewDesc">👁 预览</button>
+      <div class="split">
+        <div>
+          <div class="md-toolbar">
+            <button @click="mdWrap('descEditor', '**', '**')" title="加粗">B</button>
+            <button @click="mdWrap('descEditor', '*', '*')" title="斜体"><i>I</i></button>
+            <button @click="mdWrap('descEditor', '`', '`')" title="行内代码">‹›</button>
+            <button @click="mdWrap('descEditor', '\n## ', '')" title="二级标题">H2</button>
+            <button @click="mdWrap('descEditor', '- ', '')" title="列表">••</button>
+            <button @click="mdWrap('descEditor', '\n```bash\n', '\n```')" title="代码块">▤</button>
+          </div>
+          <textarea ref="descEditor" class="md-editor" v-model="p.description" @input="descLiveDebounce"
+                    placeholder="用 Markdown 记录：&#10;## 项目背景&#10;## 实现功能&#10;## 运行部署命令"></textarea>
+        </div>
+        <div class="md-preview md-body" v-html="descLive"></div>
       </div>
-      <textarea v-if="descTab === 'edit'" class="md-editor" v-model="p.description"
-                placeholder="用 Markdown 记录：&#10;## 项目背景&#10;## 实现功能&#10;## 运行部署命令"></textarea>
-      <div v-else class="md-preview md-body" v-html="descHtml"></div>
-      <div style="margin-top:10px;text-align:right" v-if="descTab === 'edit'">
+      <div style="margin-top:10px;text-align:right">
         <button class="btn primary" @click="saveDesc" :disabled="savingDesc">💾 保存描述</button>
       </div>
     </section>
@@ -188,20 +216,35 @@
         <span class="count">{{ notes.length }} 条</span>
         <span class="right section-note">开发体会 / 思考心得 / 踩坑点 / 解决方案</span>
       </h2>
+      <div class="panel-compact-bar" v-if="!notes.length && noteDraft === null">
+        暂无笔记，随手记录开发体会与踩坑
+        <span class="fill"></span>
+        <button class="btn sm primary" @click="noteDraft = ''">＋ 新建笔记</button>
+      </div>
       <div v-if="noteDraft !== null">
-        <textarea class="md-editor" style="min-height:110px" v-model="noteDraft"
+        <div class="md-toolbar">
+          <button @click="mdWrap('noteDraftEditor', '**', '**')" title="加粗">B</button>
+          <button @click="mdWrap('noteDraftEditor', '*', '*')" title="斜体"><i>I</i></button>
+          <button @click="mdWrap('noteDraftEditor', '`', '`')" title="行内代码">‹›</button>
+          <button @click="mdWrap('noteDraftEditor', '\n## ', '')" title="二级标题">H2</button>
+          <button @click="mdWrap('noteDraftEditor', '- ', '')" title="列表">••</button>
+        </div>
+        <textarea ref="noteDraftEditor" class="md-editor" style="min-height:110px" v-model="noteDraft"
                   placeholder="记录开发体会、思考心得、踩坑点、解决方案…（Markdown，保存后自动记录创建时间）"></textarea>
         <div class="editor-actions">
           <button class="btn" @click="noteDraft = null">取消</button>
           <button class="btn primary" @click="saveNewNote" :disabled="!noteDraft.trim()">💾 保存笔记</button>
         </div>
       </div>
-      <button v-else class="btn" @click="noteDraft = ''">＋ 新建笔记</button>
-
-      <div class="note-list">
+      <div class="note-list" v-show="notes.length">
         <div class="note-item" v-for="n in notes" :key="n.id">
           <template v-if="editingNoteId === n.id">
-            <textarea class="md-editor" style="min-height:110px" v-model="editingNoteContent"></textarea>
+            <div class="md-toolbar">
+              <button @click="mdWrap('noteEditEditor', '**', '**')" title="加粗">B</button>
+              <button @click="mdWrap('noteEditEditor', '*', '*')" title="斜体"><i>I</i></button>
+              <button @click="mdWrap('noteEditEditor', '`', '`')" title="行内代码">‹›</button>
+            </div>
+            <textarea ref="noteEditEditor" class="md-editor" style="min-height:110px" v-model="editingNoteContent"></textarea>
             <div class="editor-actions">
               <button class="btn" @click="editingNoteId = null">取消</button>
               <button class="btn primary" @click="saveEditNote(n)" :disabled="!editingNoteContent.trim()">💾 保存修改</button>
@@ -218,7 +261,6 @@
             </div>
           </template>
         </div>
-        <div class="section-note" v-if="!notes.length && noteDraft === null">暂无笔记，点击上方「＋ 新建笔记」开始记录。</div>
       </div>
     </section>
 
@@ -228,28 +270,36 @@
         <span class="count">{{ changelogs.length }} 条</span>
         <span class="right section-note">手动记录版本改动 / 功能新增 / 重大调整，独立于 git 提交</span>
       </h2>
+      <div class="panel-compact-bar" v-if="!changelogs.length && logDraft === null">
+        暂无变更日志，记录人为的版本改动
+        <span class="fill"></span>
+        <button class="btn sm primary" @click="openLogDraft">＋ 新增条目</button>
+      </div>
       <div v-if="logDraft !== null">
         <div class="log-form-row">
           <input type="text" v-model.trim="logDraftTitle" placeholder="条目标题，如：v1.1.0 新增导出功能">
           <input type="date" v-model="logDraftDate" title="条目日期">
         </div>
-        <textarea class="md-editor" style="min-height:100px" v-model="logDraft"
+        <div class="md-toolbar">
+          <button @click="mdWrap('logDraftEditor', '**', '**')" title="加粗">B</button>
+          <button @click="mdWrap('logDraftEditor', '`', '`')" title="行内代码">‹›</button>
+          <button @click="mdWrap('logDraftEditor', '- ', '')" title="列表">••</button>
+        </div>
+        <textarea ref="logDraftEditor" class="md-editor" style="min-height:100px" v-model="logDraft"
                   placeholder="记录人为的版本改动、功能新增、重大调整…（Markdown，与 git 提交记录相互独立）"></textarea>
         <div class="editor-actions">
           <button class="btn" @click="logDraft = null">取消</button>
           <button class="btn primary" @click="saveNewLog" :disabled="!logDraft.trim()">💾 保存条目</button>
         </div>
       </div>
-      <button v-else class="btn" @click="openLogDraft">＋ 新增条目</button>
-
-      <div class="note-list">
+      <div class="note-list" v-show="changelogs.length">
         <div class="note-item" v-for="c in changelogs" :key="c.id">
           <template v-if="editingLogId === c.id">
             <div class="log-form-row">
               <input type="text" v-model.trim="editLogForm.title" placeholder="条目标题">
               <input type="date" v-model="editLogForm.entry_date" title="条目日期">
             </div>
-            <textarea class="md-editor" style="min-height:100px" v-model="editLogForm.content"></textarea>
+            <textarea ref="logEditEditor" class="md-editor" style="min-height:100px" v-model="editLogForm.content"></textarea>
             <div class="editor-actions">
               <button class="btn" @click="editingLogId = null">取消</button>
               <button class="btn primary" @click="saveEditLog(c)" :disabled="!editLogForm.content.trim()">💾 保存修改</button>
@@ -270,7 +320,6 @@
             </div>
           </template>
         </div>
-        <div class="section-note" v-if="!changelogs.length && logDraft === null">暂无变更日志，点击上方「＋ 新增条目」记录人为的版本改动。</div>
       </div>
     </section>
 
@@ -328,7 +377,11 @@
     </section>
 
     <!-- 项目截图（保存在本系统 data 目录） -->
-    <section class="panel" id="sec-shots">
+    <section class="panel" id="sec-shots"
+             @dragover.prevent="shotsDrag = true"
+             @dragleave.prevent="shotsDrag = false"
+             @drop.prevent="dropShots($event)"
+             :class="{'shots-drop': shotsDrag}">
       <h2>项目截图
         <span class="count">{{ screenshots.length }} 张</span>
         <span class="right">
@@ -407,6 +460,11 @@
   <!-- 截图预览 -->
   <div class="lightbox" v-if="previewShot" @click="previewShot = null">
     <img :src="previewShot.url" alt="截图预览">
+    <button class="lb-nav lb-prev" v-if="screenshots.length > 1"
+            @click.stop="navShot(-1)">‹</button>
+    <button class="lb-nav lb-next" v-if="screenshots.length > 1"
+            @click.stop="navShot(1)">›</button>
+    <span class="lb-count">{{ screenshots.indexOf(previewShot) + 1 }} / {{ screenshots.length }}</span>
   </div>
 
   <!-- 编辑档案 -->
