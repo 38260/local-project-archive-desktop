@@ -20,6 +20,30 @@ from app.services.render import render_markdown
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
+
+class _QuietAccessLog(logging.Filter):
+    """过滤访问日志噪音。
+
+    304 是 HTTP 缓存协商的正常结果（浏览器用本地缓存，加载更快），
+    /static 静态资源请求对本机单用户工具也是纯噪音：这类日志一律不打印，
+    控制台只保留 API 调用与页面请求，便于观察真实使用情况。
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            path = record.args[2] if len(record.args or ()) >= 3 else ""
+            status = record.args[4] if len(record.args or ()) >= 5 else 0
+        except Exception:
+            return True
+        if str(path).startswith("/static"):
+            return False
+        if status == 304:
+            return False
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_QuietAccessLog())
+
 app = FastAPI(title="本地项目档案", version=APP_VERSION, docs_url="/api/docs")
 
 init_db()
