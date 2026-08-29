@@ -332,8 +332,14 @@
     <!-- 目录树：右侧边栏 -->
     <aside class="detail-side">
       <section class="panel tree-panel">
-        <h2>目录树（只读预览）</h2>
-        <div class="tree-scroll">
+        <h2>
+          目录树（只读预览）
+          <span class="right">
+            <button class="icon-btn" @click="toggleTree"
+                    :title="treeCollapsed ? '展开目录树' : '收起目录树'">{{ treeCollapsed ? "▸ 展开目录树" : "▾ 收起目录树" }}</button>
+          </span>
+        </h2>
+        <div class="tree-scroll" v-show="!treeCollapsed">
           <div class="tree" v-if="tree">
             <ul style="padding-left:0">
               <li class="t-row">
@@ -347,7 +353,7 @@
           <div class="loading" v-else-if="tree === undefined">加载中…</div>
           <div class="section-note" v-else>目录树不可用（路径丢失或读取失败）</div>
         </div>
-        <div class="section-note" v-if="tree && tree.truncated" style="margin-top:8px">
+        <div class="section-note" v-if="tree && tree.truncated && !treeCollapsed" style="margin-top:8px">
           内容较多，仅展示前几层（已跳过 node_modules、.git 等依赖与构建目录）。
         </div>
       </section>

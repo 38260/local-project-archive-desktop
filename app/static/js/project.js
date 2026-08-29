@@ -74,6 +74,8 @@
         commitData: null,
         commitLoading: true,
         expandedCommits: [],
+        // 目录树收起状态（记忆在 localStorage，默认展开）
+        treeCollapsed: localStorage.getItem("lpa-tree-collapsed") === "1",
         // 左侧锚点目录
         sections: [
           { id: "sec-info", label: "基础信息" },
@@ -230,6 +232,10 @@
         }
       },
       firstLine(msg) { return ((msg || "").split("\n")[0] || "").slice(0, 120); },
+      toggleTree() {
+        this.treeCollapsed = !this.treeCollapsed;
+        localStorage.setItem("lpa-tree-collapsed", this.treeCollapsed ? "1" : "0");
+      },
       toggleCommit(hash) {
         const i = this.expandedCommits.indexOf(hash);
         if (i >= 0) this.expandedCommits.splice(i, 1);
