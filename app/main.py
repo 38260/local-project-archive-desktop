@@ -141,6 +141,19 @@ def project_page(project_id: int):
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+@app.middleware("http")
+async def _static_no_cache(request, call_next):
+    """静态资源使用协商缓存（no-cache）。
+
+    no-cache 表示浏览器可以缓存但每次必须向服务器校验：文件没变返回 304
+    （快），文件一变立即拿到新版本（避免升级后浏览器仍用旧 JS/CSS）。
+    """
+    response = await call_next(request)
+    if request.url.path.startswith("/static"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 @app.on_event("startup")
 def _check_static():
     for f in (_DASHBOARD, _PROJECT_PAGE, STATIC_DIR / "js" / "vendor" / "vue.global.prod.js"):

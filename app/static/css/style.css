@@ -110,9 +110,34 @@ input[type="search"] { width: 260px; }
 .badge.lost { color: #fff; border-color: var(--danger); background: var(--danger); font-weight: 700; }
 .tag {
   display: inline-block; padding: 1px 8px; margin: 1px 2px 1px 0;
-  background: var(--accent-soft); color: var(--accent);
   border-radius: 4px; font-size: 12px; font-weight: 600; font-family: var(--mono);
+  background: var(--panel-2); color: var(--muted);
 }
+/* 语言类：青绿 */
+.tag.tag-lang { background: rgba(13, 148, 136, .14); color: #0f766e; }
+/* 框架类：紫 */
+.tag.tag-fw { background: rgba(124, 58, 237, .13); color: #7c3aed; }
+[data-theme="dark"] .tag.tag-lang { color: #5eead4; }
+[data-theme="dark"] .tag.tag-fw { color: #c4b5fd; }
+
+/* 别名：琥珀橙，全站唯一使用该色，重点突出 */
+.alias-chip {
+  display: inline-block; padding: 2px 11px;
+  background: rgba(245, 158, 11, .16); color: #b45309;
+  border: 1px solid rgba(245, 158, 11, .55);
+  border-radius: 999px;
+  font-size: 12.5px; font-weight: 800; white-space: nowrap; flex: none;
+}
+[data-theme="dark"] .alias-chip { color: #fbbf24; }
+
+/* 项目分类：玫红点缀 */
+.cat-chip {
+  display: inline-block; padding: 0 8px;
+  background: rgba(244, 63, 94, .1); color: #be123c;
+  border-radius: 999px; font-size: 12px; font-weight: 600;
+}
+[data-theme="dark"] .cat-chip { color: #fda4af; }
+
 /* 强调数值型内联徽章（git 分支等） */
 .chip-value {
   display: inline-block; padding: 1px 9px;
@@ -174,11 +199,6 @@ input[type="search"] { width: 260px; }
 .card .title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .card .title-row h3 { margin: 0; font-size: 16px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card .title-row h3:hover { color: var(--accent); }
-.card .alias {
-  color: var(--accent); font-size: 12px; font-weight: 600;
-  background: var(--accent-soft); border-radius: 999px; padding: 0 8px;
-  white-space: nowrap; flex: none;
-}
 .card .path-row {
   display: flex; align-items: center; gap: 6px;
   font-family: var(--mono); font-size: 12px; color: var(--muted);
@@ -245,10 +265,7 @@ input[type="search"] { width: 260px; }
   border-left: 4px solid var(--accent);
 }
 .detail-head h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
-.detail-head .alias {
-  color: var(--accent); font-size: 13px; font-weight: 600;
-  background: var(--accent-soft); border-radius: 999px; padding: 2px 11px;
-}
+.alias-lg { font-size: 13.5px !important; padding: 3px 13px !important; }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
 .detail-head select { min-width: 110px; font-weight: 600; color: var(--accent); }
 

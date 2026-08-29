@@ -20,7 +20,7 @@
     <!-- 标题与状态 -->
     <div class="detail-head">
       <h1>{{ p.name }}</h1>
-      <span class="alias" v-if="p.alias">{{ p.alias }}</span>
+      <span class="alias-chip alias-lg" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
       <span class="spacer"></span>
       <label class="check-label">状态：</label>
       <select v-model="p.status" @change="saveStatus">
@@ -78,7 +78,7 @@
         <div class="kv" style="grid-column: 1 / -1">
           <span class="k">技术栈标签</span>
           <span class="v">
-            <span class="tag" v-for="t in p.tags" :key="t">{{ t }}</span>
+            <span v-for="t in p.tags" :key="t" :class="tagClass(t)">{{ t }}</span>
             <span v-if="!p.tags.length" style="color:var(--muted)">（无，可在编辑档案中添加）</span>
           </span>
         </div>

@@ -109,9 +109,27 @@
   // ---------- 通用状态徽标样式 ----------
   function statusBadgeClass(s) { return "badge s-" + s; }
 
+  // ---------- 标签语义分色：语言=青绿 框架=紫 工具/其他=中性 ----------
+  const TAG_LANGS = new Set([
+    "Python", "JavaScript", "TypeScript", "Go", "Rust", "C", "C++", "C#",
+    "Java", "Kotlin", "PHP", "Ruby", "Swift", "Dart", "Lua", "Shell", "SQL",
+    "Jupyter", "HTML", "CSS", "Conda",
+  ]);
+  const TAG_FRAMEWORKS = new Set([
+    "React", "Vue", "Next.js", "Nuxt", "Svelte", "Angular", "FastAPI",
+    "Flask", "Django", "Express", "Koa", "NestJS", "Electron", "Tornado",
+    "Scrapy", "Celery", "Qt", "Tailwind CSS", "Ant Design", "Element Plus",
+    "Vite", "Webpack", "esbuild", "pytest", "Selenium", "Playwright",
+  ]);
+  function tagClass(tag) {
+    if (TAG_LANGS.has(tag)) return "tag tag-lang";
+    if (TAG_FRAMEWORKS.has(tag)) return "tag tag-fw";
+    return "tag tag-tool";
+  }
+
   // 模板表达式只能访问组件实例属性（Vue3 编译后为 _ctx.xxx），
   // window 上的工具函数必须通过 globalProperties 注入后模板才能调用
   window.LPA_HELPERS = {
-    fmtTime, fmtSize, fmtNum, copyText, statusBadgeClass, toggleTheme,
+    fmtTime, fmtSize, fmtNum, copyText, statusBadgeClass, toggleTheme, tagClass,
   };
 })();

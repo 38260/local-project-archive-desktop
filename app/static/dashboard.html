@@ -56,7 +56,7 @@
            @click="goto(p)">
         <div class="title-row">
           <h3 :title="p.name">{{ p.name }}</h3>
-          <span class="alias" v-if="p.alias">{{ p.alias }}</span>
+          <span class="alias-chip" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
           <span class="spacer"></span>
           <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
           <span :class="statusBadgeClass(p.status)">{{ p.status }}</span>
@@ -68,13 +68,13 @@
         </div>
         <div class="intro-row" v-if="p.intro" :title="p.intro">{{ p.intro }}</div>
         <div class="meta-row">
-          <span v-if="p.category">🗂 {{ p.category }}</span>
+          <span v-if="p.category" class="cat-chip">🗂 {{ p.category }}</span>
           <span v-if="p.stack_summary" title="自动识别技术栈">{{ p.stack_summary }}</span>
           <span class="fill"></span>
           <span :title="'档案更新于 ' + fmtTime(p.updated_at)">修改 {{ fmtTime(p.fs_modified) }}</span>
         </div>
         <div class="meta-row" v-if="p.tags.length">
-          <span><span class="tag" v-for="t in p.tags" :key="t">{{ t }}</span></span>
+          <span><span v-for="t in p.tags" :key="t" :class="tagClass(t)">{{ t }}</span></span>
         </div>
       </div>
     </div>
