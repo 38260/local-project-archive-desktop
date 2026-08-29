@@ -18,7 +18,7 @@
       isDir() { return this.node.type === "dir"; },
     },
     template: `
-      <li class="t-row">
+      <li class="t-row" :class="{ 't-file': !isDir }">
         <template v-if="isDir">
           <span class="t-dir" @click="open = !open">
             <span class="t-caret">{{ open ? "▾" : "▸" }}</span>{{ open ? "📂" : "📁" }}

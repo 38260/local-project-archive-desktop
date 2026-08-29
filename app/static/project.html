@@ -79,8 +79,8 @@
     <section class="panel" v-if="meta">
       <h2>Git 信息 <span class="right section-note">解析于 {{ fmtTime(meta.parsed_at) }}</span></h2>
       <div class="meta-grid" v-if="gitInfo.is_repo">
-        <div class="kv"><span class="k">当前分支</span><span class="v">{{ gitInfo.branch || "－" }}</span></div>
-        <div class="kv"><span class="k">提交总数</span><span class="v">{{ fmtNum(gitInfo.commit_count) }}</span></div>
+        <div class="kv"><span class="k">当前分支</span><span class="v"><span class="chip-value">{{ gitInfo.branch || "－" }}</span></span></div>
+        <div class="kv"><span class="k">提交总数</span><span class="v" style="font-size:15px;font-weight:700">{{ fmtNum(gitInfo.commit_count) }}</span></div>
         <div class="kv"><span class="k">远端仓库</span><span class="v">{{ gitInfo.remote || "（无远端）" }}</span></div>
         <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.last_commit">
           <span class="k">最近提交</span>
@@ -125,9 +125,9 @@
     <section class="panel" v-if="meta && meta.stats">
       <h2>文件统计 <span class="right section-note">仅只读统计，不改动任何文件</span></h2>
       <div class="meta-grid">
-        <div class="kv"><span class="k">文件数量</span><span class="v">{{ fmtNum(meta.stats.file_count) }}<template v-if="meta.stats.truncated">+（已达统计上限）</template></span></div>
-        <div class="kv"><span class="k">子目录数</span><span class="v">{{ fmtNum(meta.stats.dir_count) }}</span></div>
-        <div class="kv"><span class="k">总体积</span><span class="v">{{ fmtSize(meta.stats.total_size) }}</span></div>
+        <div class="kv"><span class="k">文件数量</span><span class="v"><strong style="font-size:16px">{{ fmtNum(meta.stats.file_count) }}</strong><template v-if="meta.stats.truncated">+（已达统计上限）</template></span></div>
+        <div class="kv"><span class="k">子目录数</span><span class="v"><strong style="font-size:16px">{{ fmtNum(meta.stats.dir_count) }}</strong></span></div>
+        <div class="kv"><span class="k">总体积</span><span class="v"><strong style="font-size:16px">{{ fmtSize(meta.stats.total_size) }}</strong></span></div>
         <div class="kv" style="grid-column: 1 / -1" v-if="meta.stats.top_extensions.length">
           <span class="k">文件类型</span>
           <span class="v"><span class="tag" v-for="e in meta.stats.top_extensions" :key="e[0]"
@@ -156,7 +156,8 @@
     <!-- 自定义开发笔记（多条） -->
     <section class="panel">
       <h2>开发笔记
-        <span class="right section-note">开发体会 / 思考心得 / 踩坑点 / 解决方案 · 共 {{ notes.length }} 条</span>
+        <span class="count">{{ notes.length }} 条</span>
+        <span class="right section-note">开发体会 / 思考心得 / 踩坑点 / 解决方案</span>
       </h2>
       <div v-if="noteDraft !== null">
         <textarea class="md-editor" style="min-height:110px" v-model="noteDraft"
@@ -195,7 +196,8 @@
     <!-- 自定义变更日志（手写，独立于 git 提交） -->
     <section class="panel">
       <h2>变更日志
-        <span class="right section-note">手动记录版本改动 / 功能新增 / 重大调整 · 共 {{ changelogs.length }} 条</span>
+        <span class="count">{{ changelogs.length }} 条</span>
+        <span class="right section-note">手动记录版本改动 / 功能新增 / 重大调整，独立于 git 提交</span>
       </h2>
       <div v-if="logDraft !== null">
         <div class="log-form-row">
@@ -246,8 +248,9 @@
     <!-- Git 提交记录（可视化时间线） -->
     <section class="panel">
       <h2>Git 提交记录
+        <span class="count" v-if="commitData && commitData.is_repo && commitData.commits.length">{{ fmtNum(commitData.total_count) }} 次</span>
         <span class="right section-note" v-if="commitData && commitData.is_repo && commitData.commits.length">
-          共 {{ fmtNum(commitData.total_count) }} 次提交 · 显示最近 {{ commitData.commits.length }} 条（点击单条展开详情）
+          显示最近 {{ commitData.commits.length }} 条 · 点击单条展开详情
         </span>
       </h2>
       <div class="loading" v-if="commitLoading">加载中…</div>

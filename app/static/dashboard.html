@@ -21,10 +21,10 @@
   <main class="container">
     <!-- 统计 -->
     <div class="stats-row">
-      <span class="stat"><b>{{ stats.total }}</b>全部项目</span>
-      <span class="stat"><b>{{ stats.active }}</b>活跃项目</span>
-      <span class="stat"><b>{{ stats.archived }}</b>已归档</span>
-      <span class="stat lost" :class="{lost: stats.lost > 0}"><b>{{ stats.lost }}</b>路径丢失</span>
+      <span class="stat stat-total"><b>{{ stats.total }}</b>全部项目</span>
+      <span class="stat stat-active"><b>{{ stats.active }}</b>活跃项目</span>
+      <span class="stat stat-archived"><b>{{ stats.archived }}</b>已归档</span>
+      <span class="stat stat-lost"><b>{{ stats.lost }}</b>路径丢失</span>
     </div>
 
     <!-- 筛选栏 -->
