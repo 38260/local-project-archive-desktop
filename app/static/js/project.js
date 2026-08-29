@@ -158,7 +158,7 @@
           { id: "sec-notes", label: "开发笔记", hide: this.notes.length === 0 && this.noteDraft === null },
           { id: "sec-changelogs", label: "变更日志", hide: this.changelogs.length === 0 && this.logDraft === null },
           { id: "sec-commits", label: "提交记录", hide: !(this.commitData && this.commitData.is_repo && this.commitData.commits.length) },
-          { id: "sec-shots", label: "截图", hide: this.screenshots.length === 0 },
+          { id: "sec-shots", label: "截图", hide: false },
           { id: "sec-readme", label: "README", hide: !(this.readme && this.readme.exists) },
         ];
         return list.filter(x => !x.hide);
@@ -197,6 +197,21 @@
           count: byMonth[k],
           pct: Math.round((byMonth[k] / max) * 100),
         }));
+      },
+      // 扩展名占比条（基于 top_extensions）
+      extBars() {
+        const exts = (this.meta && this.meta.stats && this.meta.stats.top_extensions) || [];
+        if (!exts.length) return [];
+        const total = exts.reduce((s, row) => s + (row[1] || 0), 0) || 1;
+        return exts.slice(0, 6).map(([ext, count]) => {
+          const name = (ext && String(ext).startsWith(".")) ? `f${ext}` : "file";
+          return {
+            ext: ext || "(无扩展名)",
+            count,
+            pct: Math.max(1, Math.round((count / total) * 100)),
+            color: this.fileColor(name),
+          };
+        });
       },
     },
     methods: {

@@ -75,29 +75,43 @@
     <!-- 基础元信息 -->
     <section class="panel" id="sec-info">
       <h2>基础信息</h2>
-      <div class="meta-grid">
-        <div class="kv" style="grid-column: 1 / -1">
-          <span class="k">本地路径</span>
-          <span class="v">{{ p.path }}
-            <button class="icon-btn" title="复制路径" @click="copyText(p.path)">⧉</button>
-          </span>
+      <p class="info-intro" v-if="meta && meta.intro">{{ meta.intro }}</p>
+      <div class="info-path-row">
+        <span class="info-k">本地路径</span>
+        <code class="info-path" :title="p.path">{{ p.path }}</code>
+        <button class="icon-btn" title="复制路径" @click="copyText(p.path)">⧉</button>
+      </div>
+      <div class="info-tiles">
+        <div class="info-tile">
+          <span class="info-k">项目分类</span>
+          <span class="info-v">{{ p.category || "－" }}</span>
         </div>
-        <div class="kv" style="grid-column: 1 / -1" v-if="meta && meta.intro">
-          <span class="k">简介</span>
-          <span class="v" style="font-family: var(--sans); font-weight: 400; font-size: 14.5px;">{{ meta.intro }}</span>
+        <div class="info-tile">
+          <span class="info-k">状态</span>
+          <span class="info-v">{{ p.status }}</span>
         </div>
-        <div class="kv"><span class="k">项目分类</span><span class="v">{{ p.category || "－" }}</span></div>
-        <div class="kv"><span class="k">状态</span><span class="v">{{ p.status }}</span></div>
-        <div class="kv"><span class="k">创建时间</span><span class="v">{{ fmtTime(p.fs_created) }}</span></div>
-        <div class="kv"><span class="k">最后修改</span><span class="v">{{ fmtTime(p.fs_modified) }}</span></div>
-        <div class="kv"><span class="k">档案建立</span><span class="v">{{ fmtTime(p.created_at) }}</span></div>
-        <div class="kv"><span class="k">档案更新</span><span class="v">{{ fmtTime(p.updated_at) }}</span></div>
-        <div class="kv" style="grid-column: 1 / -1">
-          <span class="k">技术栈标签</span>
-          <span class="v">
-            <span v-for="t in p.tags" :key="t" :class="tagClass(t)">{{ t }}</span>
-            <span v-if="!p.tags.length" style="color:var(--muted)">（无，可在编辑档案中添加）</span>
-          </span>
+        <div class="info-tile">
+          <span class="info-k">创建时间</span>
+          <span class="info-v mono">{{ fmtTime(p.fs_created) }}</span>
+        </div>
+        <div class="info-tile">
+          <span class="info-k">最后修改</span>
+          <span class="info-v mono">{{ fmtTime(p.fs_modified) }}</span>
+        </div>
+        <div class="info-tile">
+          <span class="info-k">档案建立</span>
+          <span class="info-v mono">{{ fmtTime(p.created_at) }}</span>
+        </div>
+        <div class="info-tile">
+          <span class="info-k">档案更新</span>
+          <span class="info-v mono">{{ fmtTime(p.updated_at) }}</span>
+        </div>
+      </div>
+      <div class="info-tags">
+        <span class="info-k">技术栈</span>
+        <div class="info-tags-list">
+          <span v-for="t in p.tags" :key="t" :class="tagClass(t)">{{ t }}</span>
+          <span v-if="!p.tags.length" class="section-note">（无，可在编辑档案中添加）</span>
         </div>
       </div>
     </section>
@@ -176,16 +190,37 @@
     <!-- 文件统计 -->
     <section class="panel" id="sec-stats" v-if="meta && meta.stats">
       <h2>文件统计 <span class="right section-note">仅只读统计，不改动任何文件</span></h2>
-      <div class="meta-grid">
-        <div class="kv"><span class="k">文件数量</span><span class="v"><strong style="font-size:17px">{{ fmtNum(meta.stats.file_count) }}</strong><template v-if="meta.stats.truncated">+（已达统计上限）</template></span></div>
-        <div class="kv"><span class="k">子目录数</span><span class="v"><strong style="font-size:17px">{{ fmtNum(meta.stats.dir_count) }}</strong></span></div>
-        <div class="kv"><span class="k">总体积</span><span class="v"><strong style="font-size:17px">{{ fmtSize(meta.stats.total_size) }}</strong></span></div>
-        <div class="kv" style="grid-column: 1 / -1" v-if="meta.stats.top_extensions.length">
-          <span class="k">文件类型</span>
-          <span class="v"><span class="tag" v-for="e in meta.stats.top_extensions" :key="e[0]"
-                style="background:var(--panel-2);color:var(--text)">{{ e[0] }} × {{ fmtNum(e[1]) }}</span></span>
+      <div class="stats-nums">
+        <div class="stats-num">
+          <span class="stats-num-val">{{ fmtNum(meta.stats.file_count) }}</span>
+          <span class="stats-num-lab">文件<template v-if="meta.stats.truncated">+</template></span>
+        </div>
+        <div class="stats-num">
+          <span class="stats-num-val">{{ fmtNum(meta.stats.dir_count) }}</span>
+          <span class="stats-num-lab">子目录</span>
+        </div>
+        <div class="stats-num">
+          <span class="stats-num-val">{{ fmtSize(meta.stats.total_size) }}</span>
+          <span class="stats-num-lab">总体积</span>
         </div>
       </div>
+      <template v-if="extBars.length">
+        <div class="ext-stack" :title="'按扩展名文件数占比（Top ' + extBars.length + '）'">
+          <span v-for="e in extBars" :key="'s'+e.ext" class="ext-stack-seg"
+                :style="{ width: e.pct + '%', background: e.color }"
+                :title="e.ext + ' × ' + e.count"></span>
+        </div>
+        <div class="ext-bars">
+          <div class="ext-bar-row" v-for="e in extBars" :key="e.ext">
+            <span class="ext-bar-ext" :style="{ color: e.color }">{{ e.ext }}</span>
+            <div class="ext-bar-track">
+              <div class="ext-bar-fill" :style="{ width: e.pct + '%', background: e.color }"></div>
+            </div>
+            <span class="ext-bar-count">{{ fmtNum(e.count) }}</span>
+            <span class="ext-bar-pct">{{ e.pct }}%</span>
+          </div>
+        </div>
+      </template>
     </section>
 
       <div class="dep-stats" v-if="depStats.total">
@@ -415,7 +450,13 @@
           <span class="shot-size">{{ fmtSize(s.size) }}</span>
         </div>
       </div>
-      <div class="section-note" v-else>暂无截图，点击右上角「⬆ 上传截图」保存项目界面图（存本系统 data 目录，每张 ≤5MB）。</div>
+      <label class="shots-empty" v-else :class="{ on: shotsDrag }">
+        <input type="file" accept="image/png,image/jpeg,image/webp" multiple
+               class="shots-empty-input" @change="uploadShots">
+        <span class="shots-empty-ico" aria-hidden="true">🖼</span>
+        <span class="shots-empty-title">拖拽图片到此处，或点击上传</span>
+        <span class="shots-empty-note">PNG / JPEG / WebP · 每张 ≤5MB · 存本系统 data 目录</span>
+      </label>
     </section>
 
     <!-- 项目 README -->
