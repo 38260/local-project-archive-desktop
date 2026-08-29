@@ -127,9 +127,29 @@
     return "tag tag-tool";
   }
 
+  // ---------- git 提交记录分色 ----------
+  // Conventional Commits 前缀 → 类型（用于彩色徽章）
+  function commitType(msg) {
+    const m = /^\s*(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert|merge)\b/i.exec(msg || "");
+    return m ? m[1].toLowerCase() : "";
+  }
+  // 首行去掉类型前缀后的正文
+  function commitMsgText(msg) {
+    const first = (msg || "").split("\n")[0] || "";
+    return first.replace(/^\s*(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert|merge)\b[:：\s]*/i, "").slice(0, 120) || first.slice(0, 120);
+  }
+  // 贡献者名字 → 稳定取色（哈希散列到调色板，两种主题下都可见）
+  const USER_COLORS = ["#0969da", "#1a7f37", "#bf3989", "#bc4c00", "#8250df", "#0f766e"];
+  function userColor(name) {
+    let h = 0;
+    for (const ch of String(name || "?")) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return USER_COLORS[h % USER_COLORS.length];
+  }
+
   // 模板表达式只能访问组件实例属性（Vue3 编译后为 _ctx.xxx），
   // window 上的工具函数必须通过 globalProperties 注入后模板才能调用
   window.LPA_HELPERS = {
     fmtTime, fmtSize, fmtNum, copyText, statusBadgeClass, toggleTheme, tagClass,
+    commitType, commitMsgText, userColor,
   };
 })();

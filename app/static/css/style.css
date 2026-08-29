@@ -465,7 +465,35 @@ input[type="search"] { width: 260px; }
   border-radius: 4px; padding: 0 6px;
 }
 .ct-msg { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; flex: 1; min-width: 160px; }
-.ct-meta { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.ct-meta { font-size: 12px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+.ct-user-dot {
+  display: inline-block; width: 9px; height: 9px;
+  border-radius: 50%; flex: none; vertical-align: middle;
+}
+/* 提交类型徽章：Conventional Commits 分色 */
+.ct-type {
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  padding: 1px 7px; border-radius: 4px; flex: none;
+}
+.ct-feat { background: rgba(26, 127, 55, .14); color: #1a7f37; }
+.ct-fix { background: rgba(207, 34, 46, .12); color: #cf222e; }
+.ct-docs { background: rgba(9, 105, 218, .12); color: #0969da; }
+.ct-style { background: rgba(191, 57, 137, .12); color: #bf3989; }
+.ct-refactor { background: rgba(188, 76, 0, .12); color: #bc4c00; }
+.ct-perf { background: rgba(130, 80, 223, .12); color: #8250df; }
+.ct-test { background: rgba(15, 118, 110, .14); color: #0f766e; }
+.ct-chore, .ct-build, .ct-ci, .ct-revert, .ct-merge { background: var(--panel-2); color: var(--muted); }
+.ct-plain { background: var(--accent-soft); color: var(--accent); }
+[data-theme="dark"] .ct-feat { color: #3fb950; }
+[data-theme="dark"] .ct-fix { color: #f85149; }
+[data-theme="dark"] .ct-docs { color: #4493f8; }
+[data-theme="dark"] .ct-style { color: #db61a2; }
+[data-theme="dark"] .ct-refactor { color: #ed8502; }
+[data-theme="dark"] .ct-perf { color: #ab7df8; }
+[data-theme="dark"] .ct-test { color: #5eead4; }
+/* 变更规模增删行数 */
+.diff-add { color: var(--ok); font-weight: 700; }
+.diff-del { color: var(--danger); font-weight: 700; }
 .ct-caret { color: var(--muted); font-size: 11px; }
 .ct-detail {
   margin: 2px 0 10px; padding: 10px 14px;

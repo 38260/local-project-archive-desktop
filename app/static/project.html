@@ -287,16 +287,25 @@
             <div class="ct-row" @click="toggleCommit(c.hash)">
               <span class="ct-dot"></span>
               <span class="ct-hash">{{ c.short }}</span>
-              <span class="ct-msg" :title="firstLine(c.message)">{{ firstLine(c.message) }}</span>
-              <span class="ct-meta">{{ c.author }} · {{ fmtTime(c.date) }}</span>
+              <span class="ct-type" :class="'ct-' + (commitType(c.message) || 'plain')"
+                    v-if="commitType(c.message)">{{ commitType(c.message) }}</span>
+              <span class="ct-msg" :title="firstLine(c.message)">{{ commitMsgText(c.message) }}</span>
+              <span class="ct-meta">
+                <span class="ct-user-dot" :style="{ background: userColor(c.author) }"></span>
+                {{ c.author }} · {{ fmtTime(c.date) }}
+              </span>
               <span class="ct-caret">{{ expandedCommits.includes(c.hash) ? "▾" : "▸" }}</span>
             </div>
             <div class="ct-detail" v-if="expandedCommits.includes(c.hash)">
               <div class="kv-line"><span class="k">完整哈希</span><span class="v">{{ c.hash }}</span></div>
-              <div class="kv-line"><span class="k">作者</span><span class="v">{{ c.author }} &lt;{{ c.email }}&gt;</span></div>
+              <div class="kv-line"><span class="k">作者</span><span class="v">
+                <span class="ct-user-dot" :style="{ background: userColor(c.author) }"></span>
+                {{ c.author }} &lt;{{ c.email }}&gt;</span>
+              </div>
               <div class="kv-line"><span class="k">提交时间</span><span class="v">{{ fmtTime(c.date) }}</span></div>
               <div class="kv-line" v-if="c.stats"><span class="k">变更规模</span>
-                <span class="v">{{ c.stats.files }} 个文件，+{{ c.stats.insertions }} / -{{ c.stats.deletions }}</span>
+                <span class="v"><span class="diff-add">+{{ c.stats.insertions }}</span> / <span class="diff-del">-{{ c.stats.deletions }}</span>
+                <span style="color:var(--muted)">（{{ c.stats.files }} 个文件）</span></span>
               </div>
               <pre class="ct-fullmsg">{{ c.message }}</pre>
             </div>
