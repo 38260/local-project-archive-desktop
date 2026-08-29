@@ -4,9 +4,10 @@
   const { createApp } = Vue;
 
   const app = createApp({
-    data() {
+      data() {
       return {
         loading: true,
+        dataPath: "",
         projects: [],
         stats: { total: 0, active: 0, archived: 0, lost: 0 },
         statuses: [],
@@ -140,7 +141,13 @@
         finally { this.importing = false; }
       },
     },
-    mounted() { this.load(); },
+    mounted() {
+      this.load();
+      // 展示数据文件位置，明确档案是持久化的
+      api("/api/health", { silent: true })
+        .then(h => { this.dataPath = h.data_path || ""; })
+        .catch(() => {});
+    },
   });
 
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用

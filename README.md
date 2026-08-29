@@ -56,8 +56,9 @@ local-project-archive/
 │       ├── project.html    #   项目详情页
 │       ├── css/style.css   #   亮/暗主题样式
 │       └── js/…            #   common / dashboard / project / vendor(vue)
-└── data/                   # 运行时生成（git 忽略）
-    └── projects.db         #   SQLite 数据库（全部档案数据在此）
+└── data/                   # 运行时生成（git 忽略）—— 档案持久化保存在这里
+    ├── projects.db         #   SQLite 数据库：项目、笔记、变更日志全在此，重启不丢失
+    └── backups/            #   每次启动自动备份（保留最近 10 份）
 ```
 
 ## 数据表结构（projects）

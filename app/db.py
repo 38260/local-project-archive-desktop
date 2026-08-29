@@ -1,11 +1,18 @@
 """SQLite 数据访问层：连接管理与建表。
 
 仅使用标准库 sqlite3，零额外安装；单用户本地场景，按请求开关连接即可。
+档案数据全部持久化在 data/projects.db，重启服务不丢失；
+每次启动自动备份一份到 data/backups/（保留最近 10 份）。
 """
+import logging
+import shutil
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime
 
 from app.config import DATA_DIR, DB_PATH
+
+logger = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
@@ -51,9 +58,28 @@ CREATE INDEX IF NOT EXISTS idx_changelogs_project ON changelogs(project_id);
 """
 
 
+def _backup_db() -> None:
+    """启动时自动备份数据库，保留最近 10 份，防止意外丢失档案。"""
+    if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
+        return
+    try:
+        backup_dir = DATA_DIR / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        shutil.copy2(DB_PATH, backup_dir / f"projects-{stamp}.db")
+        # 轮转：只保留最近 10 份
+        backups = sorted(backup_dir.glob("projects-*.db"))
+        for old in backups[:-10]:
+            old.unlink()
+    except OSError as exc:
+        # 备份失败不阻塞启动，仅记录告警
+        logger.warning("数据库自动备份失败：%s", exc)
+
+
 def init_db() -> None:
-    """初始化数据目录并建表。"""
+    """初始化数据目录并建表（已有数据库则直接复用，数据不丢失）。"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    _backup_db()
     with get_db() as conn:
         conn.executescript(_SCHEMA)
 

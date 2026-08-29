@@ -84,6 +84,10 @@
     <div class="loading" v-if="loading">正在加载…</div>
   </main>
 
+  <footer class="foot-note" v-if="dataPath">
+    💾 档案持久化保存于本机：<span class="mono">{{ dataPath }}</span>，重启服务/电脑不丢失；每次启动自动备份到 data/backups/（保留最近 10 份）
+  </footer>
+
   <!-- 手动录入 -->
   <div class="modal-mask" v-if="showAdd" @click.self="showAdd = false">
     <div class="modal">

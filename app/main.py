@@ -57,7 +57,9 @@ app.include_router(scanner.router)
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "app": APP_NAME, "version": APP_VERSION}
+    from app.config import DB_PATH
+    return {"ok": True, "app": APP_NAME, "version": APP_VERSION,
+            "data_path": str(DB_PATH)}
 
 
 @app.get("/api/export")
