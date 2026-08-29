@@ -74,6 +74,20 @@
         commitData: null,
         commitLoading: true,
         expandedCommits: [],
+        // 左侧锚点目录
+        sections: [
+          { id: "sec-info", label: "基础信息" },
+          { id: "sec-git", label: "Git 信息" },
+          { id: "sec-configs", label: "构建配置" },
+          { id: "sec-stats", label: "文件统计" },
+          { id: "sec-desc", label: "项目描述" },
+          { id: "sec-notes", label: "开发笔记" },
+          { id: "sec-changelogs", label: "变更日志" },
+          { id: "sec-commits", label: "提交记录" },
+          { id: "sec-readme", label: "README" },
+        ],
+        activeSection: "sec-info",
+        spySuspendedUntil: 0,
       };
     },
     computed: {
@@ -221,6 +235,26 @@
         if (i >= 0) this.expandedCommits.splice(i, 1);
         else this.expandedCommits.push(hash);
       },
+      // ---- 左侧锚点目录 ----
+      scrollTo(id) {
+        // 点击后锁定高亮，等平滑滚动结束再交还滚动监听，
+        // 避免页面触底时（目标无法滚到顶部）高亮跳回上一个面板
+        this.activeSection = id;
+        this.spySuspendedUntil = Date.now() + 1000;
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      },
+      // 滚动监听：高亮当前视口所在的面板
+      onScroll() {
+        if (Date.now() < (this.spySuspendedUntil || 0)) return;
+        const offset = 90; // 与 sticky 顶栏高度对应
+        let current = "";
+        for (const s of this.sections) {
+          const el = document.getElementById(s.id);
+          if (el && el.getBoundingClientRect().top <= offset) current = s.id;
+        }
+        this.activeSection = current || this.sections[0].id;
+      },
       async loadReadme() {
         if (this.p.is_lost) { this.readme = { exists: false }; return; }
         try {
@@ -352,7 +386,13 @@
         } catch (e) { /* toast 已提示 */ }
       },
     },
-    mounted() { this.load(); },
+    mounted() {
+      this.load();
+      window.addEventListener("scroll", this.onScroll, { passive: true });
+    },
+    beforeUnmount() {
+      window.removeEventListener("scroll", this.onScroll);
+    },
   });
 
   app.component("tree-node", TreeNode);

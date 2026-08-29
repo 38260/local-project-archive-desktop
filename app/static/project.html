@@ -47,10 +47,16 @@
     </div>
 
     <div class="detail-layout">
+    <!-- 左侧锚点目录 -->
+    <nav class="toc-nav">
+      <span class="toc-title">页面目录</span>
+      <a v-for="s in sections" :key="s.id" :class="{ on: activeSection === s.id }"
+         @click="scrollTo(s.id)" :title="s.label">{{ s.label }}</a>
+    </nav>
     <div class="detail-main">
 
     <!-- 基础元信息 -->
-    <section class="panel">
+    <section class="panel" id="sec-info">
       <h2>基础信息</h2>
       <div class="meta-grid">
         <div class="kv" style="grid-column: 1 / -1">
@@ -76,7 +82,7 @@
     </section>
 
     <!-- Git 信息 -->
-    <section class="panel" v-if="meta">
+    <section class="panel" id="sec-git" v-if="meta">
       <h2>Git 信息 <span class="right section-note">解析于 {{ fmtTime(meta.parsed_at) }}</span></h2>
       <div class="meta-grid" v-if="gitInfo.is_repo">
         <div class="kv"><span class="k">当前分支</span><span class="v"><span class="chip-value">{{ gitInfo.branch || "－" }}</span></span></div>
@@ -92,7 +98,7 @@
     </section>
 
     <!-- 构建配置与依赖 -->
-    <section class="panel" v-if="meta && meta.configs.length">
+    <section class="panel" id="sec-configs" v-if="meta && meta.configs.length">
       <h2>构建配置与依赖</h2>
       <div class="meta-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
         <div v-for="c in meta.configs" :key="c.file"
@@ -122,7 +128,7 @@
     </section>
 
     <!-- 文件统计 -->
-    <section class="panel" v-if="meta && meta.stats">
+    <section class="panel" id="sec-stats" v-if="meta && meta.stats">
       <h2>文件统计 <span class="right section-note">仅只读统计，不改动任何文件</span></h2>
       <div class="meta-grid">
         <div class="kv"><span class="k">文件数量</span><span class="v"><strong style="font-size:16px">{{ fmtNum(meta.stats.file_count) }}</strong><template v-if="meta.stats.truncated">+（已达统计上限）</template></span></div>
@@ -137,7 +143,7 @@
     </section>
 
     <!-- 项目描述（存数据库，不写入原项目目录） -->
-    <section class="panel">
+    <section class="panel" id="sec-desc">
       <h2>项目描述
         <span class="right section-note">存储于本机数据库，不会写入原项目文件夹</span>
       </h2>
@@ -154,7 +160,7 @@
     </section>
 
     <!-- 自定义开发笔记（多条） -->
-    <section class="panel">
+    <section class="panel" id="sec-notes">
       <h2>开发笔记
         <span class="count">{{ notes.length }} 条</span>
         <span class="right section-note">开发体会 / 思考心得 / 踩坑点 / 解决方案</span>
@@ -194,7 +200,7 @@
     </section>
 
     <!-- 自定义变更日志（手写，独立于 git 提交） -->
-    <section class="panel">
+    <section class="panel" id="sec-changelogs">
       <h2>变更日志
         <span class="count">{{ changelogs.length }} 条</span>
         <span class="right section-note">手动记录版本改动 / 功能新增 / 重大调整，独立于 git 提交</span>
@@ -246,7 +252,7 @@
     </section>
 
     <!-- Git 提交记录（可视化时间线） -->
-    <section class="panel">
+    <section class="panel" id="sec-commits">
       <h2>Git 提交记录
         <span class="count" v-if="commitData && commitData.is_repo && commitData.commits.length">{{ fmtNum(commitData.total_count) }} 次</span>
         <span class="right section-note" v-if="commitData && commitData.is_repo && commitData.commits.length">
@@ -290,7 +296,7 @@
     </section>
 
     <!-- 项目 README -->
-    <section class="panel">
+    <section class="panel" id="sec-readme">
       <h2>项目 README
         <span class="right section-note" v-if="readme">{{ readme.file }}</span>
       </h2>
