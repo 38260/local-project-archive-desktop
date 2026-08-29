@@ -238,6 +238,7 @@ input[type="search"] { width: 260px; }
   background: var(--accent-soft); border-radius: 999px; padding: 2px 11px;
 }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
+.detail-head select { min-width: 110px; font-weight: 600; color: var(--accent); }
 
 .banner-lost {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

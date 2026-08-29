@@ -163,6 +163,7 @@ def main():
         check("更新描述/状态/标签", st == 200 and up["status"] == "已完成" and up["tags"] == ["手动标签"])
         st, p2 = req("GET", f"/api/projects/{p1['id']}")
         check("描述已持久化", notes in p2["description"])
+        check("详情返回状态选项列表", st == 200 and p2.get("statuses") == ["进行中", "已完成", "暂停", "归档废弃"])
 
         # ---- 自定义开发笔记 ----
         st, note_a = req("POST", f"/api/projects/{p1['id']}/notes",

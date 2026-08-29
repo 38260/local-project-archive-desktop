@@ -160,7 +160,10 @@ def list_projects():
 def get_project(project_id: int):
     with get_db() as conn:
         row = _get_row_or_404(conn, project_id)
-    return _detail_dict(row)
+    result = _detail_dict(row)
+    # 状态下拉框的选项一并返回，详情页直接可用
+    result["statuses"] = STATUS_VALUES
+    return result
 
 
 @router.put("/{project_id}")

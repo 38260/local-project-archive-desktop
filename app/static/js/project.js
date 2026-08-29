@@ -106,6 +106,7 @@
         try {
           const p = await api(`/api/projects/${this.projectId}`);
           this.p = p;
+          this.statuses = p.statuses || [];
           this.meta = p.auto_meta || {};
           this.descHtml = p.description_html || "";
           this.newPath = p.is_lost ? "" : p.path;
