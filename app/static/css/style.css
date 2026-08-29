@@ -147,6 +147,54 @@ input:focus, select:focus, textarea:focus {
 textarea { font-family: var(--mono); resize: vertical; }
 input[type="search"] { width: 320px; }
 
+/* ---- 自定义下拉（lpa-select）：统一样式 + 键盘可达 + 锚点弹出 ---- */
+.lsel { position: relative; display: inline-block; }
+.lsel-trigger {
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-width: 130px;
+  padding: 8px 14px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: 14px var(--sans);
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.lsel-trigger:hover { border-color: var(--accent); }
+.lsel.open .lsel-trigger {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.lsel.accent .lsel-trigger { color: var(--accent); font-weight: 700; }
+.lsel-placeholder { color: var(--muted); }
+.lsel-arrow { font-size: 11px; color: var(--muted); transition: transform .18s ease; flex: none; }
+.lsel.open .lsel-arrow { transform: rotate(180deg); }
+.lsel-list {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 80;
+  min-width: 100%; width: max-content; max-width: 320px;
+  max-height: 288px; overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+  display: flex; flex-direction: column; gap: 1px;
+  transform-origin: top center;
+}
+.lsel-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 6px;
+  font-size: 14px; cursor: pointer; white-space: nowrap;
+}
+.lsel-item.foc { background: var(--accent-soft); }
+.lsel-item.sel { font-weight: 700; }
+.lsel-check { width: 16px; flex: none; visibility: hidden; color: var(--accent); font-weight: 700; }
+.lsel-item.sel .lsel-check { visibility: visible; }
+.lsel-enter-active { transition: opacity .13s ease-out, transform .13s ease-out; }
+.lsel-leave-active { transition: opacity .1s ease-in, transform .1s ease-in; }
+.lsel-enter-from, .lsel-leave-to { opacity: 0; transform: translateY(-4px) scale(.97); }
+
 /* ---- 徽标 / 标签 ---- */
 .badge {
   display: inline-block; padding: 3px 12px;
@@ -368,7 +416,6 @@ input[type="search"] { width: 320px; }
 .detail-head h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
 .alias-lg { font-size: 14.5px !important; padding: 3px 13px !important; }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
-.detail-head select { min-width: 110px; font-weight: 600; color: var(--accent); }
 
 .banner-lost {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

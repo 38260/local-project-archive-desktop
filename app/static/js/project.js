@@ -402,6 +402,7 @@
   });
 
   app.component("tree-node", TreeNode);
+  app.component("lpa-select", window.LpaSelect);
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用
   Object.assign(app.config.globalProperties, window.LPA_HELPERS);
   app.mount("#app");

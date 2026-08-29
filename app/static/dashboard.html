@@ -46,14 +46,8 @@
     <!-- 筛选栏 -->
     <div class="filter-bar">
       <input type="search" v-model.trim="q" placeholder="搜索名称 / 别名 / 路径 / 标签…">
-      <select v-model="statusFilter">
-        <option value="">全部状态</option>
-        <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-      </select>
-      <select v-model="tagFilter">
-        <option value="">全部标签</option>
-        <option v-for="t in allTags" :key="t" :value="t">{{ t }}</option>
-      </select>
+      <lpa-select v-model="statusFilter" :options="statuses" all-label="全部状态"></lpa-select>
+      <lpa-select v-model="tagFilter" :options="allTags" all-label="全部标签"></lpa-select>
       <label class="check-label">
         <input type="checkbox" v-model="showArchived"> 显示归档项目
       </label>
@@ -138,9 +132,7 @@
       </div>
       <div class="field">
         <label>项目状态</label>
-        <select v-model="form.status">
-          <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-        </select>
+        <lpa-select v-model="form.status" :options="statuses"></lpa-select>
       </div>
       <div class="field">
         <label>技术栈标签（逗号分隔，留空则自动识别）</label>

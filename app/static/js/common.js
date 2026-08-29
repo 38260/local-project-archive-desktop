@@ -152,4 +152,88 @@
     fmtTime, fmtSize, fmtNum, copyText, statusBadgeClass, toggleTheme, tagClass,
     commitType, commitMsgText, userColor,
   };
+
+  // ---------- 自定义下拉组件（替代原生 select：统一样式 + 键盘可达） ----------
+  // 用法：<lpa-select v-model="x" :options="['a','b']" all-label="全部" placeholder="…" accent></lpa-select>
+  window.LpaSelect = {
+    name: "LpaSelect",
+    props: {
+      modelValue: { type: String, default: "" },
+      options: { type: Array, default: () => [] },
+      placeholder: { type: String, default: "请选择" },
+      allLabel: { type: String, default: "" },   // 传入后在列表顶部加一个空值项（筛选用）
+      accent: { type: Boolean, default: false }, // 强调色触发器（如详情页状态）
+    },
+    emits: ["update:modelValue"],
+    data() { return { open: false, focused: 0 }; },
+    computed: {
+      innerOptions() {
+        const list = this.options.map(o => ({ v: o, label: o }));
+        if (this.allLabel) list.unshift({ v: "", label: this.allLabel });
+        return list;
+      },
+      display() {
+        const hit = this.innerOptions.find(o => o.v === this.modelValue);
+        return hit ? hit.label : (this.modelValue || this.placeholder);
+      },
+      isPlaceholder() { return !this.modelValue; },
+    },
+    methods: {
+      toggle() { this.open ? this.close() : this.show(); },
+      show() {
+        this.open = true;
+        const idx = this.innerOptions.findIndex(o => o.v === this.modelValue);
+        this.focused = idx >= 0 ? idx : 0;
+        setTimeout(() => this.scrollFocused(), 0);
+        document.addEventListener("click", this.onDocClick);
+      },
+      close() {
+        this.open = false;
+        document.removeEventListener("click", this.onDocClick);
+      },
+      onDocClick(e) { if (!this.$el.contains(e.target)) this.close(); },
+      select(item) {
+        this.$emit("update:modelValue", item.v);
+        this.close();
+      },
+      onKeydown(e) {
+        if (!this.open) {
+          if (["Enter", " ", "ArrowDown"].includes(e.key)) { e.preventDefault(); this.show(); }
+          return;
+        }
+        if (e.key === "Escape") { e.preventDefault(); this.close(); }
+        else if (e.key === "ArrowDown") { e.preventDefault(); this.focused = Math.min(this.focused + 1, this.innerOptions.length - 1); this.scrollFocused(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); this.focused = Math.max(this.focused - 1, 0); this.scrollFocused(); }
+        else if (e.key === "Enter") { e.preventDefault(); this.select(this.innerOptions[this.focused]); }
+        else if (e.key === "Tab") { this.close(); }
+      },
+      scrollFocused() {
+        const list = this.$refs.list;
+        if (list && list.children[this.focused]) {
+          list.children[this.focused].scrollIntoView({ block: "nearest" });
+        }
+      },
+    },
+    beforeUnmount() { document.removeEventListener("click", this.onDocClick); },
+    template: `
+      <span class="lsel" :class="{ open, accent }" @keydown="onKeydown">
+        <button type="button" class="lsel-trigger" @click="toggle"
+                :aria-expanded="open ? 'true' : 'false'" aria-haspopup="listbox">
+          <span :class="{ 'lsel-placeholder': isPlaceholder }">{{ display }}</span>
+          <span class="lsel-arrow">▾</span>
+        </button>
+        <transition name="lsel">
+          <span class="lsel-list" role="listbox" v-if="open" ref="list">
+            <span v-for="(opt, i) in innerOptions" :key="opt.v || '__all__'" role="option"
+                  class="lsel-item" :class="{ sel: opt.v === modelValue, foc: i === focused }"
+                  @mouseenter="focused = i"
+                  @click.stop="select(opt)">
+              <span class="lsel-check">✓</span>
+              <span>{{ opt.label }}</span>
+            </span>
+          </span>
+        </transition>
+      </span>
+    `,
+  };
 })();

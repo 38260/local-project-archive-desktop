@@ -23,9 +23,7 @@
       <span class="alias-chip alias-lg" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
       <span class="spacer"></span>
       <label class="check-label">状态：</label>
-      <select v-model="p.status" @change="saveStatus">
-        <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-      </select>
+      <lpa-select v-model="p.status" :options="statuses" accent @update:model-value="saveStatus"></lpa-select>
     </div>
 
     <!-- 快捷操作 -->
@@ -394,9 +392,7 @@
       </div>
       <div class="field">
         <label>项目状态</label>
-        <select v-model="editForm.status">
-          <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-        </select>
+        <lpa-select v-model="editForm.status" :options="statuses"></lpa-select>
       </div>
       <div class="field">
         <label>技术栈标签（逗号分隔）</label>
