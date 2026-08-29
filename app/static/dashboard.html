@@ -25,10 +25,22 @@
   <main class="container">
     <!-- 统计 -->
     <div class="stats-row">
-      <span class="stat stat-total"><b>{{ stats.total }}</b>全部项目</span>
-      <span class="stat stat-active"><b>{{ stats.active }}</b>活跃项目</span>
-      <span class="stat stat-archived"><b>{{ stats.archived }}</b>已归档</span>
-      <span class="stat stat-lost"><b>{{ stats.lost }}</b>路径丢失</span>
+      <span class="stat stat-total">
+        <span class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+        <b>{{ stats.total }}</b>全部项目
+      </span>
+      <span class="stat stat-active">
+        <span class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg></span>
+        <b>{{ stats.active }}</b>活跃项目
+      </span>
+      <span class="stat stat-archived">
+        <span class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg></span>
+        <b>{{ stats.archived }}</b>已归档
+      </span>
+      <span class="stat stat-lost" :class="{pulse: stats.lost > 0}">
+        <span class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 19.5a1 1 0 0 0 .9 1.5h17.2a1 1 0 0 0 .9-1.5L12 3z"/><path d="M12 9v5"/><path d="M12 17.5h.01"/></svg></span>
+        <b>{{ stats.lost }}</b>路径丢失
+      </span>
     </div>
 
     <!-- 筛选栏 -->
@@ -53,6 +65,7 @@
     <div class="card-grid" v-if="filtered.length">
       <div v-for="p in filtered" :key="p.id" class="card"
            :class="{'is-lost': p.is_lost, 'is-archived': p.status === '归档废弃'}"
+           :data-status="p.status"
            @click="goto(p)">
         <div class="title-row">
           <h3 :title="p.name">{{ p.name }}</h3>
@@ -79,9 +92,15 @@
     </div>
     <div class="empty-tip" v-else-if="!loading">
       <template v-if="stats.total === 0">
-        档案库还是空的。<br><br>
-        点击右上角 <b>＋ 手动录入</b> 添加第一个项目路径，<br>
-        或使用 <b>🔎 批量扫描导入</b> 自动发现磁盘上的项目。
+        <div class="empty-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="11" cy="12.5" r="2.5"/><path d="m13 14.5 2.5 2.5"/></svg>
+        </div>
+        档案库还是空的<br>
+        <span class="section-note">把散落在磁盘各处的开发项目收进统一索引，数据只存本机</span>
+        <div class="empty-actions">
+          <button class="btn primary" @click="openAdd">＋ 手动录入第一个项目</button>
+          <button class="btn" @click="openScan">🔎 批量扫描磁盘</button>
+        </div>
       </template>
       <template v-else>没有符合筛选条件的项目。</template>
     </div>
