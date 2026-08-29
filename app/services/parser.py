@@ -449,13 +449,18 @@ def collect_stats(path: str) -> dict:
 
 def build_tree(path: str, max_depth: int = TREE_MAX_DEPTH,
                max_nodes: int = TREE_MAX_NODES) -> dict:
-    """构建只读目录树（深度与节点数受限，跳过依赖/构建目录）。"""
+    """构建只读目录树（深度与节点数受限，跳过依赖/构建目录）。
+
+    每个节点附带 rel（相对项目根的路径），供前端点击复制。
+    """
     counter = {"nodes": 0}
     truncated = {"flag": False}
 
-    def walk(dir_path: str, depth: int) -> dict:
-        node = {"name": os.path.basename(dir_path) or dir_path,
-                "type": "dir", "children": []}
+    def walk(dir_path: str, depth: int, prefix: str = "") -> dict:
+        name = os.path.basename(dir_path) or dir_path
+        rel = f"{prefix}{name}"
+        node = {"name": name,
+                "type": "dir", "rel": rel, "children": []}
         if depth >= max_depth or counter["nodes"] >= max_nodes:
             truncated["flag"] = truncated["flag"] or depth >= max_depth
             return node
@@ -479,13 +484,13 @@ def build_tree(path: str, max_depth: int = TREE_MAX_DEPTH,
                 truncated["flag"] = True
                 break
             counter["nodes"] += 1
-            node["children"].append(walk(os.path.join(dir_path, name), depth + 1))
+            node["children"].append(walk(os.path.join(dir_path, name), depth + 1, rel + "/"))
         for name, size in sorted(files, key=lambda kv: kv[0].lower()):
             if counter["nodes"] >= max_nodes:
                 truncated["flag"] = True
                 break
             counter["nodes"] += 1
-            node["children"].append({"name": name, "type": "file", "size": size})
+            node["children"].append({"name": name, "type": "file", "size": size, "rel": rel})
         return node
 
     return walk(path, 0) | {"truncated": truncated["flag"]}
