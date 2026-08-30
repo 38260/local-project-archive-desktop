@@ -5,10 +5,13 @@
   - 对本地项目目录只有读取操作，绝不写入/修改/删除原项目文件。
 """
 import logging
+from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import APP_NAME, APP_VERSION, DATA_DIR, STATIC_DIR, STATUS_VALUES
@@ -44,12 +47,46 @@ class _QuietAccessLog(logging.Filter):
 
 logging.getLogger("uvicorn.access").addFilter(_QuietAccessLog())
 
-app = FastAPI(title="本地项目档案", version=APP_VERSION, docs_url="/api/docs")
+_DASHBOARD = STATIC_DIR / "dashboard.html"
+_PROJECT_PAGE = STATIC_DIR / "project.html"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """启动自检：前端资源齐全才能提供服务，否则立刻报错而不是白屏。"""
+    for f in (_DASHBOARD, _PROJECT_PAGE, STATIC_DIR / "js" / "vendor" / "vue.global.prod.js"):
+        if not Path(f).is_file():
+            raise RuntimeError(f"缺少前端资源文件：{f}")
+    yield
+
+
+app = FastAPI(title="本地项目档案", version=APP_VERSION, docs_url="/api/docs",
+              lifespan=lifespan)
 
 init_db()
 app.include_router(projects.router)
 app.include_router(scanner.router)
 app.include_router(settings.router)
+
+
+# ---------------------------------------------------------------------------
+# 安全中间件：只接受本机来源的请求
+# ---------------------------------------------------------------------------
+
+# 允许携带 Origin 的来源主机（本机回环）。本应用页面自身请求不带 Origin，
+# 只有跨站脚本（如恶意网页里的 fetch）才会带上外部 Origin，一律拒绝。
+_ALLOWED_ORIGIN_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+@app.middleware("http")
+async def _origin_guard(request, call_next):
+    origin = request.headers.get("origin")
+    if origin:
+        host = urlparse(origin).hostname or ""
+        if host not in _ALLOWED_ORIGIN_HOSTS:
+            return JSONResponse(status_code=403,
+                                content={"detail": "拒绝跨站请求（本服务仅限本机访问）"})
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
@@ -103,11 +140,10 @@ def export_all():
     payload = {
         "app": APP_NAME,
         "version": APP_VERSION,
-        "exported_at": __import__("datetime").datetime.now().astimezone().isoformat(),
+        "exported_at": datetime.now().astimezone().isoformat(),
         "statuses": STATUS_VALUES,
         "projects": project_items,
     }
-    from fastapi.responses import JSONResponse
     return JSONResponse(
         content=payload,
         headers={"Content-Disposition": 'attachment; filename="project-archive-export.json"'},
@@ -123,10 +159,6 @@ def render_md(body: RenderRequest):
 # ---------------------------------------------------------------------------
 # 前端页面
 # ---------------------------------------------------------------------------
-
-_DASHBOARD = STATIC_DIR / "dashboard.html"
-_PROJECT_PAGE = STATIC_DIR / "project.html"
-
 
 @app.get("/", include_in_schema=False)
 def index():
@@ -158,10 +190,3 @@ async def _static_no_cache(request, call_next):
     if request.url.path.startswith("/static"):
         response.headers["Cache-Control"] = "no-cache"
     return response
-
-
-@app.on_event("startup")
-def _check_static():
-    for f in (_DASHBOARD, _PROJECT_PAGE, STATIC_DIR / "js" / "vendor" / "vue.global.prod.js"):
-        if not Path(f).is_file():
-            raise RuntimeError(f"缺少前端资源文件：{f}")
