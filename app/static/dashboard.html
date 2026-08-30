@@ -321,6 +321,17 @@
         <label>使用偏好</label>
         <div class="setting-row">
           <div>
+            <span class="setting-title">主题外观</span>
+            <span class="setting-desc">顶栏切换按钮同样可用（三态轮转）</span>
+          </div>
+          <span class="setting-btns">
+            <button v-for="t in themeOptions" :key="t.v" class="btn sm"
+                    :class="{ primary: currentThemePref === t.v }"
+                    @click="chooseTheme(t.v)">{{ t.l }}</button>
+          </span>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
             <span class="setting-title">打开项目的编辑器</span>
             <span class="setting-desc">详情页/卡片「VSCode 打开」使用的命令，需在 PATH 中（VS Code 默认 code，Cursor 为 cursor）</span>
           </div>
@@ -441,6 +452,22 @@
             <lpa-icon name="save" :size="13"></lpa-icon>{{ backupSaving ? "备份中…" : "立即备份" }}
           </button>
         </div>
+      </div>
+      <div class="field danger-zone">
+        <label>危险区</label>
+        <div class="setting-row">
+          <div>
+            <span class="setting-title">清空全部档案</span>
+            <span class="setting-desc">删除所有项目记录、笔记、变更日志与截图（不触碰原项目文件）。建议先导出 JSON 备份。</span>
+          </div>
+          <button class="btn sm danger" @click="clearAll">
+            <lpa-icon name="trash" :size="13"></lpa-icon>清空
+          </button>
+        </div>
+      </div>
+      <div class="app-info">
+        本地项目档案 <b>v{{ appVersion }}</b> · 服务端口 <b>{{ appPort }}</b> ·
+        数据：<span class="mono">{{ dataPath }}</span>
       </div>
       <div class="actions">
         <button class="btn primary" @click="showSettings = false">完成</button>

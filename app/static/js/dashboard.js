@@ -16,6 +16,8 @@
       return {
         loading: true,
         dataPath: "",
+        appVersion: "",
+        appPort: "",
         rescanningAll: false,
         projects: [],
         stats: { total: 0, active: 0, archived: 0, lost: 0 },
@@ -51,6 +53,9 @@
         backupKeep: 10,
         backupSaving: false,
         prefs: {},        // 通用设置键值（来自 /api/settings）
+        themeOptions: [
+          { v: "auto", l: "跟随系统" }, { v: "light", l: "亮色" }, { v: "dark", l: "暗色" },
+        ],
       };
     },
     computed: {
@@ -62,6 +67,10 @@
       themeLabel() {
         this.themeTick;
         return window.themeName();
+      },
+      currentThemePref() {
+        this.themeTick;   // 建立响应式依赖
+        return window.themePref();
       },
       allTags() {
         const set = new Set();
@@ -148,6 +157,7 @@
       },
       goto(p) { location.href = "/project/" + p.id; },
       switchTheme() { window.cycleTheme(); this.themeTick++; },
+      chooseTheme(v) { window.setThemePref(v); this.themeTick++; },
       statActive(kind) {
         if (kind === "total") return !this.quickFilter && !this.statusFilter && this.showArchived;
         if (kind === "active") return this.quickFilter === "active";
@@ -328,6 +338,19 @@
           });
         } catch (e) { this.loadPrefs(); }   // 失败回滚显示
       },
+      async clearAll() {
+        if (!confirm("确定要清空全部档案数据吗？此操作不可撤销。\n建议先在「数据维护」里导出 JSON 备份。")) return;
+        const v = prompt('为防止误触，请输入 "CLEAR" 确认清空：');
+        if (v !== "CLEAR") {
+          if (v !== null) toast("输入不正确，已取消清空", "error");
+          return;
+        }
+        try {
+          const r = await api("/api/projects/all", { method: "DELETE" });
+          toast(`已清空 ${r.deleted} 条档案记录`, "ok");
+          this.load();
+        } catch (e) { /* toast 已提示 */ }
+      },
 
       // ---- 手动录入 ----
       async openAdd() {
@@ -413,7 +436,11 @@
       this.load();
       // 展示数据文件位置，明确档案是持久化的
       api("/api/health", { silent: true })
-        .then(h => { this.dataPath = h.data_path || ""; })
+        .then(h => {
+          this.dataPath = h.data_path || "";
+          this.appVersion = h.version || "";
+          this.appPort = h.port || "";
+        })
         .catch(() => {});
       // 偏好：默认是否显示归档项目
       api("/api/settings", { silent: true })

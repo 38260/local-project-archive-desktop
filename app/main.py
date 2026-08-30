@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -100,9 +100,9 @@ async def _origin_guard(request, call_next):
 # ---------------------------------------------------------------------------
 
 @app.get("/api/health")
-def health():
+def health(request: Request):
     return {"ok": True, "app": APP_NAME, "version": APP_VERSION,
-            "data_path": str(DB_PATH)}
+            "data_path": str(DB_PATH), "port": request.url.port}
 
 
 @app.get("/api/export")

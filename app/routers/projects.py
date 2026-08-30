@@ -190,6 +190,24 @@ def list_projects_brief():
     return {"projects": [{"id": r["id"], "name": r["name"]} for r in rows]}
 
 
+@router.delete("/all")
+def delete_all_projects():
+    """清空全部档案记录（危险操作，前端二次确认）。
+
+    笔记与变更日志经外键级联删除，截图目录一并清理；
+    原项目文件夹不受任何影响。
+    """
+    with get_db() as conn:
+        n = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+        conn.execute("DELETE FROM projects")
+    if SHOT_DIR.is_dir():
+        shutil.rmtree(SHOT_DIR, ignore_errors=True)
+        SHOT_DIR.mkdir(parents=True, exist_ok=True)
+    logger.warning("已清空全部档案，共 %d 条记录", n)
+    return {"ok": True, "deleted": n,
+            "note": "仅删除档案记录与截图，原项目文件未做任何改动"}
+
+
 @router.get("/{project_id}")
 def get_project(project_id: int):
     with get_db() as conn:
