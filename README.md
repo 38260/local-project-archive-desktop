@@ -1,6 +1,6 @@
-# 归迹拾光管理系统
+# 归迹拾光
 
-管理本机散落开发项目的**本地索引库**：记录项目路径、技术栈、笔记与踩坑记录，自动解析 git 信息、构建配置、README 与目录树。B/S 架构，仅监听 `127.0.0.1`，**所有数据只存在本机，不上传任何云端**；对原项目目录**只读取、绝不写入**。
+管理本机散落开发项目的**本地索引库**：记录项目路径、技术栈、笔记与踩坑记录，自动解析 git 信息、构建配置、README 与目录树。B/S 架构内核 + 原生桌面窗口，仅监听 `127.0.0.1`，**所有数据只存在本机，不上传任何云端**；对原项目目录**只读取、绝不写入**。
 
 ## 技术栈
 
@@ -9,7 +9,8 @@
 | 后端 | Python 3.10+ / FastAPI / uvicorn |
 | 前端 | Vue 3（本地 vendored，无构建步骤、无 CDN 依赖） |
 | 数据库 | SQLite（标准库 `sqlite3`，零额外安装） |
-| 依赖 | `pathlib` 路径处理，GitPython 读取 git 信息 |
+| git | GitPython（只读，任何异常降级为部分结果） |
+| 桌面壳 | pywebview（WebView2）+ pystray 系统托盘 |
 
 ## 快速启动
 
@@ -18,105 +19,128 @@
 **方式二（命令行）**：
 
 ```bash
-cd local-project-archive
-
-# 1. 创建并激活虚拟环境（首次）
+# 1. 创建虚拟环境（首次）
 python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.txt
 
-# 2. 启动服务（自动打开浏览器）
+# 2. 启动（自动打开浏览器）
 .venv/Scripts/python.exe run.py
 # 可选参数：--port 9000 指定端口；--no-browser 不自动开浏览器
+
+# 3. 桌面窗口模式：原生窗口 + 系统托盘
+.venv/Scripts/python.exe desktop.py
 ```
 
-浏览器访问 <http://127.0.0.1:8300>（仅本机可访问）。
+浏览器/桌面窗口访问 <http://127.0.0.1:8300>（端口被占自动顺延，仅本机可访问）。
+
+**打包成 exe**：`.venv/Scripts/python.exe -m PyInstaller build.spec --noconfirm`，产物在 `dist/LocalProjectArchive/`（方案与细节见 `docs/PACKAGING.md`）。
 
 ## 目录结构
 
 ```text
-local-project-archive/
-├── run.py                  # 启动入口
+local-project-archive-desktop/
+├── run.py                  # 浏览器模式入口
+├── desktop.py              # 桌面模式入口：pywebview 窗口 + 托盘 + 单实例 + 窗口记忆
+├── build.spec              # PyInstaller 打包配置
 ├── requirements.txt        # 后端依赖
 ├── app/
-│   ├── main.py             # FastAPI 应用：API 路由 + 静态页面挂载
-│   ├── config.py           # 常量配置（端口、状态枚举、扫描/树规模上限）
-│   ├── db.py               # SQLite 连接与建表
+│   ├── main.py             # FastAPI 应用：核心 API + 静态页面挂载
+│   ├── config.py           # 常量配置（数据目录三态、端口、状态枚举、规模上限）
+│   ├── db.py               # SQLite 连接、建表、启动备份
 │   ├── models.py           # Pydantic 请求模型
 │   ├── routers/
-│   │   ├── projects.py     # 项目 CRUD / 重解析 / README / 目录树 / 打开
-│   │   └── scanner.py      # 批量扫描与导入
+│   │   ├── projects.py     # 项目 CRUD / 置顶 / 提交 / 热力图 / 截图 / 导出 / 打开
+│   │   ├── scanner.py      # 批量扫描与导入
+│   │   └── settings.py     # 设置 / 备份管理 / 编辑器探测 / 开机自启动
 │   ├── services/
 │   │   ├── paths.py        # 路径规范化（Windows / WSL UNC / 引号 / ~）
-│   │   ├── gitinfo.py      # GitPython 只读读取 git 信息
+│   │   ├── gitinfo.py      # GitPython 只读读取 git 信息 / 提交 / 热力图聚合
 │   │   ├── parser.py       # 磁盘解析：配置文件 / README / 统计 / 目录树
 │   │   ├── scanner.py      # 递归扫描发现候选项目
-│   │   └── render.py       # Markdown 渲染 + HTML 基础净化
+│   │   ├── render.py       # Markdown 渲染 + HTML 基础净化
+│   │   ├── settings_store.py  # settings.json 读写（默认值 + 容错 + 原子写入）
+│   │   └── autostart.py    # 开机自启动（注册表，仅安装版）
 │   └── static/             # 前端（Vue3 本地文件，无构建）
-│       ├── dashboard.html  #   首页仪表盘
-│       ├── project.html    #   项目详情页
+│       ├── dashboard.html  #   首页：统计 / 开发热力图 / 卡片 / 设置
+│       ├── project.html    #   详情页：目录树导航 / 面板 / 提交时间线
 │       ├── css/style.css   #   亮/暗主题样式
 │       └── js/…            #   common / dashboard / project / vendor(vue)
-└── data/                   # 运行时生成（git 忽略）—— 档案持久化保存在这里
-    ├── projects.db         #   SQLite 数据库：项目、笔记、变更日志全在此，重启不丢失
-    └── backups/            #   每次启动自动备份（保留最近 10 份）
+├── data/                   # 运行时生成（git 忽略）
+│   ├── projects.db         #   SQLite：项目、笔记、变更日志，重启不丢失
+│   ├── backups/            #   启动自动备份（保留份数可在设置中调整）
+│   ├── screenshots/        #   项目截图
+│   └── settings.json       #   用户设置
+└── tools/smoke_test.py     # 全流程冒烟测试（自动造数据、自动清理）
 ```
 
-## 数据表结构（projects）
+## 功能
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| id | INTEGER PK | 项目 ID（详情页 `/project/{id}`） |
-| path | TEXT UNIQUE | **核心字段**，规范化绝对路径（不区分大小写唯一） |
-| name / alias | TEXT | 项目名称 / 别名 |
-| category | TEXT | 项目分类（自由文本） |
-| status | TEXT | 进行中 / 已完成 / 暂停 / 归档废弃 |
-| tags | TEXT(JSON) | 技术栈标签数组（录入时可自动识别） |
-| description | TEXT | 用户 Markdown 项目描述（背景/功能/部署命令，存数据库，**不写入原项目**） |
-| auto_meta | TEXT(JSON) | 自动解析元数据：git 信息、构建配置、文件统计、技术栈 |
-| is_lost / lost_reason | INTEGER / TEXT | 路径失效标记与原因（丢失项目） |
-| fs_created / fs_modified | TEXT | 磁盘创建 / 最后修改时间 |
-| created_at / updated_at | TEXT | 档案建立 / 更新时间 |
+### 录入与解析
 
-**表 `notes`（自定义开发笔记）**：`id`、`project_id`（FK→projects，级联删除）、`content`（Markdown）、`created_at`、`updated_at`。多条独立笔记，自动记录创建时间。
+- **手动录入**：粘贴路径，桌面模式下可点「浏览…」打开系统文件夹选择对话框；支持 `D:\code\x`、带引号路径、`~`、`\\wsl.localhost\Ubuntu\…`、`wsl:Ubuntu:/home/user/x`。
+- **批量扫描**：指定根目录按 `.git`、`package.json`、`pyproject.toml`、`CMakeLists.txt`、`go.mod`、`Cargo.toml` 等标记发现候选项目，已入库的标记「已导入」，重复导入自动跳过。
+- **深度解析**：构建配置（requirements 变体 / setup.cfg / Pipfile / environment.yml / setup.py / Docker 等）+ 依赖清单识别框架（FastAPI/Flask/Django/React/Vue/Next/Electron/Tailwind…）+ 按文件构成推断语言 + README 简介提取；git 读取分支、远端、首次提交时间、贡献者 Top5。解析器升级后可一键「全部重新解析」（保留已有标签，补充新识别）。
+- **丢失自愈**：文件夹被删除/移动自动标记【丢失项目】，更新新路径即恢复。
 
-**表 `changelogs`（自定义变更日志）**：`id`、`project_id`（FK→projects，级联删除）、`title`、`content`（Markdown）、`entry_date`（条目日期，默认当天可改）、`created_at`、`updated_at`。用户手写，独立于 git 提交记录。
+### 浏览与展示
+
+- **首页仪表盘**：状态统计卡（可下钻筛选）、状态/标签/分类筛选、搜索、排序、置顶优先展示、暗色主题。
+- **开发活动总览**：首页 GitHub 风格提交热力图，聚合全部仓库按天提交，悬浮显示日期与来源项目，可折叠（半年/一年可调）。
+- **项目详情页**：左侧目录树导航（分组可折叠）、右侧目录树只读预览；基础信息、Git 信息、构建配置与依赖、文件统计、项目描述、开发笔记、变更日志、提交记录、截图、README 各成面板。
+- **Git 提交可视化**：时间线（哈希/类型/信息/作者/时间，点击展开完整详情）+ 按月统计 + 类型筛选 + 提交热力图；**点击热力图某天可查看当天全部提交**。
+- **导出**：单项目 HTML 档案报告（自包含单文件，可直接分享/打印）；全库 JSON 备份（含笔记与变更日志），可导入恢复。
+
+### 记录
+
+- **项目描述**：单篇 Markdown（背景/功能/部署），编辑 + 实时预览，草稿本地暂存。
+- **开发笔记**：多条独立 Markdown 笔记，可增删改。
+- **变更日志**：手写版本改动条目（独立于 git 提交），支持增删改。
+- **截图**：项目截图上传（每张 ≤5MB），点击灯箱预览。
+
+### 桌面体验（desktop.py / 安装版）
+
+- 原生窗口 + **系统托盘**：关闭可收进托盘，双击托盘图标唤出；**二次启动直接弹回已有窗口**，不会「提示在运行却找不到」。
+- **静默启动**：配合开机自启动，登录后只在托盘待命。
+- **窗口记忆**：记住大小与位置，下次启动还原。
+- **任务栏/托盘**：应用独立图标与身份（开发模式同样生效）。
+- **导出下载**：走系统保存对话框；「浏览…」走原生文件夹选择对话框。
+
+### 数据安全
+
+- 全程只读扫描；描述/笔记/变更日志全部存 SQLite；**每次启动自动备份数据库**（保留份数可调，无变化跳过）。
+- 设置面板内置**备份管理**：列表 / 立即备份 / 恢复（恢复前自动留保险备份）/ 删除。
+- **危险区**：清空全部档案需输入 `CLEAR` 二次确认（不触碰原项目文件）。
+
+## 设置（应用内面板）
+
+主题外观（亮/暗/跟随系统）、打开项目的编辑器（自动探测本机可用：VS Code / Cursor / Windsurf…，按钮图标文字联动）、批量扫描默认深度、录入默认状态与分类、默认显示归档项目、提交记录加载数、热力图范围、导出 HTML 是否含笔记、启动自动备份与保留份数、托盘与静默启动、开机自启动（安装版）。
 
 ## API 一览（/api/docs 有交互文档）
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| POST | /api/projects | 手动录入（路径校验 + 自动解析） |
-| GET | /api/projects | 列表 + 统计（实时校验路径有效性） |
-| GET/PUT/DELETE | /api/projects/{id} | 详情 / 更新（含改路径）/ 删除档案 |
+| POST / GET | /api/projects | 手动录入 / 列表+统计；GET `/brief` 轻量列表 |
+| GET/PUT/DELETE | /api/projects/{id} | 详情 / 更新（含改路径）/ 删除；DELETE `/all` 清空 |
+| POST | /api/projects/{id}/pin | 置顶切换 |
 | POST | /api/projects/{id}/rescan | 重新解析磁盘 |
-| GET | /api/projects/{id}/commits?limit=50 | git 提交记录（时间线可视化数据） |
-| GET/POST | /api/projects/{id}/notes | 开发笔记列表 / 新建 |
-| PUT/DELETE | /api/projects/{id}/notes/{nid} | 编辑 / 删除笔记 |
-| GET/POST | /api/projects/{id}/changelogs | 变更日志列表 / 新增 |
-| PUT/DELETE | /api/projects/{id}/changelogs/{lid} | 编辑 / 删除条目 |
-| GET | /api/projects/{id}/readme | 渲染 README |
-| GET | /api/projects/{id}/tree | 目录树只读预览 |
-| POST | /api/projects/{id}/open | 资源管理器 / VSCode 打开 |
+| GET | /api/projects/{id}/commits | git 提交记录（`limit`、`date` 按天过滤） |
+| GET | /api/projects/{id}/heatmap | 单项目提交热力图（按天聚合） |
+| GET | /api/heatmap | 全项目提交热力图聚合 |
+| GET/POST | /api/projects/{id}/notes、/changelogs | 笔记与变更日志（PUT/DELETE 同路径） |
+| GET | /api/projects/{id}/readme、/tree、/screenshots | README / 目录树 / 截图 |
+| POST | /api/projects/{id}/open | 资源管理器 / 所选编辑器打开 |
+| GET | /api/projects/{id}/export-html | 导出单项目 HTML 档案报告 |
 | POST | /api/scan、/api/scan/import | 批量扫描 / 批量导入 |
-| GET | /api/export | 导出全部档案 JSON（含笔记与变更日志） |
-| POST | /api/render-md | Markdown 预览渲染 |
+| GET/POST | /api/export、/api/import | 导出全库 JSON / 导入恢复 |
+| GET/PUT | /api/settings | 设置读写；`/editors` 编辑器探测 |
+| GET/POST/DELETE | /api/settings/backups | 备份列表 / 立即备份；`/restore` 恢复 / 删除 |
+| GET | /api/health | 健康检查（版本/端口/数据路径） |
 
-## 功能说明
-
-- **录入**：手动填路径，或指定根目录批量扫描（按 `.git`、`package.json`、`pyproject.toml`、`CMakeLists.txt`、`go.mod`、`Cargo.toml` 等标记识别，自动跳过 node_modules、构建产物）。
-- **深度解析**：构建配置（含 requirements 变体、setup.cfg、Pipfile、environment.yml、setup.py、Docker）+ 依赖清单识别框架（FastAPI/Flask/Django/React/Vue/Next/Electron/Tailwind 等）+ **按文件构成推断语言**（.py/.ts/.go/.rs…）+ **README 简介提取**；git 读取分支列表、首次提交时间（项目起点）、贡献者 Top5、最近提交。解析器升级后可在首页一键「🔄 全部重新解析」刷新全部项目（保留已有标签，补充新识别）。
-- **路径兼容**：`D:\code\x`、带引号路径、`~`、`\\wsl.localhost\Ubuntu\…`、`wsl:Ubuntu:/home/user/x`。
-- **丢失项目**：文件夹被删除/移动后自动标记【丢失项目】并高亮，详情页可一键更新新路径并重解析。
-- **项目描述**：单篇 Markdown（项目背景/实现功能/运行部署命令），编辑 + 预览。
-- **开发笔记**：多条独立 Markdown 笔记（体会/心得/踩坑/解决方案），自动记录创建时间，可编辑、删除。
-- **Git 提交可视化**：提交时间线（哈希/信息/作者/时间），点击展开完整详情（完整哈希、邮箱、变更规模），按月简易统计柱状图；非 git 仓库显示提示。
-- **变更日志**：用户手动编写的 Markdown 条目（版本改动/功能新增/重大调整），自带日期时间戳，与 git 提交记录相互独立，支持增删改。
-- **异常安全**：无权限目录、损坏 git 仓库、超大项目（统计/目录树有上限）均友好降级，不崩溃服务。
-- **数据安全**：全程只读扫描；描述/笔记/变更日志全部存 SQLite；导出 JSON 备份包含项目元数据、全部笔记与变更日志。
-
-## 验证脚本
+## 验证
 
 ```bash
-# 需先启动服务；脚本会创建临时示例项目做全流程冒烟测试，结束后自动清理
-.venv/Scripts/python.exe tools/smoke_test.py
+# 需先启动服务；脚本创建临时示例项目做全流程冒烟测试，结束后自动清理
+.venv/Scripts/python.exe tools/smoke_test.py            # 56 项
 ```
+
+另有 74 项全功能回归（覆盖设置/备份恢复/热力图/导入导出闭环等），随开发迭代维护。
