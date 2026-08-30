@@ -67,6 +67,39 @@ def get_enabled() -> bool:
         return False
 
 
+def self_heal(logger=None) -> None:
+    """自启动项指向旧路径时（升级/搬移安装目录后），自动改指当前 exe。
+
+    用户当初开启自启动的意图是「开机启动这个应用」，而不是「启动某个旧路径
+    的旧版本」；不纠偏的话，每次登录都会拉起旧版，新版反而被单实例机制挡住。
+    仅在注册表里已有条目（用户确实开过自启动）时改写，绝不擅自新增。
+    """
+    cmd = exe_command()
+    if cmd is None:
+        return
+    import winreg
+
+    try:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+            for name in (VALUE_NAME, *_LEGACY_VALUE_NAMES):
+                try:
+                    old, _ = winreg.QueryValueEx(key, name)
+                except FileNotFoundError:
+                    continue
+                if old != cmd:
+                    winreg.SetValueEx(key, VALUE_NAME, 0, winreg.REG_SZ, cmd)
+                    if name != VALUE_NAME:
+                        try:
+                            winreg.DeleteValue(key, name)
+                        except FileNotFoundError:
+                            pass
+                    if logger:
+                        logger.info("自启动项已从旧路径改指当前程序：%s", cmd)
+                return  # 只会有一个生效条目
+    except OSError:
+        pass
+
+
 def set_enabled(enabled: bool) -> bool:
     """开启/关闭自启动。返回操作是否成功。"""
     cmd = exe_command()

@@ -105,26 +105,50 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def activate_existing(logger=None) -> bool:
+def activate_existing(logger=None) -> str | None:
     """探测本机已在运行的实例，请求其显示主窗口。
 
     用于二次启动场景：窗口收进托盘或静默启动时，用户再双击 exe
     应该直接唤出窗口（应用惯例），而不是提示后让用户自己找。
-    返回是否成功唤出。
+
+    返回：
+      "shown" —— 已唤出同版本实例的窗口；
+      "stale" —— 检测到正在运行的是**其他版本**（通常是旧版）：不唤出旧窗口，
+                 由调用方提示用户先退出旧版，避免「双击新版却总是见到旧版」；
+      None    —— 没探测到任何实例（端口文件/扫描都落空）。
     """
     import json as _json
     import urllib.request
 
-    from app.config import APP_NAME
+    from app.config import APP_NAME, APP_VERSION, DATA_DIR
 
-    for port in range(8300, 8311):
+    ports = list(range(8300, 8311))
+    # 实例戳优先：运行中的实例启动时写过自己的端口，比盲扫快且准
+    try:
+        stamp = _json.loads((DATA_DIR / "instance.json").read_text(encoding="utf-8"))
+        p = int(stamp.get("port") or 0)
+        if 0 < p in ports:
+            ports.remove(p)
+            ports.insert(0, p)
+    except (OSError, ValueError):
+        pass
+
+    stale = False
+    for port in ports:
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health",
                                         timeout=0.6) as resp:
                 data = _json.loads(resp.read().decode())
-            if data.get("app") != APP_NAME:
-                continue
         except Exception:
+            continue
+        if data.get("app") != APP_NAME:
+            continue
+        if data.get("version") != APP_VERSION:
+            # 正在跑的是别的版本：唤出它的窗口等于把用户送回旧版
+            stale = True
+            if logger:
+                logger.info("探测到不同版本的运行实例（端口 %s，版本 %s）",
+                            port, data.get("version"))
             continue
         try:
             req = urllib.request.Request(
@@ -135,10 +159,35 @@ def activate_existing(logger=None) -> bool:
             if ok:
                 if logger:
                     logger.info("已唤出已有实例窗口（端口 %s）", port)
-                return True
+                return "shown"
         except Exception:
             continue
-    return False
+    return "stale" if stale else None
+
+
+def _instance_file() -> Path:
+    from app.config import DATA_DIR
+    return DATA_DIR / "instance.json"
+
+
+def _write_instance_stamp(port: int, logger) -> None:
+    """记录当前实例的端口/版本，供二次启动时快速定位并做版本握手。"""
+    try:
+        import json as _json
+        from app.config import APP_VERSION
+        _instance_file().write_text(_json.dumps({
+            "port": port, "version": APP_VERSION,
+            "exe": str(sys.executable), "pid": os.getpid(),
+        }), encoding="utf-8")
+    except OSError as exc:
+        logger.warning("实例戳写入失败：%s", exc)
+
+
+def _clear_instance_stamp() -> None:
+    try:
+        _instance_file().unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def acquire_single_instance(data_dir: Path, logger=None) -> bool:
@@ -504,13 +553,26 @@ def main() -> int:
     # 数据迁移：先迁改名前的用户目录（较新），exe 旁旧 data/ 仅在目标仍为空时兜底
     migrate_renamed_data(DATA_DIR, logger)
     migrate_legacy_data(DATA_DIR, logger)
+    # 自启动纠偏：升级/搬移后把注册表条目改指当前 exe，避免下次登录又拉起旧版
+    from app.services import autostart
+    autostart.self_heal(logger)
 
     if not acquire_single_instance(DATA_DIR, logger):
-        # 已有实例在跑（窗口可能收在托盘/静默隐藏）——直接唤出它的窗口，
-        # 而不是丢一句「已在运行」让用户自己去托盘里翻
-        if activate_existing(logger):
+        state = activate_existing(logger)
+        if state == "shown":
             return 0
-        alert("归迹拾光", "程序已经在运行了。\n"
+        if state == "stale":
+            # 正在运行的是旧版：唤出旧窗口等于「双击新版却总是见到旧版」，
+            # 改为明确提示退出旧版，并告知自启动已纠偏
+            from app.config import APP_VERSION
+            alert(WINDOW_TITLE,
+                  f"检测到正在运行的是旧版本程序（本新版为 v{APP_VERSION}）。\n\n"
+                  "请先退出旧版：右键系统托盘图标选择「退出」，"
+                  "或在任务管理器中结束旧进程，然后重新打开本程序。\n"
+                  "开机自启动已自动改指新版，下次登录不会再拉起旧版。")
+            return 0
+        # 已有实例在跑（窗口可能收在托盘/静默隐藏）——版本相同但唤出失败时兜底提示
+        alert(WINDOW_TITLE, "程序已经在运行了。\n"
               "若找不到窗口，请查看系统托盘（任务栏右下角，可能收在「^」溢出区里）。")
         return 0
 
@@ -531,6 +593,7 @@ def main() -> int:
 
     url = f"http://{HOST}:{port}"
     logger.info("服务已启动：%s（数据目录：%s）", url, DATA_DIR)
+    _write_instance_stamp(port, logger)
 
     use_webview = not args.browser
     if use_webview:
@@ -597,6 +660,7 @@ def main() -> int:
     # 关窗（真正退出）必须让服务退出，否则进程会残留成僵尸
     def _on_closed():
         server.should_exit = True
+        _clear_instance_stamp()
         if tray_icon is not None:
             try:
                 tray_icon.stop()
