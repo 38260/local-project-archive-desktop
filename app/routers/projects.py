@@ -491,7 +491,7 @@ def open_project(project_id: int, body: OpenRequest):
             raise HTTPException(502, f"无法打开资源管理器：{exc}")
         return {"ok": True, "target": "explorer"}
 
-    # 编辑器：默认 PATH 中的 code 命令，可在设置中改为 cursor / idea64 等
+    # 编辑器：默认 PATH 中的 code 命令，可在设置中改为 cursor / windsurf 等
     from app.services import settings_store
     editor_cmd = str(settings_store.get("editor.command") or "").strip() or "code"
     code_bin = shutil.which(editor_cmd)
@@ -500,12 +500,20 @@ def open_project(project_id: int, body: OpenRequest):
             400, f"未找到命令「{editor_cmd}」。请确认对应编辑器已安装并加入 PATH，"
                  f"或在设置中修改「打开项目的编辑器」（默认 code）。")
     try:
-        # CREATE_NO_WINDOW 避免弹出多余的命令行窗口
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        subprocess.Popen([code_bin, path], creationflags=flags, close_fds=True)
+        if os.name == "nt":
+            # npm 风格编辑器 CLI 是 .cmd 脚本（如 cursor.cmd / code.cmd），
+            # Python 3.12+ 的 subprocess 直接执行会抛 WinError 193；
+            # ShellExecuteW 走系统文件关联，与「运行」对话框行为一致。
+            import ctypes
+            ret = ctypes.windll.shell32.ShellExecuteW(
+                None, "open", code_bin, f'"{path}"', None, 1)  # SW_SHOWNORMAL
+            if ret <= 32:
+                raise OSError(f"ShellExecute 错误码 {ret}")
+        else:
+            subprocess.Popen([editor_cmd, path], close_fds=True)
     except OSError as exc:
-        raise HTTPException(502, f"无法启动 VS Code：{exc}")
-    return {"ok": True, "target": "vscode"}
+        raise HTTPException(502, f"无法启动「{editor_cmd}」：{exc}")
+    return {"ok": True, "target": "editor"}
 
 
 # ---------------------------------------------------------------------------
