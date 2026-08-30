@@ -335,6 +335,8 @@
               <button @click="mdWrap('noteEditEditor', '**', '**')" title="加粗">B</button>
               <button @click="mdWrap('noteEditEditor', '*', '*')" title="斜体"><i>I</i></button>
               <button @click="mdWrap('noteEditEditor', '`', '`')" title="行内代码">‹›</button>
+              <button @click="mdWrap('noteEditEditor', '\n## ', '')" title="二级标题">H2</button>
+              <button @click="mdWrap('noteEditEditor', '- ', '')" title="列表">••</button>
             </div>
             <textarea ref="noteEditEditor" class="md-editor" style="min-height:110px" v-model="editingNoteContent"></textarea>
             <div class="editor-actions">

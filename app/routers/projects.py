@@ -807,17 +807,21 @@ def export_project_html(project_id: int):
     git_section = ""
     if git.get("is_repo"):
         lc = git.get("last_commit") or {}
-        lc_date = esc(str(lc.get("date"))[:10])
+        # 判空用原始值：str(None) 切片后是 "None"，会让 `or 兜底` 永远失效
+        lc_raw = lc.get("date")
+        lc_date = esc(str(lc_raw)[:10]) if lc_raw else "－"
+        fcd_raw = git.get("first_commit_date")
+        fcd = esc(str(fcd_raw)[:10]) if fcd_raw else "－"
         git_section = f"""
     <section>
       <h2>Git 信息</h2>
       <div class="minis">
         <div class="mini"><span class="mini-v mono">{esc(git.get('branch') or '－')}</span><span class="mini-k">当前分支</span></div>
-        <div class="mini"><span class="mini-v">{esc(git.get('commit_count') or '?')}</span><span class="mini-k">提交总数</span></div>
-        <div class="mini"><span class="mini-v mono">{esc(str(git.get('first_commit_date'))[:10] or '－')}</span><span class="mini-k">首次提交</span></div>
-        <div class="mini"><span class="mini-v mono">{lc_date or '－'}</span><span class="mini-k">最近提交</span></div>
+        <div class="mini"><span class="mini-v">{esc(git.get('commit_count') if git.get('commit_count') is not None else '?')}</span><span class="mini-k">提交总数</span></div>
+        <div class="mini"><span class="mini-v mono">{fcd}</span><span class="mini-k">首次提交</span></div>
+        <div class="mini"><span class="mini-v mono">{lc_date}</span><span class="mini-k">最近提交</span></div>
       </div>
-      <p class="dim lc-line">最近：<code class="mono">{esc(lc.get('hash'))}</code> {first_line(lc.get('message'))}</p>
+      <p class="dim lc-line">最近：<code class="mono">{esc(lc.get('hash') or '－')}</code> {first_line(lc.get('message'))}</p>
     </section>"""
 
     # ---- 构建配置与依赖 ----

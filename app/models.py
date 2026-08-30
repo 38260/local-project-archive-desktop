@@ -1,7 +1,15 @@
 """Pydantic 请求模型定义。"""
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _reject_blank(v: str) -> str:
+    """拒绝纯空白内容：min_length 只看原始长度，「  」这类值 strip 后为空，
+    路由层 strip 落库会变成空字符串笔记。"""
+    if not v.strip():
+        raise ValueError("内容不能为空")
+    return v
 
 
 class ProjectCreate(BaseModel):
@@ -53,11 +61,13 @@ class RenderRequest(BaseModel):
 class NoteCreate(BaseModel):
     """新建开发笔记。"""
     content: str = Field(..., min_length=1, description="Markdown 正文")
+    _not_blank = field_validator("content")(lambda cls, v: _reject_blank(v))
 
 
 class NoteUpdate(BaseModel):
     """编辑开发笔记。"""
     content: str = Field(..., min_length=1, description="Markdown 正文")
+    _not_blank = field_validator("content")(lambda cls, v: _reject_blank(v))
 
 
 # 允许空串：路由层把空串/缺省补成当天（与「留空取当天」的产品语义一致）
@@ -70,6 +80,7 @@ class ChangelogCreate(BaseModel):
     content: str = Field(..., min_length=1, description="Markdown 正文")
     entry_date: Optional[str] = Field(None, pattern=_ENTRY_DATE_RE,
                                       description="条目日期 YYYY-MM-DD，留空取当天")
+    _not_blank = field_validator("content")(lambda cls, v: _reject_blank(v))
 
 
 class ChangelogUpdate(BaseModel):
@@ -77,3 +88,4 @@ class ChangelogUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = Field(None, min_length=1)
     entry_date: Optional[str] = Field(None, pattern=_ENTRY_DATE_RE)
+    _not_blank = field_validator("content")(lambda cls, v: _reject_blank(v) if v is not None else v)

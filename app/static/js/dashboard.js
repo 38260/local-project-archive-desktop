@@ -226,7 +226,10 @@
           toast(r.pinned ? `已置顶「${p.name}」` : `已取消置顶「${p.name}」`, "ok");
         } catch (e) { /* toast 已提示 */ }
       },
-      exportJson() { location.href = "/api/export"; },
+      exportJson() {
+        toast("正在生成导出文件…", "ok");
+        location.href = "/api/export";
+      },
       // 后台任务 + 轮询进度，避免一个长请求卡住界面
       async rescanAll() {
         if (!this.projects.length) { toast("暂无项目可解析", "error"); return; }
@@ -414,14 +417,10 @@
         } catch (e) { this.loadPrefs(); }   // 失败回滚显示
       },
       async clearAll() {
-        if (!await confirmDialog(
-          "确定要清空全部档案数据吗？此操作不可撤销。\n建议先在「数据维护」里导出 JSON 备份。",
-          { title: "清空全部档案", okText: "继续", danger: true })) return;
-        const v = prompt('为防止误触，请输入 "CLEAR" 确认清空：');
-        if (v !== "CLEAR") {
-          if (v !== null) toast("输入不正确，已取消清空", "error");
-          return;
-        }
+        const v = await confirmDialog(
+          "确定要清空全部档案数据吗？此操作不可撤销。\n建议先在「数据维护」里导出 JSON 备份。\n\n为防止误触，请输入 CLEAR 确认：",
+          { title: "清空全部档案", okText: "确认清空", danger: true, requireText: "CLEAR" });
+        if (v !== "CLEAR") return;
         try {
           const r = await api("/api/projects/all", { method: "DELETE" });
           toast(`已清空 ${r.deleted} 条档案记录`, "ok");

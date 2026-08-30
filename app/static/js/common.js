@@ -89,18 +89,35 @@
     return new Promise(resolve => {
       const esc = s => String(s == null ? "" : s)
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      // requireText：需在弹窗内输入指定文本才能确认（危险操作防误触，替代原生 prompt）
+      const needText = opts.requireText != null;
       const mask = document.createElement("div");
       mask.className = "modal-mask";
       mask.innerHTML = `
         <div class="modal confirm-modal" role="dialog" aria-modal="true">
           <h3>${esc(opts.title || "请确认")}</h3>
           <div class="confirm-msg"></div>
+          <div class="confirm-input-row" style="display:none">
+            <input type="text" class="c-input" autocomplete="off" spellcheck="false"
+                   aria-label="确认文本">
+          </div>
           <div class="actions">
             <button type="button" class="btn c-cancel">${esc(opts.cancelText || "取消")}</button>
             <button type="button" class="btn ${opts.danger ? "danger-solid" : "primary"} c-ok">${esc(opts.okText || "确定")}</button>
           </div>
         </div>`;
       mask.querySelector(".confirm-msg").textContent = message;  // textContent 防注入
+      const okBtn = mask.querySelector(".c-ok");
+      const inputRow = mask.querySelector(".confirm-input-row");
+      const input = mask.querySelector(".c-input");
+      if (needText) {
+        inputRow.style.display = "";
+        input.placeholder = opts.requireText;
+        okBtn.disabled = true;                      // 输入匹配前禁用确认按钮
+        input.addEventListener("input", () => {
+          okBtn.disabled = input.value !== opts.requireText;
+        });
+      }
       let settled = false;
       const done = v => {
         if (settled) return;
@@ -109,13 +126,17 @@
         mask.remove();
         resolve(v);
       };
-      const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); done(false); } };
+      const onKey = e => {
+        if (e.key === "Escape") { e.stopPropagation(); done(false); return; }
+        // 输入模式下回车 = 尝试确认（值不匹配时按钮禁用，回车无效果）
+        if (e.key === "Enter" && needText && input.value === opts.requireText) { e.stopPropagation(); done(input.value); }
+      };
       document.addEventListener("keydown", onKey, true);
       mask.querySelector(".c-cancel").onclick = () => done(false);
-      mask.querySelector(".c-ok").onclick = () => done(true);
+      okBtn.onclick = () => done(needText ? input.value : true);
       mask.addEventListener("mousedown", e => { if (e.target === mask) done(false); });
       document.body.appendChild(mask);
-      mask.querySelector(".c-ok").focus();
+      (needText ? input : okBtn).focus();
     });
   };
 

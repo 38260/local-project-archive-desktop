@@ -564,6 +564,14 @@ body.modal-open { overflow: hidden; }
 .confirm-msg { white-space: pre-line; color: var(--text); font-size: 14px; line-height: 1.7; margin-bottom: var(--s-2); }
 .btn.danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
 .btn.danger-solid:hover { filter: brightness(1.1); box-shadow: 0 0 0 3px var(--lost-border); color: #fff; }
+/* 危险操作输入确认（confirmDialog 的 requireText 模式） */
+.confirm-input-row { margin: var(--s-2) 0 0; }
+.confirm-input-row .c-input {
+  width: 100%; padding: 7px 12px; font: inherit; font-family: var(--mono);
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--panel-2); color: var(--text);
+}
+.confirm-input-row .c-input:focus { outline: none; border-color: var(--danger); box-shadow: 0 0 0 3px var(--lost-border); }
 
 /* ---- 设置项：开关 ---- */
 .setting-row { display: flex; align-items: center; gap: var(--s-3); justify-content: space-between; }
