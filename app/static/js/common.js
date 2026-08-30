@@ -1,26 +1,37 @@
-/* 公共工具：主题切换、API 封装、Toast、格式化 */
+/* 公共工具：主题切换、API 封装、Toast、格式化、图标、模态框可达性 */
 (function () {
   "use strict";
 
-  // ---------- 主题 ----------
+  // ---------- 主题（三态：跟随系统 / 亮色 / 暗色） ----------
   const THEME_KEY = "lpa-theme";
-  function applyTheme(t) {
-    document.documentElement.setAttribute("data-theme", t);
-    localStorage.setItem(THEME_KEY, t);
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  function resolveTheme(pref) {
+    return (pref === "light" || pref === "dark") ? pref : (mq.matches ? "dark" : "light");
   }
-  // 初始化：localStorage 优先，否则跟随系统
-  const saved = localStorage.getItem(THEME_KEY);
-  if (saved) {
-    applyTheme(saved);
-  } else {
-    applyTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  function applyTheme(pref) {
+    document.documentElement.setAttribute("data-theme", resolveTheme(pref));
+    localStorage.setItem(THEME_KEY, pref || "auto");
   }
-  window.toggleTheme = function () {
-    const cur = document.documentElement.getAttribute("data-theme");
-    applyTheme(cur === "dark" ? "light" : "dark");
+  function themePref() { return localStorage.getItem(THEME_KEY) || "auto"; }
+  applyTheme(themePref());
+  // 仅在「跟随系统」模式下响应系统主题变化
+  mq.addEventListener("change", () => { if (themePref() === "auto") applyTheme("auto"); });
+
+  window.themePref = themePref;
+  window.themeName = function () {
+    const p = themePref();
+    return p === "auto" ? "跟随系统" : (p === "dark" ? "暗色" : "亮色");
+  };
+  // 三态轮转：跟随系统 → 亮色 → 暗色
+  window.cycleTheme = function () {
+    const order = ["auto", "light", "dark"];
+    const next = order[(order.indexOf(themePref()) + 1) % 3];
+    applyTheme(next);
+    return next;
   };
 
-  // ---------- Toast ----------
+  // ---------- Toast（入场/退场动画 + 堆叠上限 + 同文案合并） ----------
+  const TOAST_MAX = 4;
   let toastBox = null;
   function ensureToastBox() {
     if (!toastBox) {
@@ -30,13 +41,39 @@
     }
     return toastBox;
   }
+  function scheduleRemove(el, type) {
+    clearTimeout(Number(el.dataset.timer || 0));
+    el.dataset.timer = setTimeout(() => {
+      if (el.dataset.leaving) return;
+      el.dataset.leaving = "1";
+      el.classList.add("leaving");
+      setTimeout(() => el.remove(), 180);
+    }, type === "error" ? 5000 : 2600);
+  }
   window.toast = function (msg, type) {
     const box = ensureToastBox();
+    // 1.5s 内的同文案合并计数，避免批量操作刷屏
+    const now = Date.now();
+    const last = box.lastElementChild;
+    if (last && last.dataset.msg === msg && now - Number(last.dataset.at || 0) < 1500) {
+      const n = Number(last.dataset.n || 1) + 1;
+      last.dataset.n = n;
+      last.dataset.at = now;
+      last.textContent = msg + " ×" + n;
+      delete last.dataset.leaving;
+      last.classList.remove("leaving");
+      scheduleRemove(last, type);
+      return;
+    }
     const el = document.createElement("div");
     el.className = "toast " + (type || "");
     el.textContent = msg;
+    el.dataset.msg = msg;
+    el.dataset.at = now;
+    el.dataset.n = 1;
     box.appendChild(el);
-    setTimeout(() => el.remove(), type === "error" ? 5000 : 2600);
+    while (box.children.length > TOAST_MAX) box.firstElementChild.remove();
+    scheduleRemove(el, type);
   };
 
   // ---------- API ----------
@@ -66,12 +103,41 @@
   };
 
   // ---------- 格式化 ----------
+  const pad = (n) => String(n).padStart(2, "0");
   window.fmtTime = function (iso) {
     if (!iso) return "-";
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    const p = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  // 相对时间：30 天内用「x 天前」这类扫读友好的形式，更早退回具体日期
+  window.relTime = function (iso) {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const diff = Date.now() - d.getTime();
+    if (diff < 0) return "刚刚";
+    const MIN = 60000, HOUR = 3600000, DAY = 86400000;
+    if (diff < MIN) return "刚刚";
+    if (diff < HOUR) return Math.floor(diff / MIN) + " 分钟前";
+    if (diff < DAY) return Math.floor(diff / HOUR) + " 小时前";
+    if (diff < 30 * DAY) return Math.floor(diff / DAY) + " 天前";
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  // 路径中部省略：保留盘符与首尾目录（比尾部截断更有辨识度，且避免 rtl 的 BiDi 重排）
+  window.shortPath = function (p, max) {
+    const s = String(p || "");
+    const limit = max || 46;
+    if (s.length <= limit) return s;
+    const sep = s.includes("\\") ? "\\" : "/";
+    // 保留前导分隔符：/home/… 与 \\wsl.localhost\… 的开头不能被 filter(Boolean) 吃掉
+    const leadMatch = /^[\\/]+/.exec(s);
+    const lead = leadMatch ? leadMatch[0] : "";
+    const parts = s.split(/[\\/]/).filter(Boolean);
+    if (parts.length <= 3) return s.slice(0, limit - 1) + "…";
+    const head = parts.slice(0, 2).join(sep);
+    const tail = parts.slice(-2).join(sep);
+    return lead + head + sep + "…" + sep + tail;
   };
   window.fmtSize = function (bytes) {
     if (bytes == null) return "-";
@@ -168,10 +234,111 @@
     return FILE_HUES[String(name).slice(dot).toLowerCase()] || "var(--muted)";
   }
 
+  // ---------- 图标（统一线性 SVG，替代 emoji 与几何符号） ----------
+  // 说明：Markdown 工具栏保留 B / I / H2 这类排版惯例文字标，其余一律走图标。
+  const ICONS = {
+    folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+    "folder-open": '<path d="M4 20h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 4.9A2 2 0 0 0 7.93 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"/><path d="M2 14h20l-2.4 4.2a2 2 0 0 1-1.7 1H6.1a2 2 0 0 1-1.7-1L2 14Z"/>',
+    terminal: '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
+    external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+    copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    "chevron-left": '<path d="m15 18-6-6 6-6"/>',
+    "chevron-right": '<path d="m9 18 6-6-6-6"/>',
+    "chevron-down": '<path d="m6 9 6 6 6-6"/>',
+    "chevron-up": '<path d="m18 15-6-6-6 6"/>',
+    trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    pencil: '<path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+    "file-text": '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+    more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/>',
+    warning: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m6.08 9.5-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83l-3.5-1.59"/><path d="m6.08 14.5-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83l-3.5-1.59"/>',
+    tag: '<path d="M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.42l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42Z"/><circle cx="7.5" cy="7.5" r=".8"/>',
+    commit: '<circle cx="12" cy="12" r="3"/><path d="M3 12h6"/><path d="M15 12h6"/>',
+    files: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+    drive: '<path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/><path d="M6 16h.01"/><path d="M10 16h.01"/>',
+    archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+    zap: '<path d="M13 2 4 14h6l-1 8 9-12h-6z"/>',
+    "arrow-left": '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    "arrow-up-down": '<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/>',
+    filter: '<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    book: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+    branch: '<path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+    save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
+    code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
+    list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+    package: '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+  };
+  window.LpaIcon = {
+    name: "LpaIcon",
+    props: {
+      name: { type: String, required: true },
+      size: { type: [Number, String], default: 16 },
+      stroke: { type: [Number, String], default: 1.8 },
+    },
+    computed: {
+      inner() { return ICONS[this.name] || ""; },
+    },
+    template: `<svg class="licon" :width="size" :height="size" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" :stroke-width="stroke" stroke-linecap="round" stroke-linejoin="round"
+      aria-hidden="true" focusable="false" v-html="inner"></svg>`,
+  };
+
+  // ---------- 模态框可达性：焦点陷阱 + 滚动锁定 + 焦点归还 ----------
+  // 用法：在 .modal 上加 v-modal（配合 v-if，挂载/卸载时自动 lock/unlock）
+  const modalStack = [];
+  function focusables(root) {
+    return [...root.querySelectorAll(
+      'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+    )].filter(el => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
+  }
+  function lockModal(root) {
+    document.body.classList.add("modal-open");
+    const prev = document.activeElement;
+    const onKey = (e) => {
+      if (e.key !== "Tab") return;
+      const items = focusables(root);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (!root.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey, true);
+    modalStack.push({ root, prev, onKey });
+    const items = focusables(root);
+    if (items.length) items[0].focus();
+  }
+  function unlockModal(root) {
+    const i = modalStack.findIndex(m => m.root === root);
+    if (i < 0) return;
+    const m = modalStack.splice(i, 1)[0];
+    document.removeEventListener("keydown", m.onKey, true);
+    if (!modalStack.length) document.body.classList.remove("modal-open");
+    if (m.prev && document.body.contains(m.prev)) m.prev.focus();
+  }
+  window.LpaModal = {
+    mounted(el) { lockModal(el); },
+    unmounted(el) { unlockModal(el); },
+  };
+
   // 模板表达式只能访问组件实例属性（Vue3 编译后为 _ctx.xxx），
   // window 上的工具函数必须通过 globalProperties 注入后模板才能调用
   window.LPA_HELPERS = {
-    fmtTime, fmtSize, fmtNum, copyText, statusBadgeClass, toggleTheme, tagClass,
+    fmtTime, relTime, shortPath, fmtSize, fmtNum, copyText, statusBadgeClass,
+    themeName, cycleTheme, tagClass,
     commitType, commitMsgText, userColor, fileColor,
   };
 
@@ -242,7 +409,7 @@
         <button type="button" class="lsel-trigger" @click="toggle"
                 :aria-expanded="open ? 'true' : 'false'" aria-haspopup="listbox">
           <span :class="{ 'lsel-placeholder': isPlaceholder }">{{ display }}</span>
-          <span class="lsel-arrow">▾</span>
+          <span class="lsel-arrow"><svg class="licon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
         </button>
         <transition name="lsel">
           <span class="lsel-list" role="listbox" v-if="open" ref="list">
@@ -250,7 +417,7 @@
                   class="lsel-item" :class="{ sel: opt.v === modelValue, foc: i === focused }"
                   @mouseenter="focused = i"
                   @click.stop="select(opt)">
-              <span class="lsel-check">✓</span>
+              <span class="lsel-check"><svg class="licon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
               <span>{{ opt.label }}</span>
             </span>
           </span>
