@@ -16,21 +16,26 @@ from app.config import DEFAULT_PORT, HOST
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="本地项目档案管理系统")
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT,
-                        help=f"服务端口（默认 {DEFAULT_PORT}）")
+    parser.add_argument("--port", type=int, default=0,
+                        help=f"服务端口（默认 {DEFAULT_PORT}，被占用时自动挑选空闲端口）")
     parser.add_argument("--no-browser", action="store_true",
                         help="启动后不自动打开浏览器")
     args = parser.parse_args()
 
+    from app.config import pick_port
+
+    # 显式指定的端口必须原样使用；未指定则从默认端口起找第一个空闲的
+    port = args.port or pick_port(preferred=DEFAULT_PORT)
+
     # 延迟导入：加载应用即完成数据库初始化
     from app.main import app
 
-    url = f"http://{HOST}:{args.port}"
+    url = f"http://{HOST}:{port}"
     # 仅绑定本机回环地址，不对外网暴露
     if not args.no_browser:
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     print(f"本地项目档案服务已启动：{url}  （Ctrl+C 停止）")
-    uvicorn.run(app, host=HOST, port=args.port, log_level="info")
+    uvicorn.run(app, host=HOST, port=port, log_level="info")
 
 
 if __name__ == "__main__":
