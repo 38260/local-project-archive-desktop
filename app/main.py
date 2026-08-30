@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -103,6 +103,44 @@ async def _origin_guard(request, call_next):
 def health(request: Request):
     return {"ok": True, "app": APP_NAME, "version": APP_VERSION,
             "data_path": str(DB_PATH), "port": request.url.port}
+
+
+@app.get("/api/heatmap")
+def heatmap_all(weeks: int = Query(53, ge=8, le=104)):
+    """全部 git 项目的按天提交聚合（首页总热力图）。
+
+    并行收集各仓库，按天累加提交数并记录来源项目名，供悬浮提示展示。
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.services import gitinfo
+
+    with get_db() as conn:
+        rows = [dict(r) for r in
+                conn.execute("SELECT path, name FROM projects ORDER BY id").fetchall()]
+
+    def collect(row: dict):
+        try:
+            res = gitinfo.collect_heatmap(row["path"], weeks=weeks)
+        except Exception:
+            res = {"is_repo": False, "days": {}}
+        res["name"] = row["name"]
+        return res
+
+    days: dict = {}
+    repos = 0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for res in pool.map(collect, rows):
+            if not res.get("is_repo"):
+                continue
+            repos += 1
+            for day, n in (res.get("days") or {}).items():
+                entry = days.setdefault(day, {"count": 0, "names": []})
+                entry["count"] += n
+                entry["names"].append(res["name"])
+    total = sum(e["count"] for e in days.values())
+    return {"days": days, "total": total, "repos": repos, "weeks": weeks,
+            "project_count": len(rows)}
 
 
 @app.get("/api/export")

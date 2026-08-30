@@ -346,6 +346,30 @@ input[type="search"] { width: 320px; }
 }
 .stat:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
 .stat.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* ---- 首页开发活动总览（全项目提交热力图） ---- */
+.heat-panel {
+  margin: calc(-1 * var(--s-2)) 0 var(--s-4);
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: var(--s-1) var(--s-3) var(--s-2);
+}
+.heat-head {
+  display: flex; align-items: center; gap: var(--s-2);
+  width: 100%; background: none; border: none; cursor: pointer;
+  padding: 6px 0; font: inherit; text-align: left; color: var(--text);
+}
+.heat-head:hover .heat-title { color: var(--accent); }
+.heat-chev { transition: transform .18s ease; color: var(--muted); flex: none; }
+.heat-chev.folded { transform: rotate(-90deg); }
+.heat-title {
+  font-size: 13.5px; font-weight: 700;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  transition: color .15s;
+}
+.heat-sub { font-size: 12.5px; font-weight: 400; color: var(--muted); }
+.heat-sub b { color: var(--text); font-variant-numeric: tabular-nums; }
+.heat-head .hm-legend { margin-left: auto; }
+.heat-body { padding-bottom: 2px; }
 .stat b { color: var(--text); font-size: 20px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; margin-right: 6px; }
 .stat .stat-ico { opacity: .75; display: inline-flex; }
 .stat.stat-total b { color: var(--accent); }
