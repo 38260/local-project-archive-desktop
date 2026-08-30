@@ -20,9 +20,14 @@ _BLOCK_RE = re.compile(
 )
 _BLOCK_SELF_RE = re.compile(r"<\s*(%s)\b[^>]*/?\s*>" % "|".join(_BLOCK_TAGS), re.I)
 # 事件属性 onxxx="..." / onxxx='...' / onxxx=xxx
-_ON_ATTR_RE = re.compile(r'\son[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)', re.I)
-# javascript: 伪协议链接
-_JS_URL_RE = re.compile(r'((?:href|src)\s*=\s*)(["\'])\s*javascript:[^"\']*\2', re.I)
+# 用 \b 而非前置空白：<svg/onload=...> 这类以 / 分隔的写法也能命中
+# （\b 不会误伤 "turnon=" 之类单词内部出现的 on）
+_ON_ATTR_RE = re.compile(r'\bon[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)', re.I)
+# 危险协议链接：引号包裹与未加引号两种写法都处理
+_JS_URL_RE = re.compile(
+    r'((?:href|src)\s*=\s*)(["\'])\s*(?:javascript|vbscript|data)\s*:[^"\']*\2', re.I)
+_JS_URL_UNQUOTED_RE = re.compile(
+    r'((?:href|src)\s*=\s*)(?:javascript|vbscript|data)\s*:[^\s>]*', re.I)
 
 
 def sanitize_html(html: str) -> str:
@@ -31,6 +36,7 @@ def sanitize_html(html: str) -> str:
     html = _BLOCK_SELF_RE.sub("", html)
     html = _ON_ATTR_RE.sub("", html)
     html = _JS_URL_RE.sub(r"\1\2#\2", html)
+    html = _JS_URL_UNQUOTED_RE.sub(r'\1"#"', html)
     return html
 
 

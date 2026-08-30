@@ -103,7 +103,7 @@ dev_deps = [f"{k}@{v}" for k, v in (data.get("devDependencies") or {}).items()]
 | 7.5 | `run.py:33` | 固定端口 8300 被占用即启动失败 | 复用 `config.pick_port()` ✅已修复 |
 | 7.6 | `app/services/gitinfo.py:139` | 每条提交算 `commit.stats`（全量 diff），大仓库 200 条需数秒 | 改 `git log --numstat` 命令行一次取回 ✅已修复（20 条 0.07s） |
 | 7.7 | `app/static/js/project.js:321` | 详情页为左右切换调全量 `/api/projects`（每项目都做磁盘 live_check） | 后端加轻量接口只返回 id/name ✅已修复 |
-| 7.8 | `app/services/render.py` | 正则净化有绕过面（`<svg/onload=...>`、无引号 `href=javascript:`） | 本地风险低；若要分享导出 HTML，换 `nh3`/`bleach` |
+| 7.8 | `app/services/render.py` | 正则净化有绕过面（`<svg/onload=...>`、无引号 `href=javascript:`） | 已加固：`/`分隔的 on 事件、无引号/危险协议（javascript/vbscript/data）均拦截 ✅ |
 | 7.9 | `app/main.py` | 无 Origin 校验，恶意网页可对 127.0.0.1 的 GET 接口发起请求 | 加校验 `Origin`/`Host` 的中间件 |
 | 7.10 | `app/main.py:163` | `@app.on_event("startup")` 已废弃 | 迁移到 lifespan |
 
