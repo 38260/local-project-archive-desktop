@@ -279,6 +279,24 @@ def track_geometry(window, logger):
 _EXITING = {"flag": False}
 
 
+class JsBridge:
+    """暴露给前端 JS 的桌面能力（通过 pywebview js_api，仅桌面窗口模式存在）。
+
+    前端调用：await window.pywebview.api.select_folder()
+    """
+
+    def __init__(self, window):
+        self._window = window
+
+    def select_folder(self):
+        """打开原生「选择文件夹」对话框，返回绝对路径字符串；取消返回空串。"""
+        import webview
+        result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+        if not result:
+            return ""
+        return result[0] if isinstance(result, (list, tuple)) else str(result)
+
+
 def _tray_available() -> bool:
     try:
         import pystray  # noqa: F401
@@ -551,6 +569,10 @@ def main() -> int:
                 pass
     window.events.closed += _on_closed
 
+    # 暴露桌面能力给前端：原生「选择文件夹」对话框（手动录入/批量扫描用）。
+    # 浏览器模式没有这个桥，前端按钮点击时降级为提示。
+    # expose 是运行时注册（js_api 需在 create_window 时传入，彼时窗口引用还不存在）
+    window.expose(JsBridge(window).select_folder)
     webview.start(icon=icon_path(), debug=False)
     return 0
 

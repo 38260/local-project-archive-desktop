@@ -280,8 +280,12 @@
       <h3 id="add-title">手动录入项目</h3>
       <div class="field">
         <label for="add-path">本地项目文件夹路径（必填）</label>
-        <input type="text" id="add-path" v-model.trim="form.path" placeholder="D:\code\my-project"
-               @keyup.enter="submitAdd" ref="pathInput">
+        <div class="path-row">
+          <input type="text" id="add-path" v-model.trim="form.path" placeholder="D:\code\my-project"
+                 @keyup.enter="submitAdd" ref="pathInput">
+          <button type="button" class="btn" @click="browseFolder('form.path')"
+                  title="打开系统文件夹选择对话框（桌面窗口模式可用）">浏览…</button>
+        </div>
         <div class="hint">支持 Windows 路径与 WSL 路径（如 wsl:Ubuntu:/home/user/project 或 \\wsl.localhost\Ubuntu\…）。系统仅读取解析，不会改动项目文件。</div>
       </div>
       <div class="field">
@@ -322,8 +326,12 @@
       <h3 id="scan-title">批量扫描导入</h3>
       <div class="field" v-if="!candidates">
         <label for="scan-root">扫描根目录</label>
-        <input type="text" id="scan-root" v-model.trim="scanRoot" placeholder="D:\code 或 wsl:Ubuntu:/home/user"
-               @keyup.enter="doScan" ref="scanRootInput">
+        <div class="path-row">
+          <input type="text" id="scan-root" v-model.trim="scanRoot" placeholder="D:\code 或 wsl:Ubuntu:/home/user"
+                 @keyup.enter="doScan" ref="scanRootInput">
+          <button type="button" class="btn" @click="browseFolder('scanRoot')"
+                  title="打开系统文件夹选择对话框（桌面窗口模式可用）">浏览…</button>
+        </div>
         <div class="hint">递归扫描子目录，通过 .git、package.json、pyproject.toml、CMakeLists.txt 等标记自动识别候选项目（跳过 node_modules 等依赖目录）。默认深度 {{ scanDepth }} 层。</div>
       </div>
       <div class="field" v-if="!candidates">

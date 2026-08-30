@@ -347,6 +347,10 @@ input[type="search"] { width: 320px; }
 .stat:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
 .stat.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
+/* 弹窗表单里「路径输入框 + 浏览按钮」横排 */
+.path-row { display: flex; gap: var(--s-2); align-items: stretch; }
+.path-row input { flex: 1; min-width: 0; }
+
 /* ---- 首页开发活动总览（全项目提交热力图） ---- */
 .heat-panel {
   margin: calc(-1 * var(--s-2)) 0 var(--s-4);
