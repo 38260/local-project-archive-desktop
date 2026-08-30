@@ -60,7 +60,8 @@ class NoteUpdate(BaseModel):
     content: str = Field(..., min_length=1, description="Markdown 正文")
 
 
-_ENTRY_DATE_RE = r"^\d{4}-\d{2}-\d{2}$"
+# 允许空串：路由层把空串/缺省补成当天（与「留空取当天」的产品语义一致）
+_ENTRY_DATE_RE = r"^(\d{4}-\d{2}-\d{2})?$"
 
 
 class ChangelogCreate(BaseModel):
