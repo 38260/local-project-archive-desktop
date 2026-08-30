@@ -45,6 +45,7 @@
         // 设置
         showSettings: false,
         autostart: { enabled: false, available: false, saving: false },
+        importingBackup: false,
       };
     },
     computed: {
@@ -220,6 +221,32 @@
         } finally {
           this.autostart.saving = false;
         }
+      },
+      async importBackup(e) {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = "";
+        if (!file) return;
+        let payload;
+        try {
+          payload = JSON.parse(await file.text());
+        } catch (err) {
+          toast("备份文件读取失败：不是有效的 JSON", "error");
+          return;
+        }
+        if (!Array.isArray(payload.projects)) {
+          toast("不是本系统导出的备份文件（缺少 projects 列表）", "error");
+          return;
+        }
+        if (!confirm(`将导入 ${payload.projects.length} 个项目档案（已存在的路径会自动跳过）。继续吗？`)) return;
+        this.importingBackup = true;
+        try {
+          const r = await api("/api/import", { method: "POST", body: payload });
+          let msg = `导入 ${r.imported} 个项目，跳过 ${r.skipped} 个已存在`;
+          if (r.failed.length) msg += `，${r.failed.length} 个失败`;
+          toast(msg, r.failed.length ? "error" : "ok");
+          this.load();
+        } catch (err) { /* toast 已提示 */ }
+        finally { this.importingBackup = false; }
       },
 
       // ---- 手动录入 ----

@@ -4,6 +4,7 @@
   - 仅监听 127.0.0.1，不对外网暴露；
   - 对本地项目目录只有读取操作，绝不写入/修改/删除原项目文件。
 """
+import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -14,8 +15,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.config import APP_NAME, APP_VERSION, DATA_DIR, STATIC_DIR, STATUS_VALUES
-from app.db import init_db
+from app.config import APP_NAME, APP_VERSION, DATA_DIR, STATIC_DIR, STATUS_VALUES, DB_PATH
+from app.db import get_db, init_db
 from app.models import RenderRequest
 from app.routers import projects, scanner, settings
 from app.services.render import render_markdown
@@ -95,7 +96,6 @@ async def _origin_guard(request, call_next):
 
 @app.get("/api/health")
 def health():
-    from app.config import DB_PATH
     return {"ok": True, "app": APP_NAME, "version": APP_VERSION,
             "data_path": str(DB_PATH)}
 
@@ -103,9 +103,6 @@ def health():
 @app.get("/api/export")
 def export_all():
     """导出全部项目档案为 JSON 备份（含自定义笔记与变更日志）。"""
-    import json
-
-    from app.db import get_db
     with get_db() as conn:
         rows = conn.execute("SELECT * FROM projects ORDER BY id").fetchall()
         project_items = []
@@ -148,6 +145,74 @@ def export_all():
         content=payload,
         headers={"Content-Disposition": 'attachment; filename="project-archive-export.json"'},
     )
+
+
+@app.post("/api/import")
+def import_backup(payload: dict):
+    """导入 /api/export 导出的 JSON 备份（换机迁移 / 数据恢复）。
+
+    按路径去重：档案库中已存在的路径跳过，其余项目连同笔记、变更日志一并导入。
+    """
+    projects = payload.get("projects")
+    if not isinstance(projects, list):
+        raise HTTPException(400, "不是有效的备份文件：缺少 projects 列表（应来自本系统的导出 JSON）")
+
+    imported, skipped, failed = 0, 0, []
+    now = datetime.now().astimezone().isoformat()
+    with get_db() as conn:
+        existing = {r["path"].lower() for r in
+                    conn.execute("SELECT path FROM projects").fetchall()}
+        for item in projects:
+            if not isinstance(item, dict):
+                continue
+            path = str(item.get("path") or "").strip()
+            name = str(item.get("name") or "").strip() \
+                or path.replace("/", "\\").rstrip("\\").split("\\")[-1]
+            if not path:
+                failed.append({"name": name, "reason": "缺少路径"})
+                continue
+            if path.lower() in existing:
+                skipped += 1
+                continue
+            status = item.get("status") if item.get("status") in STATUS_VALUES else "进行中"
+            try:
+                cur = conn.execute(
+                    "INSERT INTO projects (path, name, alias, category, status, tags, "
+                    "description, auto_meta, is_lost, lost_reason, fs_created, fs_modified, "
+                    "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (path, name,
+                     str(item.get("alias") or ""), str(item.get("category") or ""),
+                     status,
+                     json.dumps(item.get("tags") or [], ensure_ascii=False),
+                     str(item.get("description") or ""),
+                     json.dumps(item.get("auto_meta") or {}, ensure_ascii=False),
+                     1 if item.get("is_lost") else 0,
+                     str(item.get("lost_reason") or ""),
+                     str(item.get("fs_created") or ""), str(item.get("fs_modified") or ""),
+                     str(item.get("created_at") or now), str(item.get("updated_at") or now)),
+                )
+            except (TypeError, ValueError) as exc:
+                failed.append({"name": name, "reason": f"字段异常：{exc}"})
+                continue
+            pid = cur.lastrowid
+            for n in item.get("notes") or []:
+                if isinstance(n, dict) and str(n.get("content") or "").strip():
+                    conn.execute(
+                        "INSERT INTO notes (project_id, content, created_at, updated_at) "
+                        "VALUES (?,?,?,?)",
+                        (pid, str(n["content"]),
+                         str(n.get("created_at") or now), str(n.get("updated_at") or now)))
+            for c in item.get("changelogs") or []:
+                if isinstance(c, dict) and str(c.get("content") or "").strip():
+                    conn.execute(
+                        "INSERT INTO changelogs (project_id, title, content, entry_date, "
+                        "created_at, updated_at) VALUES (?,?,?,?,?,?)",
+                        (pid, str(c.get("title") or ""), str(c["content"]),
+                         str(c.get("entry_date") or ""),
+                         str(c.get("created_at") or now), str(c.get("updated_at") or now)))
+            existing.add(path.lower())
+            imported += 1
+    return {"imported": imported, "skipped": skipped, "failed": failed}
 
 
 @app.post("/api/render-md")
