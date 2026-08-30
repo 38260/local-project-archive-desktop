@@ -504,7 +504,7 @@
             <lpa-icon name="chevron-down" :size="15"></lpa-icon>加载更早提交
           </button>
           <span class="section-note" v-else-if="commitData.total_count > commitData.commits.length">
-            已加载全部 {{ commitData.commits.length }} 条（后端单次上限 200 条）
+            已加载最近 {{ commitData.commits.length }} 条，共 {{ fmtNum(commitData.total_count) }} 次提交（后端单次上限 200 条）
           </span>
         </div>
       </template>
