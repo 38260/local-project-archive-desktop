@@ -2,9 +2,11 @@
 
 仅使用标准库 sqlite3，零额外安装；单用户本地场景，按请求开关连接即可。
 档案数据全部持久化在 data/projects.db，重启服务不丢失；
-每次启动自动备份一份到 data/backups/（保留最近 10 份）。
+启动自动备份一份到 data/backups/（保留份数可在设置中调整）。
 """
+import json
 import logging
+import re
 import shutil
 import sqlite3
 from contextlib import contextmanager
@@ -58,22 +60,57 @@ CREATE INDEX IF NOT EXISTS idx_changelogs_project ON changelogs(project_id);
 """
 
 
-def _backup_db() -> None:
-    """启动时自动备份数据库，保留最近 10 份，防止意外丢失档案。"""
+BACKUP_DIR = DATA_DIR / "backups"
+_BACKUP_NAME_RE = re.compile(r"^projects-\d{8}-\d{6}\.db$")
+
+
+def backup_file_name_ok(name: str) -> bool:
+    """备份文件名是否合法（防路径穿越，供恢复/删除接口校验）。"""
+    return bool(_BACKUP_NAME_RE.match(name or ""))
+
+
+def _backup_db(force: bool = False) -> str | None:
+    """备份数据库，返回新备份文件名；跳过时返回 None。
+
+    - 设置关闭自动备份时，启动不备份（手动强制仍可用）；
+    - 数据库与上次备份时完全一致则跳过，频繁重启不产生重复备份；
+    - 保留份数由设置决定（默认 10）。
+    """
+    from app.services import settings_store
+
+    if not force and not settings_store.get("backup.enabled", True):
+        return None
     if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
-        return
+        return None
     try:
-        backup_dir = DATA_DIR / "backups"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        shutil.copy2(DB_PATH, backup_dir / f"projects-{stamp}.db")
-        # 轮转：只保留最近 10 份
-        backups = sorted(backup_dir.glob("projects-*.db"))
-        for old in backups[:-10]:
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        st = DB_PATH.stat()
+        state_file = BACKUP_DIR / ".state.json"
+        if not force:
+            try:
+                state = json.loads(state_file.read_text(encoding="utf-8"))
+                if state.get("mtime") == st.st_mtime and state.get("size") == st.st_size:
+                    return None  # 数据库没变，无需重复备份
+            except (OSError, ValueError):
+                pass
+        name = f"projects-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
+        shutil.copy2(DB_PATH, BACKUP_DIR / name)
+        state_file.write_text(json.dumps({"mtime": st.st_mtime, "size": st.st_size}),
+                              encoding="utf-8")
+        # 轮转：只保留最近 N 份
+        try:
+            keep = max(1, int(settings_store.get("backup.keep", 10) or 10))
+        except (TypeError, ValueError):
+            keep = 10
+        backups = sorted(BACKUP_DIR.glob("projects-*.db"))
+        for old in backups[:-keep]:
             old.unlink()
+        logger.info("数据库已备份：%s", name)
+        return name
     except OSError as exc:
         # 备份失败不阻塞启动，仅记录告警
         logger.warning("数据库自动备份失败：%s", exc)
+        return None
 
 
 def init_db() -> None:

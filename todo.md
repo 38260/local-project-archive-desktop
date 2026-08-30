@@ -146,7 +146,7 @@ dev_deps = [f"{k}@{v}" for k, v in (data.get("devDependencies") or {}).items()]
 ### 高优先：数据闭环
 
 1. 🔴 **导入 JSON 备份** ✅（2026-08-30）：`POST /api/import` 已实现并验证（按路径去重跳过、笔记/变更日志随项目恢复、非法状态兜底为进行中）；设置弹窗已加「数据维护」导出/导入按钮。
-2. 🟠 **备份管理**：显示 `data/backups` 份数；"立即备份"按钮；开关 `backup.enabled` + 保留份数 `backup.keep`（替代硬编码 10）；从指定备份恢复。
+2. 🟠 **备份管理** ✅（2026-08-30）：`backup.enabled`/`backup.keep` 设置化（替代硬编码 10）；数据库无变化时跳过备份；新增列表/立即备份/恢复（恢复前先自动备份当前库）/删除接口与设置面板 UI，已验证。
 3. 🟠 **数据目录与日志**：设置页"打开数据文件夹"按钮 → `GET /api/settings/open-data-folder` → `os.startfile(DATA_DIR)`；"打开日志文件"按钮。
 
 ### 中优先：桌面行为与体验

@@ -506,6 +506,20 @@ body.modal-open { overflow: hidden; }
 /* ---- 设置项：开关 ---- */
 .setting-row { display: flex; align-items: center; gap: var(--s-3); justify-content: space-between; }
 .setting-btns { display: inline-flex; gap: var(--s-2); flex: none; }
+.setting-desc .keep-input {
+  width: 52px; display: inline-block; padding: 1px 6px; margin: 0 2px;
+  font: inherit; text-align: center;
+}
+.backup-list {
+  margin-top: var(--s-2); max-height: 180px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: var(--r-md);
+}
+.backup-item {
+  display: flex; align-items: center; gap: var(--s-2);
+  padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.backup-item:last-child { border-bottom: none; }
+.backup-name { font-size: 12.5px; }
 .setting-title { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
 .setting-desc { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
 .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex: none; cursor: pointer; }
