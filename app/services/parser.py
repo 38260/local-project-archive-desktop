@@ -60,8 +60,9 @@ def _parse_package_json(path: Path) -> dict | None:
     data = _load_json(path)
     if data is None:
         return None
-    deps = list((data.get("dependencies") or {}).keys())
-    dev_deps = list((data.get("devDependencies") or {}).keys())
+    # 保留版本约束（name@spec），前端据此统计 固定/范围/未标注
+    deps = [f"{k}@{v}" for k, v in (data.get("dependencies") or {}).items()]
+    dev_deps = [f"{k}@{v}" for k, v in (data.get("devDependencies") or {}).items()]
     return {
         "file": "package.json",
         "kind": "Node.js",

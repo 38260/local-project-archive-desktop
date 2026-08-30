@@ -193,16 +193,18 @@
         ];
         return list.filter(x => !x.hide);
       },
-      // 依赖版本统计：固定(==) / 范围(^ ~ > <) / 未标注
+      // 依赖版本统计：固定(== / @精确版本) / 范围(^ ~ > <) / 未标注
       depStats() {
         const all = [];
         for (const c of (this.meta && this.meta.configs) || []) {
           for (const d of c.dependencies || []) all.push(d);
         }
-        const pinnedList = all.filter(d => d.includes("=="));
-        const isRange = d => /[~^><=]/.test(d) && !d.includes("==");
-        const rangedList = all.filter(d => !d.includes("==") && isRange(d));
-        const unpinnedList = all.filter(d => !d.includes("==") && !isRange(d));
+        // Python 用 ==；Node 的 name@1.2.3（@ 后直接是数字）也视为固定
+        const isPinned = d => d.includes("==") || /@\d/.test(d);
+        const isRange = d => /[~^><=]/.test(d) && !isPinned(d);
+        const pinnedList = all.filter(isPinned);
+        const rangedList = all.filter(d => isRange(d));
+        const unpinnedList = all.filter(d => !isPinned(d) && !isRange(d));
         return {
           total: all.length,
           pinned: pinnedList.length,
