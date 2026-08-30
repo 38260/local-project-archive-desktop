@@ -711,9 +711,11 @@ def launch_project(project_id: int, body: LaunchRequest):
             os.startfile(command)  # noqa: S606 与资源管理器双击行为一致
             return {"ok": True, "mode": "open",
                     "note": "已直接运行（与资源管理器双击等效）"}
-        # console：新终端窗口跑命令；窗口由用户关闭或 Ctrl+C 停止
+        # console：新终端窗口跑命令；窗口由用户关闭或 Ctrl+C 停止。
+        # 注意：必须传字符串而非列表——列表会经 list2cmdline 把 command 里已有的
+        # 引号转义成 \"，触发 cmd /K 的引号启发式规则，命令直接报废。
         proc = subprocess.Popen(  # noqa: S603 本地工具，用户确认后执行
-            ["cmd", "/k", command], cwd=workdir,
+            f"cmd /k {command}", cwd=workdir,
             creationflags=subprocess.CREATE_NEW_CONSOLE)
         logger.info("项目 %s 启动命令已执行（pid=%s）：%s", project_id, proc.pid, command)
         return {"ok": True, "mode": "console", "pid": proc.pid,
