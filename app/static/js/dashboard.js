@@ -38,6 +38,9 @@
         heat: null,
         heatWeeks: 53,
         heatCollapsed: localStorage.getItem("lpa-home-heat-collapsed") === "1",
+        // 打开项目的编辑器（设置联动：卡片按钮图标/文字跟随）
+        editorCmd: "code",
+        editorOptions: [],
         // 手动录入
         showAdd: false,
         submitting: false,
@@ -77,6 +80,9 @@
       currentThemePref() {
         this.themeTick;   // 建立响应式依赖
         return window.themePref();
+      },
+      editorName() {
+        return window.editorName(this.editorCmd);
       },
       // 总热力图网格：days 为 {date: {count, names}}，取 count 出格子，names 进悬浮提示
       heatGrid() {
@@ -272,6 +278,22 @@
         this.loadAutostart();
         this.loadBackups();
         this.loadPrefs();
+        this.loadEditors();
+      },
+      // 编辑器下拉选项：后端探测 PATH 上可用的命令（带友好显示名）
+      async loadEditors() {
+        try {
+          const r = await api("/api/settings/editors", { silent: true });
+          this.editorOptions = (r.editors || []).map(e => ({ v: e.cmd, l: e.name }));
+        } catch (e) {
+          this.editorOptions = Object.keys(window.EDITOR_META);
+        }
+      },
+      // 设置里选编辑器：同步卡片/详情按钮的图标与文字
+      chooseEditor(cmd) {
+        this.prefs["editor.command"] = cmd;
+        this.editorCmd = cmd;
+        this.savePref("editor.command");
       },
       async loadAutostart() {
         try {
@@ -392,6 +414,7 @@
       async loadPrefs() {
         try {
           this.prefs = await api("/api/settings", { silent: true });
+          this.editorCmd = this.prefs["editor.command"] || "code";
           const w = Number(this.prefs["ui.heatmap_weeks"]);
           if (w && w !== this.heatWeeks) {
             this.heatWeeks = w;

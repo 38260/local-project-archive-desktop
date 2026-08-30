@@ -28,6 +28,31 @@ def get_settings():
     return settings_store.all()
 
 
+# 常见编辑器预设：命令名（PATH 上可执行）→ 显示名
+_EDITOR_PRESETS = [
+    ("code", "VS Code"),
+    ("code-insiders", "VS Code Insiders"),
+    ("cursor", "Cursor"),
+    ("windsurf", "Windsurf"),
+    ("subl", "Sublime Text"),
+]
+
+
+@router.get("/editors")
+def list_editors():
+    """探测 PATH 上可用的编辑器命令，供「打开项目的编辑器」下拉选择。
+
+    只返回本机可用的；当前设置值若不在其中（自定义命令）追加保留，
+    避免用户手动配置的命令在下拉里丢失。
+    """
+    current = settings_store.get("editor.command", "") or ""
+    editors = [{"cmd": cmd, "name": name}
+               for cmd, name in _EDITOR_PRESETS if shutil.which(cmd)]
+    if current and current not in [e["cmd"] for e in editors]:
+        editors.append({"cmd": current, "name": f"{current}（自定义）"})
+    return {"editors": editors, "current": current}
+
+
 @router.put("")
 def put_settings(body: Dict[str, Any]):
     """批量写入设置。仅接受 JSON 原生值；返回写入后的完整配置。"""

@@ -99,6 +99,7 @@
         // GitHub 风格贡献热力图
         heat: null,             // 后端 /heatmap 原始数据
         heatWeeks: 53,          // 展示周数，被设置 ui.heatmap_weeks 覆盖
+        editorCmd: "code",      // 打开项目的编辑器命令，被设置 editor.command 覆盖
         // 热力图点击某天 → 当天提交弹窗
         heatDay: null,          // "YYYY-MM-DD"
         heatDayCommits: [],
@@ -314,6 +315,7 @@
           if (s) {
             if (s["commits.limit"]) this.commitLimit = Number(s["commits.limit"]) || 200;
             if (s["ui.heatmap_weeks"]) this.heatWeeks = Number(s["ui.heatmap_weeks"]) || 53;
+            this.editorCmd = s["editor.command"] || "code";
           }
         } catch (e) { /* 设置读取失败不影响详情页 */ }
         this.loadHeatmap();
