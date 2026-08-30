@@ -21,7 +21,9 @@
     <button class="btn" @click="rescanAll" :disabled="rescanningAll"
             title="用最新解析器重新解析全部项目（保留已有标签，补充新识别）">
       <lpa-icon name="refresh" :size="15" :class="{spin: rescanningAll}"></lpa-icon>
-      <span class="btn-text">{{ rescanningAll ? "解析中…" : "全部重新解析" }}</span>
+      <span class="btn-text">{{ rescanningAll
+        ? (rescanProgress.total ? `解析中 ${rescanProgress.done}/${rescanProgress.total}` : "解析中…")
+        : "全部重新解析" }}</span>
     </button>
     <button class="btn primary" @click="openAdd" title="手动录入项目">
       <lpa-icon name="plus" :size="15"></lpa-icon><span class="btn-text">手动录入</span>

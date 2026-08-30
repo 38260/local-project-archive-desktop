@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -158,8 +159,8 @@ def create_project(body: ProjectCreate):
 
 @router.get("")
 def list_projects():
-    """全部项目列表（含实时路径有效性），按状态优先级排序：
-    进行中 → 已完成 → 暂停 → 归档废弃，同组内按更新时间倒序。筛选由前端完成。
+    """全部项目列表（含实时路径有效性），按置顶与状态优先级排序：
+    置顶 → 进行中 → 已完成 → 暂停 → 归档废弃，同组内按更新时间倒序。筛选由前端完成。
     """
     with get_db() as conn:
         rows = conn.execute(
@@ -168,7 +169,9 @@ def list_projects():
             "WHEN '暂停' THEN 2 WHEN '归档废弃' THEN 3 ELSE 4 END ASC, "
             "updated_at DESC"
         ).fetchall()
-        items = [_row_to_dict(r, live_check=True) for r in rows]
+        # 路径校验并发执行：盘多/含网络盘时逐个 isdir 是首屏瓶颈
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            items = list(pool.map(lambda r: _row_to_dict(r, live_check=True), rows))
     stats = {
         "total": len(items),
         "active": sum(1 for i in items if i["status"] != "归档废弃" and not i["is_lost"]),
@@ -321,15 +324,13 @@ def _merge_tags(old_tags: str, new_tech_tags: list[str]) -> str:
     return json.dumps(merged, ensure_ascii=False)
 
 
-@router.post("/rescan-all")
-def rescan_all():
-    """批量重新解析全部项目（解析器升级后一键刷新；跳过路径丢失的）。
+# 「全部重新解析」后台任务状态（单用户场景，一份全局状态足够）
+_RESCAN_JOB = {"running": False, "finished": False,
+               "done": 0, "total": 0, "ok": 0, "failed": []}
 
-    解析是磁盘 IO（git 命令、目录遍历），用线程池并发加速；
-    SQLite 写回在主线程串行完成。标签合并策略：保留已有，补充新识别。
-    """
-    with get_db() as conn:
-        rows = conn.execute("SELECT * FROM projects").fetchall()
+
+def _rescan_worker(rows) -> None:
+    """后台线程：解析并发跑，进度实时写入 _RESCAN_JOB。"""
 
     def parse_one(row):
         if not os.path.isdir(row["path"]):
@@ -339,26 +340,56 @@ def rescan_all():
         except OSError as exc:
             return row, None, f"解析失败：{exc}"
 
-    ok, failed = 0, []
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        for row, parsed, error in pool.map(parse_one, rows):
-            if error:
-                failed.append({"id": row["id"], "name": row["name"], "reason": error})
-                if error == "路径丢失":
+    try:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for row, parsed, error in pool.map(parse_one, rows):
+                if error:
+                    _RESCAN_JOB["failed"].append(
+                        {"id": row["id"], "name": row["name"], "reason": error})
+                    if error == "路径丢失":
+                        with get_db() as conn:
+                            conn.execute("UPDATE projects SET is_lost=1, lost_reason=? "
+                                         "WHERE id=?",
+                                         (dir_not_exists_hint(row["path"]), row["id"]))
+                else:
                     with get_db() as conn:
-                        conn.execute("UPDATE projects SET is_lost=1, lost_reason=? "
-                                     "WHERE id=?", (dir_not_exists_hint(row["path"]), row["id"]))
-                continue
-            with get_db() as conn:
-                conn.execute(
-                    "UPDATE projects SET auto_meta=?, fs_created=?, fs_modified=?, "
-                    "tags=?, is_lost=0, lost_reason='', updated_at=? WHERE id=?",
-                    (json.dumps(parsed["auto_meta"], ensure_ascii=False),
-                     parsed["fs_created"], parsed["fs_modified"],
-                     _merge_tags(row["tags"], parsed["auto_meta"]["tech_tags"]),
-                     _now(), row["id"]))
-            ok += 1
-    return {"rescanned": ok, "failed": failed}
+                        conn.execute(
+                            "UPDATE projects SET auto_meta=?, fs_created=?, fs_modified=?, "
+                            "tags=?, is_lost=0, lost_reason='', updated_at=? WHERE id=?",
+                            (json.dumps(parsed["auto_meta"], ensure_ascii=False),
+                             parsed["fs_created"], parsed["fs_modified"],
+                             _merge_tags(row["tags"], parsed["auto_meta"]["tech_tags"]),
+                             _now(), row["id"]))
+                    _RESCAN_JOB["ok"] += 1
+                _RESCAN_JOB["done"] += 1
+    finally:
+        _RESCAN_JOB["running"] = False
+        _RESCAN_JOB["finished"] = True
+
+
+@router.post("/rescan-all")
+def rescan_all():
+    """批量重新解析全部项目（后台任务，进度见 /rescan-all/progress）。
+
+    解析是磁盘 IO（git 命令、目录遍历），用线程池并发加速；
+    标签合并策略：保留已有，补充新识别。
+    """
+    if _RESCAN_JOB["running"]:
+        return {"started": False, "reason": "已有重新解析任务在进行中", **_RESCAN_JOB}
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM projects").fetchall()
+    if not rows:
+        return {"started": True, "total": 0, "done": 0, "ok": 0, "failed": []}
+    _RESCAN_JOB.update(running=True, finished=False, done=0,
+                       total=len(rows), ok=0, failed=[])
+    threading.Thread(target=_rescan_worker, args=(rows,), daemon=True).start()
+    return {"started": True, "total": len(rows)}
+
+
+@router.get("/rescan-all/progress")
+def rescan_all_progress():
+    """重新解析任务进度快照。"""
+    return dict(_RESCAN_JOB)
 
 
 def refresh_lost_marks() -> None:
