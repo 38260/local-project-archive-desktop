@@ -10,7 +10,7 @@
     name: "LpaSettingsDialog",
     props: {
       // 状态选项由父页面传入（首页来自列表接口，详情页来自详情接口）
-      statuses: { type: Array, default: () => ["进行中", "已完成", "暂停", "归档废弃"] },
+      statuses: { type: Array, default: () => ["进行中", "已完成", "暂停", "归档", "废弃"] },
     },
     emits: ["changed"],
     data() {
@@ -329,12 +329,12 @@
               </div>
               <div class="setting-row" style="margin-top:10px">
                 <div>
-                  <span class="setting-title">默认显示归档项目</span>
-                  <span class="setting-desc">首页列表默认包含「归档废弃」状态的项目（可随时用筛选栏关闭）</span>
+                  <span class="setting-title">默认显示废弃项目</span>
+                  <span class="setting-desc">首页列表默认包含「废弃」状态的项目（归档项目始终展示，可随时用筛选栏关闭）</span>
                 </div>
                 <label class="switch">
-                  <input type="checkbox" v-model="prefs['ui.show_archived_default']"
-                         @change="savePref('ui.show_archived_default')" aria-label="默认显示归档项目">
+                  <input type="checkbox" v-model="prefs['ui.show_discarded_default']"
+                         @change="savePref('ui.show_discarded_default')" aria-label="默认显示废弃项目">
                   <span class="switch-slider"></span>
                 </label>
               </div>

@@ -9,7 +9,7 @@
     "最近更新": "updated", "最近修改": "modified", "名称": "name",
     "创建时间": "created", "状态": "status",
   };
-  const STATUS_ORDER = ["进行中", "已完成", "暂停", "归档废弃"];
+  const STATUS_ORDER = ["进行中", "已完成", "暂停", "归档", "废弃"];
 
   const app = createApp({
       data() {
@@ -22,7 +22,7 @@
         rescanProgress: { done: 0, total: 0, ok: 0, failed: [] },
         toolsOpen: false,
         projects: [],
-        stats: { total: 0, active: 0, archived: 0, lost: 0 },
+        stats: { total: 0, active: 0, archived: 0, discarded: 0, lost: 0 },
         statuses: [],
         themeTick: 0,
         // 筛选
@@ -30,7 +30,7 @@
         statusFilter: "",
         tagFilter: "",
         catFilter: "",
-        showArchived: false,
+        showDiscarded: false,   // 废弃项目默认隐藏，勾选后显示（归档始终展示）
         quickFilter: null,   // null | "active" | "lost"（统计卡下钻用）
         sortBy: "最近更新",
         sortOptions: SORT_LABELS,
@@ -123,9 +123,11 @@
           if (this.statusFilter && p.status !== this.statusFilter) return false;
           if (this.tagFilter && !(p.tags || []).includes(this.tagFilter)) return false;
           if (this.catFilter && p.category !== this.catFilter) return false;
-          if (!this.showArchived && p.status === "归档废弃") return false;
-          // 统计卡下钻：活跃 = 非归档且路径有效；丢失 = 路径失效
-          if (this.quickFilter === "active" && (p.status === "归档废弃" || p.is_lost)) return false;
+          // 归档=有意收尾留档，始终展示；废弃=彻底不要，默认隐藏
+          if (!this.showDiscarded && p.status === "废弃") return false;
+          // 统计卡下钻：活跃 = 未归档/未废弃且路径有效；丢失 = 路径失效
+          if (this.quickFilter === "active"
+              && (p.status === "归档" || p.status === "废弃" || p.is_lost)) return false;
           if (this.quickFilter === "lost" && !p.is_lost) return false;
           if (q) {
             const hay = [p.name, p.alias, p.path, p.category, (p.tags || []).join(",")]
@@ -144,7 +146,7 @@
         if (this.catFilter) f.push({ k: "cat", label: "分类：" + this.catFilter, clear: () => { this.catFilter = ""; } });
         if (this.quickFilter === "active") f.push({ k: "qf", label: "仅活跃", clear: () => { this.quickFilter = null; } });
         if (this.quickFilter === "lost") f.push({ k: "qf", label: "仅路径丢失", clear: () => { this.quickFilter = null; } });
-        if (this.showArchived) f.push({ k: "arch", label: "含归档项目", clear: () => { this.showArchived = false; } });
+        if (this.showDiscarded) f.push({ k: "arch", label: "含废弃项目", clear: () => { this.showDiscarded = false; } });
         return f;
       },
       checkedCount() {
@@ -183,9 +185,10 @@
       switchTheme() { window.cycleTheme(); this.themeTick++; },
       chooseTheme(v) { window.setThemePref(v); this.themeTick++; },
       statActive(kind) {
-        if (kind === "total") return !this.quickFilter && !this.statusFilter && this.showArchived;
+        if (kind === "total") return !this.quickFilter && !this.statusFilter && this.showDiscarded;
         if (kind === "active") return this.quickFilter === "active";
-        if (kind === "archived") return this.statusFilter === "归档废弃";
+        if (kind === "archived") return this.statusFilter === "归档";
+        if (kind === "discarded") return this.statusFilter === "废弃";
         if (kind === "lost") return this.quickFilter === "lost";
         return false;
       },
@@ -194,10 +197,11 @@
         const already = this.statActive(kind);
         this.clearFilters();
         if (already) return; // 再次点击 = 取消下钻，回到默认视图
-        if (kind === "total") this.showArchived = true;
+        if (kind === "total") this.showDiscarded = true;
         else if (kind === "active") this.quickFilter = "active";
-        else if (kind === "archived") { this.statusFilter = "归档废弃"; this.showArchived = true; }
-        else if (kind === "lost") { this.quickFilter = "lost"; this.showArchived = true; }
+        else if (kind === "archived") this.statusFilter = "归档";
+        else if (kind === "discarded") { this.statusFilter = "废弃"; this.showDiscarded = true; }
+        else if (kind === "lost") { this.quickFilter = "lost"; this.showDiscarded = true; }
         window.scrollTo({ top: 0, behavior: "smooth" });
       },
       clearFilters() {
@@ -206,7 +210,7 @@
         this.tagFilter = "";
         this.catFilter = "";
         this.quickFilter = null;
-        this.showArchived = false;
+        this.showDiscarded = false;
       },
       async quickOpen(p, target) {
         try {
@@ -309,7 +313,7 @@
       // data=数据被导入/恢复/清空，整页重新加载
       onSettingsChanged(kind, key, value) {
         this.themeTick++;
-        if (key === "ui.show_archived_default") this.showArchived = !!value;
+        if (key === "ui.show_discarded_default") this.showDiscarded = !!value;
         this.loadPrefs();
         if (kind === "data") this.load();
       },
@@ -411,11 +415,11 @@
           this.appPort = h.port || "";
         })
         .catch(() => {});
-      // 偏好：默认是否显示归档项目
+      // 偏好：默认是否显示废弃项目（归档始终展示）
       api("/api/settings", { silent: true })
         .then(p => {
           this.prefs = p || {};
-          if (p && p["ui.show_archived_default"]) this.showArchived = true;
+          if (p && p["ui.show_discarded_default"]) this.showDiscarded = true;
         })
         .catch(() => {});
       // 全局快捷键：/ 聚焦搜索；Esc 关弹窗或清空搜索

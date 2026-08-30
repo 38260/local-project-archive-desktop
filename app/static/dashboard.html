@@ -53,21 +53,27 @@
     <div class="stats-row">
       <button type="button" class="stat stat-total" :class="{on: statActive('total')}"
               @click="applyStatFilter('total')"
-              title="点击显示全部项目（含归档）">
+              title="点击显示全部项目（含废弃）">
         <span class="stat-ico"><lpa-icon name="folder" :size="15"></lpa-icon></span>
         <b>{{ stats.total }}</b>全部项目
       </button>
       <button type="button" class="stat stat-active" :class="{on: statActive('active')}"
               @click="applyStatFilter('active')"
-              title="点击查看未归档且路径有效的项目">
+              title="点击查看未归档/未废弃且路径有效的项目">
         <span class="stat-ico"><lpa-icon name="zap" :size="15"></lpa-icon></span>
         <b>{{ stats.active }}</b>活跃项目
       </button>
       <button type="button" class="stat stat-archived" :class="{on: statActive('archived')}"
               @click="applyStatFilter('archived')"
-              title="点击只看已归档项目">
+              title="点击只看已归档项目（收尾留档，始终展示）">
         <span class="stat-ico"><lpa-icon name="archive" :size="15"></lpa-icon></span>
         <b>{{ stats.archived }}</b>已归档
+      </button>
+      <button type="button" class="stat stat-discarded" :class="{on: statActive('discarded')}"
+              @click="applyStatFilter('discarded')"
+              title="点击只看已废弃项目（默认隐藏）">
+        <span class="stat-ico"><lpa-icon name="trash" :size="15"></lpa-icon></span>
+        <b>{{ stats.discarded }}</b>已废弃
       </button>
       <button type="button" class="stat stat-lost" :class="{pulse: stats.lost > 0, on: statActive('lost')}"
               @click="applyStatFilter('lost')"
@@ -145,7 +151,7 @@
       <lpa-select v-model="catFilter" :options="allCategories" all-label="全部分类"></lpa-select>
       <lpa-select v-model="sortBy" :options="sortOptions" all-label=""></lpa-select>
       <label class="check-label">
-        <input type="checkbox" v-model="showArchived"> 显示归档项目
+        <input type="checkbox" v-model="showDiscarded"> 显示废弃项目
       </label>
       <span class="spacer"></span>
       <span class="section-note">共 {{ filtered.length }} 个项目</span>
@@ -172,7 +178,7 @@
         </div>
         <div class="card-grid">
           <div v-for="p in g.items" :key="p.id" class="card"
-               :class="{'is-lost': p.is_lost, 'is-archived': p.status === '归档废弃'}"
+               :class="{'is-lost': p.is_lost, 'is-archived': p.status === '归档' || p.status === '废弃'}"
                :data-status="p.status"
                role="link" tabindex="0"
                :aria-label="p.name + '，' + p.status + (p.is_lost ? '，路径丢失' : '')"

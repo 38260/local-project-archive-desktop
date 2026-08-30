@@ -33,8 +33,8 @@ DEFAULTS: dict = {
     # 录入默认值
     "add.default_status": "进行中",
     "add.default_category": "",
-    # 列表偏好
-    "ui.show_archived_default": False,
+    # 列表偏好（废弃=彻底不要的项目，默认隐藏；归档始终展示）
+    "ui.show_discarded_default": False,
     # 详情页
     "commits.limit": 200,            # 提交记录单次加载数（后端上限 200）
     "ui.heatmap_weeks": 53,          # 提交热力图范围（26=半年 / 53=一年）
