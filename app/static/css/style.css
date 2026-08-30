@@ -1118,7 +1118,7 @@ body.modal-open { overflow: hidden; }
 .launch-note-actions { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-2); }
 .launch-group-label { font-size: 13px; font-weight: 600; color: var(--text); margin: var(--s-3) 0 var(--s-2); }
 .launch-grid { display: flex; flex-wrap: wrap; gap: 10px; }
-.launch-entry { display: flex; align-items: stretch; gap: 4px; }
+.launch-entry { display: flex; align-items: stretch; gap: 8px; }
 .launch-btn {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--r-md);
@@ -1127,6 +1127,8 @@ body.modal-open { overflow: hidden; }
 }
 .launch-btn:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
 .launch-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.launch-btn:disabled { opacity: .55; cursor: default; transform: none; box-shadow: none; }
+.lb-mode { margin-left: 4px; color: var(--muted); vertical-align: -1px; }
 .lb-ico { color: var(--accent); flex: none; }
 .lb-body { min-width: 0; }
 .lb-body b { display: block; font-size: 14px; }
@@ -1139,7 +1141,7 @@ body.modal-open { overflow: hidden; }
   margin-left: 6px; font-size: 10px; font-weight: 600; color: var(--accent);
   border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; vertical-align: 1px;
 }
-.lb-ops { display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.lb-ops { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
 /* P1-10：按提交类型筛选 */
 .commit-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .tfilter {

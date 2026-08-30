@@ -56,6 +56,11 @@
         </span>
       </div>
       <div class="action-row">
+        <button class="btn primary" v-if="launch && launch.supported && primaryLaunchEntry"
+                @click="quickLaunch" :disabled="!!launchBusyKey"
+                :title="'启动：' + primaryLaunchEntry.command">
+          <lpa-icon name="zap" :size="15"></lpa-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
+        </button>
         <button class="btn primary" @click="openIn('explorer')" :disabled="p.is_lost">
           <lpa-icon name="folder-open" :size="15"></lpa-icon>资源管理器
         </button>
@@ -236,11 +241,14 @@
         <div class="launch-group-label">自定义启动项</div>
         <div class="launch-grid">
           <div class="launch-entry" v-for="l in launch.launchers" :key="l.id">
-            <button type="button" class="launch-btn" @click="runEntry(l)"
+            <button type="button" class="launch-btn" @click="runEntry(l)" :disabled="!!launchBusyKey"
                     :title="l.command + (l.cwd ? '（子目录 ' + l.cwd + '）' : '')">
               <lpa-icon name="zap" :size="15" class="lb-ico"></lpa-icon>
               <span class="lb-body">
-                <b>{{ l.name }}</b>
+                <b>{{ l.name }}
+                  <lpa-icon :name="l.mode === 'open' ? 'external' : 'terminal'" :size="11" class="lb-mode"
+                            :title="l.mode === 'open' ? '直接运行' : '新终端窗口'"></lpa-icon>
+                </b>
                 <code class="lb-cmd">{{ l.command }}</code>
               </span>
             </button>
@@ -257,20 +265,24 @@
       </template>
 
       <!-- 自动检测入口 -->
-      <template v-if="launch && launch.suggestions.length">
+      <template v-if="launch && visibleSuggestions.length">
         <div class="launch-group-label">
           自动检测
           <span class="section-note">
-            来自{{ launch.detect_kind === "direct" ? "项目内可执行文件" : "构建配置推断" }} · 点击即运行，可转存为自定义
+            来自{{ {direct: "项目内可执行文件", direct_weak: "项目内脚本（未能确认是否为启动方式，建议核对后再点）", inferred: "构建配置推断"}[launch.detect_kind] || "自动检测" }}
+            · 点击即运行，可转存为自定义
           </span>
         </div>
         <div class="launch-grid">
-          <div class="launch-entry" v-for="(s, i) in launch.suggestions" :key="i">
-            <button type="button" class="launch-btn" @click="runEntry(s)"
+          <div class="launch-entry" v-for="(s, i) in visibleSuggestions" :key="i">
+            <button type="button" class="launch-btn" @click="runEntry(s)" :disabled="!!launchBusyKey"
                     :title="s.command + '（' + s.source + '）'">
               <lpa-icon name="zap" :size="15" class="lb-ico"></lpa-icon>
               <span class="lb-body">
-                <b>{{ s.name }}<span class="lb-tag">自动</span></b>
+                <b>{{ s.name }}<span class="lb-tag">自动</span>
+                  <lpa-icon :name="s.mode === 'open' ? 'external' : 'terminal'" :size="11" class="lb-mode"
+                            :title="s.mode === 'open' ? '直接运行' : '新终端窗口'"></lpa-icon>
+                </b>
                 <code class="lb-cmd">{{ s.command }}</code>
               </span>
             </button>
@@ -285,7 +297,7 @@
       </template>
 
       <div class="section-note" style="margin-top:10px"
-           v-if="launch && launch.supported && !launch.launchers.length && !launch.suggestions.length">
+           v-if="launch && launch.supported && !launch.launchers.length && !visibleSuggestions.length">
         未检测到启动入口（.bat/.cmd/.exe/.ps1 或可推断的构建配置）。可以把常用的启动命令添加为自定义启动项。
       </div>
     </section>
