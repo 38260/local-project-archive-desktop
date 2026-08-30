@@ -100,6 +100,16 @@
         heat: null,
         monthSpan: 12,          // 柱状图月数（6=半年 | 12=一年），被设置 ui.heatmap_weeks 覆盖
         editorCmd: "code",      // 打开项目的编辑器命令，被设置 editor.command 覆盖
+        // 快速启动（GET /launch 载荷：note/note_html/supported/detect_kind/suggestions/launchers）
+        launch: null,
+        launchLoading: false,
+        launchConfirm: true,    // 启动前确认，被设置 launch.confirm 覆盖
+        launchNoteEditing: false,
+        launchNoteDraft: "",
+        launchNoteSaving: false,
+        showLaunchForm: false,
+        launchFormSaving: false,
+        launchForm: { id: null, name: "", command: "", cwd: "", mode: "console" },
         // 截图
         screenshots: [],
         previewShot: null,
@@ -198,11 +208,17 @@
       monthChartLabel() {
         return `${this.monthSpan === 6 ? "最近半年" : "最近一年"}按月提交柱状图，共 ${this.monthTotal} 次提交`;
       },
+      // 启动面板入口总数（自定义 + 自动检测）
+      launchEntryCount() {
+        if (!this.launch) return 0;
+        return (this.launch.launchers || []).length + (this.launch.suggestions || []).length;
+      },
       // 左侧目录：隐藏空内容面板的锚点
       sections() {
         const list = [
           { id: "sec-info", label: "基础信息" },
           { id: "sec-git", label: "Git 信息", hide: !this.gitInfo.is_repo },
+          { id: "sec-launch", label: "启动", hide: !!(this.p && this.p.is_lost) },
           { id: "sec-configs", label: "构建配置", hide: !(this.meta && this.meta.configs && this.meta.configs.length) },
           { id: "sec-stats", label: "文件统计", hide: false },
           { id: "sec-desc", label: "项目描述", hide: false },
@@ -221,7 +237,7 @@
         const pick = ids => ids.filter(id => byId[id]).map(id => ({ id, label: byId[id] }));
         return [
           { id: "g-overview", icon: "folder", label: "概览",
-            items: pick(["sec-info", "sec-git"]) },
+            items: pick(["sec-info", "sec-git", "sec-launch"]) },
           { id: "g-build", icon: "package", label: "构建与统计",
             items: pick(["sec-configs", "sec-stats"]) },
           { id: "g-records", icon: "file-text", label: "内容记录",
@@ -310,6 +326,7 @@
           this.loadNotes();
           this.loadChangelogs();
           this.loadShots();
+          this.loadLaunch();
           // 先拿设置（决定提交记录加载数），再加载提交与热力图
           await this.loadPrefs();
           this.loadCommits();
@@ -326,6 +343,7 @@
             // 半年(26 周)=6 个月 / 一年(53 周)=12 个月
             this.monthSpan = Number(s["ui.heatmap_weeks"]) === 26 ? 6 : 12;
             this.editorCmd = s["editor.command"] || "code";
+            this.launchConfirm = s["launch.confirm"] !== false;
           }
         } catch (e) { /* 设置读取失败不影响详情页 */ }
         this.loadHeatmap();
@@ -338,6 +356,89 @@
         this.themeTick++;   // 主题可能被设置弹窗改过，顶栏按钮文字/图标需刷新
         if (kind === "data") { this.load(); return; }
         this.loadPrefs();
+      },
+      // ---- 快速启动（检测/说明/自定义项/执行） ----
+      async loadLaunch() {
+        if (this.p && this.p.is_lost) { this.launch = null; return; }
+        this.launchLoading = true;
+        try {
+          this.launch = await api(`/api/projects/${this.projectId}/launch`, { silent: true });
+        } catch (e) {
+          this.launch = null;   // 检测失败不影响详情页其他面板
+        } finally { this.launchLoading = false; }
+      },
+      // 执行一个入口：entry 带 id 走已保存启动项，否则按完整命令直跑（自动检测）
+      async runEntry(entry) {
+        const modeText = entry.mode === "open" ? "直接运行" : "在新终端窗口运行";
+        const cmdText = entry.command + (entry.cwd ? `\n子目录：${entry.cwd}` : "");
+        if (this.launchConfirm && !await confirmDialog(
+          `将${modeText}：\n${cmdText}\n\n命令来自项目内文件，运行前请确认内容。`,
+          { title: `启动 · ${entry.name}`, okText: "启动" })) return;
+        try {
+          const body = entry.id
+            ? { launcher_id: entry.id }
+            : { command: entry.command, mode: entry.mode, cwd: entry.cwd || "" };
+          const r = await api(`/api/projects/${this.projectId}/launch`,
+            { method: "POST", body });
+          toast(r.note || "已启动", "ok");
+        } catch (e) { /* toast 已提示 */ }
+      },
+      toggleLaunchNoteEdit() {
+        this.launchNoteDraft = (this.launch && this.launch.note) || "";
+        this.launchNoteEditing = true;
+      },
+      async saveLaunchNote() {
+        this.launchNoteSaving = true;
+        try {
+          const r = await api(`/api/projects/${this.projectId}/launch-note`,
+            { method: "PUT", body: { note: this.launchNoteDraft } });
+          if (this.launch) { this.launch.note = r.note; this.launch.note_html = r.note_html; }
+          this.launchNoteEditing = false;
+          toast("启动说明已保存", "ok");
+        } catch (e) { /* toast 已提示 */ }
+        finally { this.launchNoteSaving = false; }
+      },
+      // 编辑弹窗：entry=已保存项；suggestion=自动检测建议（转存预填）
+      openLaunchForm(entry, suggestion) {
+        if (entry) {
+          this.launchForm = { id: entry.id, name: entry.name, command: entry.command,
+                              cwd: entry.cwd || "", mode: entry.mode || "console" };
+        } else if (suggestion) {
+          this.launchForm = { id: null, name: suggestion.name, command: suggestion.command,
+                              cwd: suggestion.cwd || "", mode: suggestion.mode || "console" };
+        } else {
+          this.launchForm = { id: null, name: "", command: "", cwd: "", mode: "console" };
+        }
+        this.showLaunchForm = true;
+      },
+      async saveLaunchForm() {
+        const f = this.launchForm;
+        if (!f.name.trim()) { toast("请填写启动项名称", "error"); return; }
+        if (!f.command.trim()) { toast("请填写启动命令", "error"); return; }
+        this.launchFormSaving = true;
+        try {
+          const body = { name: f.name.trim(), command: f.command.trim(),
+                         cwd: f.cwd.trim(), mode: f.mode };
+          if (f.id) {
+            await api(`/api/projects/${this.projectId}/launchers/${f.id}`,
+              { method: "PUT", body });
+          } else {
+            await api(`/api/projects/${this.projectId}/launchers`, { method: "POST", body });
+          }
+          this.showLaunchForm = false;
+          toast(f.id ? "启动项已更新" : "启动项已添加", "ok");
+          this.loadLaunch();
+        } catch (e) { /* toast 已提示 */ }
+        finally { this.launchFormSaving = false; }
+      },
+      async deleteLauncher(l) {
+        if (!await confirmDialog(`删除启动项「${l.name}」？`,
+          { title: "删除启动项", okText: "删除", danger: true })) return;
+        try {
+          await api(`/api/projects/${this.projectId}/launchers/${l.id}`, { method: "DELETE" });
+          toast("启动项已删除", "ok");
+          this.loadLaunch();
+        } catch (e) { /* toast 已提示 */ }
       },
       // 提交活动数据：固定取一年按天聚合（足以覆盖 12 个完整日历月），
       // 半年/一年视图由前端从同一份数据聚合，切换跨度不再重新请求
@@ -777,6 +878,7 @@
         if (e.key !== "Escape") return;
         if (this.$refs.settings && this.$refs.settings.visible) { this.$refs.settings.close(); return; }
         if (this.previewShot) { this.previewShot = null; return; }
+        if (this.showLaunchForm) { this.showLaunchForm = false; return; }
         if (this.moreOpen) { this.moreOpen = false; return; }
         if (this.showEdit) this.showEdit = false;
       };

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS projects (
     is_lost      INTEGER NOT NULL DEFAULT 0,           -- 路径失效标记：1=丢失项目
     lost_reason  TEXT NOT NULL DEFAULT '',
     pinned       INTEGER NOT NULL DEFAULT 0,           -- 1=置顶（列表内优先展示）
+    launch_note  TEXT NOT NULL DEFAULT '',             -- 启动说明 Markdown（怎么跑这个项目）
     fs_created   TEXT NOT NULL DEFAULT '',             -- 磁盘创建时间
     fs_modified  TEXT NOT NULL DEFAULT '',             -- 磁盘最后修改时间
     created_at   TEXT NOT NULL,                        -- 档案创建时间
@@ -58,6 +59,20 @@ CREATE TABLE IF NOT EXISTS changelogs (
     updated_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_changelogs_project ON changelogs(project_id);
+
+-- 自定义启动项（快速启动；自动检测结果不落库，只有用户转存/手写的才存这里）
+CREATE TABLE IF NOT EXISTS launchers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,                         -- 显示名，如「启动后端」
+    command     TEXT NOT NULL,                         -- 完整命令行
+    cwd         TEXT NOT NULL DEFAULT '',              -- 相对项目根的子目录（monorepo 场景）
+    mode        TEXT NOT NULL DEFAULT 'console',       -- console=新终端窗口 | open=双击等效
+    sort        INTEGER NOT NULL DEFAULT 0,            -- 展示顺序
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_launchers_project ON launchers(project_id);
 """
 
 
@@ -133,11 +148,14 @@ def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with get_db() as conn:
         conn.executescript(_SCHEMA)
-        # 轻量迁移：老库补「置顶」列
+        # 轻量迁移：老库补「置顶」「启动说明」列
         cols = {r[1] for r in conn.execute("PRAGMA table_info(projects)")}
         if "pinned" not in cols:
             conn.execute("ALTER TABLE projects "
                          "ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+        if "launch_note" not in cols:
+            conn.execute("ALTER TABLE projects "
+                         "ADD COLUMN launch_note TEXT NOT NULL DEFAULT ''")
         # 轻量迁移：旧「归档废弃」拆分为「归档」（归档=有意收尾留档，应可展示；
         # 废弃=彻底不要）。更新语句幂等，迁移后无残留旧值。
         conn.execute("UPDATE projects SET status='归档' WHERE status='归档废弃'")

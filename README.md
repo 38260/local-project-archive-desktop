@@ -105,6 +105,12 @@ local-project-archive-desktop/
 - **任务栏/托盘**：应用独立图标与身份（开发模式同样生效）。
 - **导出下载**：走系统保存对话框；「浏览…」走原生文件夹选择对话框。
 
+### 快速启动（详情页「启动」面板）
+
+- **智能检测启动入口**：漏斗式两级——优先项目内可执行文件（根目录与 dist 的 .bat/.cmd/.exe/.ps1，双击等效直接运行）；一个没有才按构建配置推断（package.json scripts 按 lockfile 选 pnpm/yarn/bun/npm、Python 入口优先用项目内 .venv 解释器、manage.py 特判 runserver、cargo/go）。
+- **一键执行**：新开终端窗口运行（日志可见、Ctrl+C 可停），点击前弹确认框展示完整命令（可关）；自定义启动项支持增删改与子目录（monorepo 分仓）。
+- **启动说明**：Markdown 记录「先起后端再起前端」这类步骤，与启动按钮同面板展示。
+
 ### 数据安全
 
 - 全程只读扫描；描述/笔记/变更日志全部存 SQLite；**每次启动自动备份数据库**（保留份数可调，无变化跳过）。
@@ -129,6 +135,10 @@ local-project-archive-desktop/
 | GET/POST | /api/projects/{id}/notes、/changelogs | 笔记与变更日志（PUT/DELETE 同路径） |
 | GET | /api/projects/{id}/readme、/tree、/screenshots | README / 目录树 / 截图 |
 | POST | /api/projects/{id}/open | 资源管理器 / 所选编辑器打开 |
+| GET | /api/projects/{id}/launch | 启动面板：说明+自动检测建议+自定义启动项 |
+| PUT | /api/projects/{id}/launch-note | 保存启动说明 |
+| POST/PUT/DELETE | /api/projects/{id}/launchers[/{lid}] | 自定义启动项管理 |
+| POST | /api/projects/{id}/launch | 执行启动（open=双击等效 / console=新终端窗口） |
 | GET | /api/projects/{id}/export-html | 导出单项目 HTML 档案报告 |
 | POST | /api/scan、/api/scan/import | 批量扫描 / 批量导入 |
 | GET/POST | /api/export、/api/import | 导出全库 JSON / 导入恢复 |

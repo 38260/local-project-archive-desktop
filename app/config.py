@@ -154,3 +154,14 @@ TREE_MAX_NODES = 500         # 目录树最多节点数
 SCAN_MAX_DIRS = 20000        # 扫描最多访问目录数
 SCAN_MAX_CANDIDATES = 300    # 扫描最多返回候选项目数
 DEPS_MAX_ITEMS = 60          # 依赖清单最多记录条数
+
+# 快速启动：直接可执行入口的扩展名（用户自备的启动方式，最权威）
+LAUNCH_DIRECT_EXTS = {".bat", ".cmd", ".exe", ".ps1"}
+# 快速启动：智能推断的 Python 候选入口文件（按常见度排序）
+LAUNCH_ENTRY_FILES = ["main.py", "app.py", "run.py", "manage.py", "server.py",
+                      "bot.py", "start.py", "wsgi.py", "asgi.py", "cli.py",
+                      "__main__.py"]
+# 快速启动：单次检测最多返回的入口数（防异常目录刷屏）
+LAUNCH_MAX_ITEMS = 8
+# 快速启动：自定义启动项每个项目的数量上限
+LAUNCHERS_MAX_PER_PROJECT = 20

@@ -89,3 +89,31 @@ class ChangelogUpdate(BaseModel):
     content: Optional[str] = Field(None, min_length=1)
     entry_date: Optional[str] = Field(None, pattern=_ENTRY_DATE_RE)
     _not_blank = field_validator("content")(lambda cls, v: _reject_blank(v) if v is not None else v)
+
+
+class LaunchNoteUpdate(BaseModel):
+    """保存项目启动说明（Markdown）。"""
+    note: str = Field("", max_length=20000)
+
+
+class LauncherCreate(BaseModel):
+    """自定义启动项（新增/编辑共用）。"""
+    name: str = Field(..., min_length=1, max_length=60)
+    command: str = Field(..., min_length=1, max_length=500)
+    cwd: str = Field("", max_length=260)
+    mode: str = Field("console", pattern="^(console|open)$")
+    _not_blank = field_validator("name", "command")(
+        lambda cls, v: _reject_blank(v))
+
+
+class LauncherUpdate(LauncherCreate):
+    """编辑自定义启动项（字段与新增一致）。"""
+    pass
+
+
+class LaunchRequest(BaseModel):
+    """执行启动：要么指定 launcher_id，要么给完整 command+mode（自动检测直跑用）。"""
+    launcher_id: Optional[int] = None
+    command: Optional[str] = Field(None, max_length=500)
+    mode: Optional[Literal["console", "open"]] = None
+    cwd: Optional[str] = Field("", max_length=260)

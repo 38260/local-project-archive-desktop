@@ -40,6 +40,8 @@ DEFAULTS: dict = {
     "ui.heatmap_weeks": 53,          # 提交热力图范围（26=半年 / 53=一年）
     # 导出
     "export.html_include_notes": True,  # 导出 HTML 是否包含笔记与变更日志
+    # 快速启动
+    "launch.confirm": True,          # 点击启动按钮先弹确认框展示完整命令
     # 桌面行为
     "app.start_minimized": False,    # 自启动/启动时不弹窗口（配合托盘）
     "tray.close_to_tray": False,     # 关闭按钮最小化到托盘而不是退出

@@ -190,6 +190,106 @@
       <div class="section-note" v-else>非 Git 仓库<span v-if="gitInfo.error">（{{ gitInfo.error }}）</span></div>
     </section>
 
+    <!-- 快速启动：自动检测入口 + 自定义启动项 + 启动说明 -->
+    <section class="panel" id="sec-launch">
+      <h2>启动
+        <span class="count" v-if="launchEntryCount">{{ launchEntryCount }} 个入口</span>
+        <span class="right">
+          <button class="btn sm" @click="loadLaunch" :disabled="launchLoading"
+                  title="重新扫描项目内的启动入口">
+            <lpa-icon name="refresh" :size="13" :class="{spin: launchLoading}"></lpa-icon>重新检测
+          </button>
+          <button class="btn sm" @click="openLaunchForm()">
+            <lpa-icon name="plus" :size="13"></lpa-icon>添加启动项
+          </button>
+        </span>
+      </h2>
+
+      <div class="section-note" v-if="launch && !launch.supported">
+        当前环境不支持一键启动（仅 Windows 本地路径项目可用），可在此记录启动说明。
+      </div>
+
+      <!-- 启动说明 -->
+      <div class="launch-note" v-if="!launchNoteEditing">
+        <div class="md-body" v-if="launch && launch.note_html" v-html="launch.note_html"></div>
+        <div class="section-note" v-else>
+          还没有启动说明。把「先起后端再起前端」「需要先配置 .env」这类步骤写在这里。
+        </div>
+        <button class="btn sm" @click="toggleLaunchNoteEdit" style="margin-top:8px">
+          <lpa-icon name="pencil" :size="13"></lpa-icon>{{ launch && launch.note ? "编辑说明" : "写启动说明" }}
+        </button>
+      </div>
+      <div class="launch-note-edit" v-else>
+        <textarea class="c-input" v-model="launchNoteDraft" rows="5"
+                  placeholder="例如：&#10;1. 先启动后端：.venv\Scripts\python.exe main.py&#10;2. 再启动前端：npm run dev（需要 Node 18+）"
+                  aria-label="启动说明（Markdown）"></textarea>
+        <div class="launch-note-actions">
+          <button class="btn sm" @click="launchNoteEditing = false">取消</button>
+          <button class="btn sm primary" @click="saveLaunchNote" :disabled="launchNoteSaving">
+            {{ launchNoteSaving ? "保存中…" : "保存说明" }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 自定义启动项 -->
+      <template v-if="launch && launch.launchers.length">
+        <div class="launch-group-label">自定义启动项</div>
+        <div class="launch-grid">
+          <div class="launch-entry" v-for="l in launch.launchers" :key="l.id">
+            <button type="button" class="launch-btn" @click="runEntry(l)"
+                    :title="l.command + (l.cwd ? '（子目录 ' + l.cwd + '）' : '')">
+              <lpa-icon name="zap" :size="15" class="lb-ico"></lpa-icon>
+              <span class="lb-body">
+                <b>{{ l.name }}</b>
+                <code class="lb-cmd">{{ l.command }}</code>
+              </span>
+            </button>
+            <span class="lb-ops">
+              <button class="icon-btn" title="编辑" aria-label="编辑启动项" @click="openLaunchForm(l)">
+                <lpa-icon name="pencil" :size="13"></lpa-icon>
+              </button>
+              <button class="icon-btn" title="删除" aria-label="删除启动项" @click="deleteLauncher(l)">
+                <lpa-icon name="trash" :size="13"></lpa-icon>
+              </button>
+            </span>
+          </div>
+        </div>
+      </template>
+
+      <!-- 自动检测入口 -->
+      <template v-if="launch && launch.suggestions.length">
+        <div class="launch-group-label">
+          自动检测
+          <span class="section-note">
+            来自{{ launch.detect_kind === "direct" ? "项目内可执行文件" : "构建配置推断" }} · 点击即运行，可转存为自定义
+          </span>
+        </div>
+        <div class="launch-grid">
+          <div class="launch-entry" v-for="(s, i) in launch.suggestions" :key="i">
+            <button type="button" class="launch-btn" @click="runEntry(s)"
+                    :title="s.command + '（' + s.source + '）'">
+              <lpa-icon name="zap" :size="15" class="lb-ico"></lpa-icon>
+              <span class="lb-body">
+                <b>{{ s.name }}<span class="lb-tag">自动</span></b>
+                <code class="lb-cmd">{{ s.command }}</code>
+              </span>
+            </button>
+            <span class="lb-ops">
+              <button class="icon-btn" title="转存为自定义启动项" aria-label="转存为自定义启动项"
+                      @click="openLaunchForm(null, s)">
+                <lpa-icon name="plus" :size="13"></lpa-icon>
+              </button>
+            </span>
+          </div>
+        </div>
+      </template>
+
+      <div class="section-note" style="margin-top:10px"
+           v-if="launch && launch.supported && !launch.launchers.length && !launch.suggestions.length">
+        未检测到启动入口（.bat/.cmd/.exe/.ps1 或可推断的构建配置）。可以把常用的启动命令添加为自定义启动项。
+      </div>
+    </section>
+
     <!-- 构建配置与依赖 -->
     <section class="panel" id="sec-configs" v-if="meta && meta.configs.length">
       <h2>构建配置与依赖</h2>
@@ -700,6 +800,39 @@
     </div>
   </div>
 
+  <!-- 启动项编辑（新增 / 编辑 / 转存自动检测建议，三者共用） -->
+  <div class="modal-mask" v-if="showLaunchForm" @click.self="showLaunchForm = false">
+    <div class="modal" v-modal role="dialog" aria-modal="true" aria-labelledby="launch-form-title">
+      <h3 id="launch-form-title">{{ launchForm.id ? "编辑启动项" : "添加启动项" }}</h3>
+      <div class="field">
+        <label for="lf-name">名称</label>
+        <input type="text" id="lf-name" v-model.trim="launchForm.name" maxlength="60"
+               placeholder="如：启动后端 / 启动前端">
+      </div>
+      <div class="field">
+        <label for="lf-cmd">命令（完整命令行）</label>
+        <input type="text" id="lf-cmd" v-model="launchForm.command" maxlength="500"
+               placeholder="如：.venv\Scripts\python.exe main.py 或 npm run dev"
+               @keyup.enter="saveLaunchForm">
+        <div class="hint">「直接运行」模式需要可执行文件的完整路径（如 D:\code\x\start.bat）。</div>
+      </div>
+      <div class="field">
+        <label for="lf-cwd">子目录（可选，相对项目根，monorepo 分仓时用）</label>
+        <input type="text" id="lf-cwd" v-model.trim="launchForm.cwd" placeholder="如：frontend">
+      </div>
+      <div class="field">
+        <label>运行方式</label>
+        <lpa-select v-model="launchForm.mode"
+                    :options="[{v:'console',l:'新终端窗口（可看日志，Ctrl+C 停止）'},{v:'open',l:'直接运行（双击等效）'}]"></lpa-select>
+      </div>
+      <div class="actions">
+        <button class="btn" @click="showLaunchForm = false">取消</button>
+        <button class="btn primary" @click="saveLaunchForm" :disabled="launchFormSaving">
+          {{ launchFormSaving ? "保存中…" : "保存" }}
+        </button>
+      </div>
+    </div>
+  </div>
   <!-- 设置（共享组件，见 js/settings.js；首页同款） -->
   <lpa-settings-dialog ref="settings" :statuses="statuses" @changed="onSettingsChanged"></lpa-settings-dialog>
 </div>
