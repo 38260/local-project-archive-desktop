@@ -236,6 +236,20 @@
         toast("正在生成导出文件…", "ok");
         location.href = "/api/export";
       },
+      // 原生「选择文件夹」对话框（仅桌面窗口模式有 pywebview 桥）
+      async browseFolder(target) {
+        const bridge = window.pywebview && window.pywebview.api;
+        if (!bridge) {
+          toast("浏览器模式下不支持文件夹选择，请直接粘贴路径", "error");
+          return;
+        }
+        try {
+          const dir = await bridge.select_folder();
+          if (dir) this[target] = dir;
+        } catch (e) {
+          toast("选择文件夹失败：" + (e.message || e), "error");
+        }
+      },
       // 后台任务 + 轮询进度，避免一个长请求卡住界面
       async rescanAll() {
         if (!this.projects.length) { toast("暂无项目可解析", "error"); return; }
