@@ -46,6 +46,10 @@
         showSettings: false,
         autostart: { enabled: false, available: false, saving: false },
         importingBackup: false,
+        backups: [],
+        backupEnabled: true,
+        backupKeep: 10,
+        backupSaving: false,
       };
     },
     computed: {
@@ -197,6 +201,7 @@
       openSettings() {
         this.showSettings = true;
         this.loadAutostart();
+        this.loadBackups();
       },
       async loadAutostart() {
         try {
@@ -247,6 +252,55 @@
           this.load();
         } catch (err) { /* toast 已提示 */ }
         finally { this.importingBackup = false; }
+      },
+      async loadBackups() {
+        try {
+          const r = await api("/api/settings/backups", { silent: true });
+          this.backups = r.backups || [];
+          this.backupEnabled = !!r.auto_enabled;
+          this.backupKeep = r.keep || 10;
+        } catch (e) { /* 静默 */ }
+      },
+      async saveBackupPrefs() {
+        this.backupSaving = true;
+        const keep = Math.min(99, Math.max(1, Number(this.backupKeep) || 10));
+        try {
+          await api("/api/settings", {
+            method: "PUT",
+            body: { "backup.enabled": !!this.backupEnabled, "backup.keep": keep },
+          });
+          this.backupKeep = keep;
+        } catch (e) {
+          this.loadBackups();   // 失败回滚显示
+        } finally { this.backupSaving = false; }
+      },
+      async backupNow() {
+        this.backupSaving = true;
+        try {
+          const r = await api("/api/settings/backups", { method: "POST" });
+          toast(`已创建备份：${r.name}`, "ok");
+          this.loadBackups();
+        } catch (e) { /* toast 已提示 */ }
+        finally { this.backupSaving = false; }
+      },
+      async restoreBackup(b) {
+        if (!confirm(`用备份 ${b.name}（${fmtTime(b.mtime)}）覆盖当前档案数据？\n\n恢复前会先自动备份当前数据，误操作可再次恢复。`)) return;
+        this.backupSaving = true;
+        try {
+          await api("/api/settings/backups/restore", { method: "POST", body: { name: b.name } });
+          toast("已从备份恢复，正在刷新列表…", "ok");
+          this.load();
+          this.loadBackups();
+        } catch (e) { /* toast 已提示 */ }
+        finally { this.backupSaving = false; }
+      },
+      async deleteBackup(b) {
+        if (!confirm(`删除备份 ${b.name}？删除后不可恢复。`)) return;
+        try {
+          await api("/api/settings/backups", { method: "DELETE", body: { name: b.name } });
+          toast("备份已删除", "ok");
+          this.loadBackups();
+        } catch (e) { /* toast 已提示 */ }
       },
 
       // ---- 手动录入 ----

@@ -191,7 +191,7 @@
 
   <footer class="foot-note" v-if="dataPath">
     <lpa-icon name="drive" :size="14"></lpa-icon>
-    档案持久化保存于本机：<span class="mono">{{ dataPath }}</span>，重启服务/电脑不丢失；每次启动自动备份到 data/backups/（保留最近 10 份）
+    档案持久化保存于本机：<span class="mono">{{ dataPath }}</span>，重启服务/电脑不丢失；每次启动自动备份到 data/backups/（保留份数可在设置中调整）
   </footer>
 
   <!-- 手动录入 -->
@@ -334,6 +334,42 @@
                      @change="importBackup" :disabled="importingBackup">
             </label>
           </span>
+        </div>
+      </div>
+      <div class="field">
+        <label>数据库备份</label>
+        <div class="setting-row">
+          <div>
+            <span class="setting-title">启动时自动备份数据库</span>
+            <span class="setting-desc">
+              保留最近
+              <input type="number" class="keep-input" min="1" max="99" v-model.number="backupKeep"
+                     @change="saveBackupPrefs" :disabled="backupSaving" aria-label="保留份数">
+              份（存于 data/backups/）
+            </span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" v-model="backupEnabled" @change="saveBackupPrefs"
+                   :disabled="backupSaving" aria-label="启动时自动备份">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+        <div class="backup-list" v-if="backups.length">
+          <div class="backup-item" v-for="b in backups" :key="b.name">
+            <span class="mono backup-name">{{ b.name }}</span>
+            <span class="section-note">{{ fmtSize(b.size) }} · {{ fmtTime(b.mtime) }}</span>
+            <span class="fill"></span>
+            <button class="btn sm" @click="restoreBackup(b)">恢复</button>
+            <button class="icon-btn" title="删除该备份" aria-label="删除该备份" @click="deleteBackup(b)">
+              <lpa-icon name="trash" :size="13"></lpa-icon>
+            </button>
+          </div>
+        </div>
+        <div class="hint" v-else>暂无备份（启动服务时自动创建，或点下方按钮立即备份）</div>
+        <div style="margin-top:8px">
+          <button class="btn sm" @click="backupNow" :disabled="backupSaving">
+            <lpa-icon name="save" :size="13"></lpa-icon>{{ backupSaving ? "备份中…" : "立即备份" }}
+          </button>
         </div>
       </div>
       <div class="actions">
