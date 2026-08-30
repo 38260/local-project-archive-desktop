@@ -321,8 +321,9 @@
       },
       async loadSiblings() {
         try {
-          const data = await api("/api/projects", { silent: true });
-          this.siblings = (data.projects || []).map(x => ({ id: x.id, name: x.name }));
+          // 轻量接口：只取 id/name，不做磁盘校验
+          const data = await api("/api/projects/brief", { silent: true });
+          this.siblings = data.projects || [];
         } catch (e) { this.siblings = []; }
       },
       gotoSibling(target) { if (target) location.href = "/project/" + target.id; },
