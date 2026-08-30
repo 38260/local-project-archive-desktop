@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import APP_NAME, APP_VERSION, DATA_DIR, STATIC_DIR, STATUS_VALUES
 from app.db import init_db
 from app.models import RenderRequest
-from app.routers import projects, scanner
+from app.routers import projects, scanner, settings
 from app.services.render import render_markdown
 
 logging.basicConfig(level=logging.INFO,
@@ -49,6 +49,7 @@ app = FastAPI(title="本地项目档案", version=APP_VERSION, docs_url="/api/do
 init_db()
 app.include_router(projects.router)
 app.include_router(scanner.router)
+app.include_router(settings.router)
 
 
 # ---------------------------------------------------------------------------

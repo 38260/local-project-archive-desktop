@@ -42,6 +42,9 @@
         scanDepth: 3,
         candidates: null,
         importForm: { category: "" },
+        // 设置
+        showSettings: false,
+        autostart: { enabled: false, available: false, saving: false },
       };
     },
     computed: {
@@ -189,6 +192,36 @@
         finally { this.rescanningAll = false; }
       },
 
+      // ---- 设置 ----
+      openSettings() {
+        this.showSettings = true;
+        this.loadAutostart();
+      },
+      async loadAutostart() {
+        try {
+          const r = await api("/api/settings/autostart", { silent: true });
+          this.autostart.enabled = !!r.enabled;
+          this.autostart.available = !!r.available;
+        } catch (e) {
+          this.autostart.available = false;
+        }
+      },
+      async toggleAutostart() {
+        this.autostart.saving = true;
+        const wanted = this.autostart.enabled;
+        try {
+          const r = await api("/api/settings/autostart", {
+            method: "PUT", body: { enabled: wanted },
+          });
+          this.autostart.enabled = !!r.enabled;
+          toast(r.enabled ? "已开启开机自启动" : "已关闭开机自启动", "ok");
+        } catch (e) {
+          this.autostart.enabled = !wanted;   // 失败回滚
+        } finally {
+          this.autostart.saving = false;
+        }
+      },
+
       // ---- 手动录入 ----
       openAdd() {
         this.form = this.emptyForm();
@@ -273,7 +306,10 @@
           return;
         }
         if (e.key === "Escape") {
-          if (this.showAdd || this.showScan) { this.showAdd = false; this.showScan = false; return; }
+          if (this.showAdd || this.showScan || this.showSettings) {
+            this.showAdd = false; this.showScan = false; this.showSettings = false;
+            return;
+          }
           if (typing && document.activeElement.type === "search") {
             this.q = "";
             document.activeElement.blur();

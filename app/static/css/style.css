@@ -503,6 +503,27 @@ body.modal-open { overflow: hidden; }
 .modal .actions { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-4); }
 .modal.wide { width: 840px; }
 
+/* ---- 设置项：开关 ---- */
+.setting-row { display: flex; align-items: center; gap: var(--s-3); justify-content: space-between; }
+.setting-title { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
+.setting-desc { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.switch { position: relative; display: inline-block; width: 44px; height: 24px; flex: none; cursor: pointer; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch-slider {
+  position: absolute; inset: 0; border-radius: 999px;
+  background: var(--border); transition: background .18s;
+}
+.switch-slider::before {
+  content: ""; position: absolute; width: 18px; height: 18px;
+  left: 3px; top: 3px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+  transition: transform .18s;
+}
+.switch input:checked + .switch-slider { background: var(--accent); }
+.switch input:checked + .switch-slider::before { transform: translateX(20px); }
+.switch input:disabled + .switch-slider { opacity: .5; cursor: not-allowed; }
+.switch input:focus-visible + .switch-slider { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ---- 候选表格 ---- */
 .cand-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--r-md); }
 .cand-item {
