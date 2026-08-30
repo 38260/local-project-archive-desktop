@@ -506,9 +506,9 @@ body.modal-open { overflow: hidden; }
 /* ---- 设置项：开关 ---- */
 .setting-row { display: flex; align-items: center; gap: var(--s-3); justify-content: space-between; }
 .setting-btns { display: inline-flex; gap: var(--s-2); flex: none; }
-.setting-desc .keep-input {
+.keep-input {
   width: 52px; display: inline-block; padding: 1px 6px; margin: 0 2px;
-  font: inherit; text-align: center;
+  font: inherit; text-align: center; flex: none;
 }
 .pref-input { width: 150px; flex: none; padding: 5px 10px; font: inherit; font-size: 13px; }
 .backup-list {
