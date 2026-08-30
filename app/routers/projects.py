@@ -571,14 +571,20 @@ def _shot_list(project_id: int) -> list[dict]:
     d = SHOT_DIR / str(project_id)
     items = []
     if d.is_dir():
-        for f in sorted(d.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-            if f.is_file() and f.suffix.lower() in SHOT_EXTS:
-                items.append({
-                    "file": f.name,
-                    "url": f"/media/{project_id}/{f.name}",
-                    "size": f.stat().st_size,
-                    "mtime": datetime.fromtimestamp(f.stat().st_mtime).astimezone().isoformat(),
-                })
+        for f in d.iterdir():
+            if not (f.is_file() and f.suffix.lower() in SHOT_EXTS):
+                continue
+            try:
+                st = f.stat()
+            except OSError:
+                continue  # 列表期间被并发删除，跳过即可
+            items.append({
+                "file": f.name,
+                "url": f"/media/{project_id}/{f.name}",
+                "size": st.st_size,
+                "mtime": datetime.fromtimestamp(st.st_mtime).astimezone().isoformat(),
+            })
+    items.sort(key=lambda x: x["mtime"], reverse=True)
     return items
 
 
@@ -601,15 +607,23 @@ async def upload_screenshots(project_id: int, files: list[UploadFile] = File(...
         if ext not in SHOT_EXTS:
             errors.append({"file": f.filename, "reason": "仅支持 png/jpg/webp"})
             continue
-        data = await f.read()
-        if len(data) > SHOT_MAX_SIZE:
+        # 分块读取，超过大小上限立即终止，避免超大文件整体读入内存
+        chunks, total = [], 0
+        too_big = False
+        while chunk := await f.read(1024 * 1024):
+            total += len(chunk)
+            if total > SHOT_MAX_SIZE:
+                too_big = True
+                break
+            chunks.append(chunk)
+        if too_big:
             errors.append({"file": f.filename, "reason": "超过 5MB 限制"})
             continue
-        if not data:
+        if total == 0:
             errors.append({"file": f.filename, "reason": "空文件"})
             continue
         name = uuid.uuid4().hex + SHOT_EXTS[ext]
-        (d / name).write_bytes(data)
+        (d / name).write_bytes(b"".join(chunks))
         saved.append({"file": name, "url": f"/media/{project_id}/{name}"})
     return {"saved": saved, "errors": errors}
 
