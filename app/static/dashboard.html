@@ -10,50 +10,83 @@
 <body>
 <div id="app" v-cloak>
   <header class="topbar">
-    <span class="logo">📁 本地项目档案 <span class="dim">/ 本机索引库 · 数据不出本机</span></span>
+    <span class="logo">
+      <lpa-icon name="folder" :size="18"></lpa-icon>
+      本地项目档案 <span class="dim">/ 本机索引库 · 数据不出本机</span>
+    </span>
     <span class="spacer"></span>
-    <button class="btn" @click="openScan">🔎 批量扫描导入</button>
+    <button class="btn" @click="openScan" title="批量扫描导入">
+      <lpa-icon name="search" :size="15"></lpa-icon><span class="btn-text">批量扫描导入</span>
+    </button>
     <button class="btn" @click="rescanAll" :disabled="rescanningAll"
             title="用最新解析器重新解析全部项目（保留已有标签，补充新识别）">
-      🔄 {{ rescanningAll ? (rescanProgress ? `解析中 ${rescanProgress.done + 1}/${rescanProgress.total}` : "解析中…") : "全部重新解析" }}
+      <lpa-icon name="refresh" :size="15" :class="{spin: rescanningAll}"></lpa-icon>
+      <span class="btn-text">{{ rescanningAll ? "解析中…" : "全部重新解析" }}</span>
     </button>
-    <button class="btn primary" @click="openAdd">＋ 手动录入</button>
-    <button class="btn" @click="exportJson" title="导出全部档案为 JSON 备份">⬇ 导出 JSON</button>
-    <button class="btn" @click="toggleTheme" :title="'切换主题（当前：' + themeName + '）'">☀/🌙</button>
+    <button class="btn primary" @click="openAdd" title="手动录入项目">
+      <lpa-icon name="plus" :size="15"></lpa-icon><span class="btn-text">手动录入</span>
+    </button>
+    <button class="btn" @click="exportJson" title="导出全部档案为 JSON 备份">
+      <lpa-icon name="download" :size="15"></lpa-icon><span class="btn-text">导出 JSON</span>
+    </button>
+    <button class="btn" @click="switchTheme" :title="'主题：' + themeLabel + '（点击切换：跟随系统 / 亮色 / 暗色）'">
+      <lpa-icon :name="themeIcon" :size="15"></lpa-icon><span class="btn-text">{{ themeLabel }}</span>
+    </button>
   </header>
 
   <main class="container">
-    <!-- 统计 -->
+    <!-- 统计：可点击下钻为筛选条件 -->
     <div class="stats-row">
-      <span class="stat stat-total">
-        <span class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+      <button type="button" class="stat stat-total" :class="{on: statActive('total')}"
+              @click="applyStatFilter('total')"
+              title="点击显示全部项目（含归档）">
+        <span class="stat-ico"><lpa-icon name="folder" :size="15"></lpa-icon></span>
         <b>{{ stats.total }}</b>全部项目
-      </span>
-      <span class="stat stat-active">
-        <span class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg></span>
+      </button>
+      <button type="button" class="stat stat-active" :class="{on: statActive('active')}"
+              @click="applyStatFilter('active')"
+              title="点击查看未归档且路径有效的项目">
+        <span class="stat-ico"><lpa-icon name="zap" :size="15"></lpa-icon></span>
         <b>{{ stats.active }}</b>活跃项目
-      </span>
-      <span class="stat stat-archived">
-        <span class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg></span>
+      </button>
+      <button type="button" class="stat stat-archived" :class="{on: statActive('archived')}"
+              @click="applyStatFilter('archived')"
+              title="点击只看已归档项目">
+        <span class="stat-ico"><lpa-icon name="archive" :size="15"></lpa-icon></span>
         <b>{{ stats.archived }}</b>已归档
-      </span>
-      <span class="stat stat-lost" :class="{pulse: stats.lost > 0}">
-        <span class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 19.5a1 1 0 0 0 .9 1.5h17.2a1 1 0 0 0 .9-1.5L12 3z"/><path d="M12 9v5"/><path d="M12 17.5h.01"/></svg></span>
+      </button>
+      <button type="button" class="stat stat-lost" :class="{pulse: stats.lost > 0, on: statActive('lost')}"
+              @click="applyStatFilter('lost')"
+              title="点击只看路径丢失的项目">
+        <span class="stat-ico"><lpa-icon name="warning" :size="15"></lpa-icon></span>
         <b>{{ stats.lost }}</b>路径丢失
-      </span>
+      </button>
     </div>
 
     <!-- 筛选栏 -->
     <div class="filter-bar">
-      <input type="search" v-model.trim="q" placeholder="搜索名称 / 别名 / 路径 / 标签…（按 / 聚焦）"
+      <input type="search" v-model.trim="q" aria-label="搜索项目"
+             placeholder="搜索名称 / 别名 / 路径 / 标签…（按 / 聚焦）"
              style="flex:1;min-width:200px;max-width:460px">
       <lpa-select v-model="statusFilter" :options="statuses" all-label="全部状态"></lpa-select>
       <lpa-select v-model="tagFilter" :options="allTags" all-label="全部标签"></lpa-select>
+      <lpa-select v-model="catFilter" :options="allCategories" all-label="全部分类"></lpa-select>
+      <lpa-select v-model="sortBy" :options="sortOptions" all-label=""></lpa-select>
       <label class="check-label">
         <input type="checkbox" v-model="showArchived"> 显示归档项目
       </label>
       <span class="spacer"></span>
       <span class="section-note">共 {{ filtered.length }} 个项目</span>
+    </div>
+
+    <!-- 已生效的筛选条件（可单个移除） -->
+    <div class="active-filters" v-if="activeFilters.length">
+      <span class="section-note">筛选：</span>
+      <button type="button" class="afilter" v-for="f in activeFilters" :key="f.k"
+              @click="f.clear()" :title="'移除筛选：' + f.label">
+        {{ f.label }}<lpa-icon name="x" :size="12"></lpa-icon>
+      </button>
+      <button type="button" class="btn sm" @click="clearFilters">清除全部</button>
     </div>
 
     <!-- 项目卡片：按状态分组 -->
@@ -69,38 +102,53 @@
           <div v-for="p in g.items" :key="p.id" class="card"
                :class="{'is-lost': p.is_lost, 'is-archived': p.status === '归档废弃'}"
                :data-status="p.status"
-               @click="goto(p)">
+               role="link" tabindex="0"
+               :aria-label="p.name + '，' + p.status + (p.is_lost ? '，路径丢失' : '')"
+               @click="goto(p)" @keydown.enter.prevent="goto(p)" @keydown.space.prevent="goto(p)">
             <div class="title-row">
-              <h3 :title="p.name">{{ p.name }}</h3>
+              <h3 :title="p.name">
+                <a :href="'/project/' + p.id" @click.stop>{{ p.name }}</a>
+              </h3>
               <span class="alias-chip" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
               <span class="spacer"></span>
               <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
               <span :class="statusBadgeClass(p.status)">{{ p.status }}</span>
             </div>
             <div class="path-row" :title="p.path">
-              <span class="path">{{ p.path }}</span>
+              <span class="path">{{ shortPath(p.path) }}</span>
               <span class="row-actions">
-                <button class="icon-btn" title="资源管理器打开" :disabled="p.is_lost"
-                        @click.stop="quickOpen(p, 'explorer')">📂</button>
-                <button class="icon-btn" title="VSCode 打开" :disabled="p.is_lost"
-                        @click.stop="quickOpen(p, 'vscode')">⌨</button>
-                <button class="icon-btn" title="复制路径" @click.stop="copyText(p.path)">⧉</button>
+                <button class="icon-btn" title="资源管理器打开" aria-label="资源管理器打开" :disabled="p.is_lost"
+                        @click.stop="quickOpen(p, 'explorer')">
+                  <lpa-icon name="folder-open" :size="15"></lpa-icon>
+                </button>
+                <button class="icon-btn" title="VSCode 打开" aria-label="VSCode 打开" :disabled="p.is_lost"
+                        @click.stop="quickOpen(p, 'vscode')">
+                  <lpa-icon name="terminal" :size="15"></lpa-icon>
+                </button>
+                <button class="icon-btn" title="复制路径" aria-label="复制路径" @click.stop="copyText(p.path)">
+                  <lpa-icon name="copy" :size="15"></lpa-icon>
+                </button>
               </span>
             </div>
-            <div class="intro-row" v-if="p.intro" :title="p.intro">{{ p.intro }}</div>
-            <div class="meta-row" v-if="p.last_commit">
-              <span class="ct-type" :class="'ct-' + (commitType(p.last_commit.message) || 'plain')"
-                    v-if="commitType(p.last_commit.message)">{{ commitType(p.last_commit.message) }}</span>
-              <span class="commit-line" :title="p.last_commit.message">{{ commitMsgText(p.last_commit.message) }}</span>
-              <span style="flex:none">{{ p.last_commit.hash }}</span>
+            <div class="meta-row sub-row">
+              <template v-if="p.intro">
+                <span class="commit-line" :title="p.intro">{{ p.intro }}</span>
+              </template>
+              <template v-else-if="p.last_commit">
+                <span class="ct-type" :class="'ct-' + (commitType(p.last_commit.message) || 'plain')"
+                      v-if="commitType(p.last_commit.message)">{{ commitType(p.last_commit.message) }}</span>
+                <span class="commit-line" :title="p.last_commit.message">{{ commitMsgText(p.last_commit.message) }}</span>
+                <span class="ct-hash-inline">{{ p.last_commit.hash }}</span>
+              </template>
             </div>
-            <div class="meta-row">
-              <span v-if="p.category" class="cat-chip">🗂 {{ p.category }}</span>
+            <div class="meta-row foot-row">
+              <span v-if="p.category" class="cat-chip">{{ p.category }}</span>
+              <span v-for="t in p.tags.slice(0, 3)" :key="t" :class="tagClass(t)">{{ t }}</span>
+              <span v-if="p.tags.length > 3" class="section-note tag-more">+{{ p.tags.length - 3 }}</span>
               <span class="fill"></span>
-              <span :title="'档案更新于 ' + fmtTime(p.updated_at)">修改 {{ fmtTime(p.fs_modified) }}</span>
-            </div>
-            <div class="meta-row" v-if="p.tags.length">
-              <span><span v-for="t in p.tags" :key="t" :class="tagClass(t)">{{ t }}</span></span>
+              <span :title="'最后修改 ' + fmtTime(p.fs_modified) + ' ｜ 档案更新 ' + fmtTime(p.updated_at)">
+                {{ relTime(p.fs_modified) }}
+              </span>
             </div>
           </div>
         </div>
@@ -109,56 +157,72 @@
     <div class="empty-tip" v-else-if="!loading">
       <template v-if="stats.total === 0">
         <div class="empty-ico">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="11" cy="12.5" r="2.5"/><path d="m13 14.5 2.5 2.5"/></svg>
+          <lpa-icon name="folder" :size="72" :stroke="1.2"></lpa-icon>
         </div>
         档案库还是空的<br>
         <span class="section-note">把散落在磁盘各处的开发项目收进统一索引，数据只存本机</span>
         <div class="empty-actions">
-          <button class="btn primary" @click="openAdd">＋ 手动录入第一个项目</button>
-          <button class="btn" @click="openScan">🔎 批量扫描磁盘</button>
+          <button class="btn primary" @click="openAdd">
+            <lpa-icon name="plus" :size="15"></lpa-icon>手动录入第一个项目
+          </button>
+          <button class="btn" @click="openScan">
+            <lpa-icon name="search" :size="15"></lpa-icon>批量扫描磁盘
+          </button>
         </div>
       </template>
-      <template v-else>没有符合筛选条件的项目。</template>
+      <template v-else>
+        <div class="empty-ico">
+          <lpa-icon name="filter" :size="64" :stroke="1.2"></lpa-icon>
+        </div>
+        没有符合筛选条件的项目<br>
+        <span class="section-note" v-if="activeFilters.length">
+          当前生效：{{ activeFilters.map(f => f.label).join("、") }}
+        </span>
+        <div class="empty-actions">
+          <button class="btn primary" @click="clearFilters">清除全部筛选</button>
+        </div>
+      </template>
     </div>
     <div class="loading" v-if="loading">正在加载…</div>
   </main>
 
   <footer class="foot-note" v-if="dataPath">
-    💾 档案持久化保存于本机：<span class="mono">{{ dataPath }}</span>，重启服务/电脑不丢失；每次启动自动备份到 data/backups/（保留最近 10 份）
+    <lpa-icon name="drive" :size="14"></lpa-icon>
+    档案持久化保存于本机：<span class="mono">{{ dataPath }}</span>，重启服务/电脑不丢失；每次启动自动备份到 data/backups/（保留最近 10 份）
   </footer>
 
   <!-- 手动录入 -->
   <div class="modal-mask" v-if="showAdd" @click.self="showAdd = false">
-    <div class="modal">
-      <h3>手动录入项目</h3>
+    <div class="modal" v-modal role="dialog" aria-modal="true" aria-labelledby="add-title">
+      <h3 id="add-title">手动录入项目</h3>
       <div class="field">
-        <label>本地项目文件夹路径（必填）</label>
-        <input type="text" v-model.trim="form.path" placeholder="D:\code\my-project"
+        <label for="add-path">本地项目文件夹路径（必填）</label>
+        <input type="text" id="add-path" v-model.trim="form.path" placeholder="D:\code\my-project"
                @keyup.enter="submitAdd" ref="pathInput">
         <div class="hint">支持 Windows 路径与 WSL 路径（如 wsl:Ubuntu:/home/user/project 或 \\wsl.localhost\Ubuntu\…）。系统仅读取解析，不会改动项目文件。</div>
       </div>
       <div class="field">
-        <label>项目名称（留空则取文件夹名）</label>
-        <input type="text" v-model.trim="form.name" placeholder="My Project">
+        <label for="add-name">项目名称（留空则取文件夹名）</label>
+        <input type="text" id="add-name" v-model.trim="form.name" placeholder="My Project">
       </div>
       <div class="field">
-        <label>别名</label>
-        <input type="text" v-model.trim="form.alias" placeholder="可选">
+        <label for="add-alias">别名</label>
+        <input type="text" id="add-alias" v-model.trim="form.alias" placeholder="可选">
       </div>
       <div class="field">
-        <label>项目分类</label>
-        <input type="text" v-model.trim="form.category" list="category-suggestions" placeholder="如：Web 工具 / 爬虫 / 学习实验">
+        <label for="add-cat">项目分类</label>
+        <input type="text" id="add-cat" v-model.trim="form.category" list="category-suggestions" placeholder="如：Web 工具 / 爬虫 / 学习实验">
         <datalist id="category-suggestions">
           <option v-for="c in allCategories" :key="c" :value="c"></option>
         </datalist>
       </div>
       <div class="field">
-        <label>项目状态</label>
+        <label for="add-status">项目状态</label>
         <lpa-select v-model="form.status" :options="statuses"></lpa-select>
       </div>
       <div class="field">
-        <label>技术栈标签（逗号分隔，留空则自动识别）</label>
-        <input type="text" v-model="form.tagsText" placeholder="如：Python, FastAPI, 爬虫">
+        <label for="add-tags">技术栈标签（逗号分隔，留空则自动识别）</label>
+        <input type="text" id="add-tags" v-model="form.tagsText" placeholder="如：Python, FastAPI, 爬虫">
       </div>
       <div class="actions">
         <button class="btn" @click="showAdd = false">取消</button>
@@ -171,17 +235,17 @@
 
   <!-- 批量扫描 -->
   <div class="modal-mask" v-if="showScan" @click.self="closeScan">
-    <div class="modal wide">
-      <h3>批量扫描导入</h3>
+    <div class="modal wide" v-modal role="dialog" aria-modal="true" aria-labelledby="scan-title">
+      <h3 id="scan-title">批量扫描导入</h3>
       <div class="field" v-if="!candidates">
-        <label>扫描根目录</label>
-        <input type="text" v-model.trim="scanRoot" placeholder="D:\code 或 wsl:Ubuntu:/home/user"
-               @keyup.enter="doScan">
+        <label for="scan-root">扫描根目录</label>
+        <input type="text" id="scan-root" v-model.trim="scanRoot" placeholder="D:\code 或 wsl:Ubuntu:/home/user"
+               @keyup.enter="doScan" ref="scanRootInput">
         <div class="hint">递归扫描子目录，通过 .git、package.json、pyproject.toml、CMakeLists.txt 等标记自动识别候选项目（跳过 node_modules 等依赖目录）。默认深度 {{ scanDepth }} 层。</div>
       </div>
       <div class="field" v-if="!candidates">
-        <label>扫描深度：{{ scanDepth }} 层</label>
-        <input type="range" min="1" max="6" v-model.number="scanDepth" style="width:100%">
+        <label for="scan-depth">扫描深度：{{ scanDepth }} 层</label>
+        <input type="range" id="scan-depth" min="1" max="6" v-model.number="scanDepth" style="width:100%">
       </div>
       <div class="actions" v-if="!candidates">
         <button class="btn" @click="closeScan">取消</button>
@@ -209,8 +273,8 @@
           </div>
         </div>
         <div class="field" style="margin-top:12px">
-          <label>导入时的分类（可选）</label>
-          <input type="text" v-model.trim="importForm.category" placeholder="为本次导入的所有项目设置统一分类">
+          <label for="import-cat">导入时的分类（可选）</label>
+          <input type="text" id="import-cat" v-model.trim="importForm.category" placeholder="为本次导入的所有项目设置统一分类">
         </div>
         <div class="actions">
           <button class="btn" @click="candidates = null">← 重新扫描</button>

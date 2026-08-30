@@ -3,6 +3,8 @@
   "use strict";
   const { createApp } = Vue;
 
+  const DRAFT_PREFIX = "lpa-draft-desc-";
+
   // 递归目录树组件
   const TreeNode = {
     name: "tree-node",
@@ -27,7 +29,10 @@
       <li class="t-row" :class="{ 't-file': !isDir, clickable: !isDir }">
         <template v-if="isDir">
           <span class="t-dir" @click="open = !open">
-            <span class="t-caret">{{ open ? "▾" : "▸" }}</span>{{ open ? "📂" : "📁" }}
+            <span class="t-caret">
+              <svg class="licon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="open ? 'm6 9 6 6 6-6' : 'm9 18 6-6-6-6'"/></svg>
+            </span>
+            <lpa-icon :name="open ? 'folder-open' : 'folder'" :size="14"></lpa-icon>
             <span class="t-name">{{ node.name }}</span>
           </span>
           <span class="t-err" v-if="node.error">（{{ node.error }}）</span>
@@ -57,9 +62,12 @@
         readme: null,
         tree: undefined, // undefined=加载中, null=失败
         notFound: false,
-        // 笔记
-        descTab: "edit",
-        descHtml: "",
+        themeTick: 0,
+        // 相邻项目（详情页左右切换）
+        siblings: [],
+        // 描述编辑：脏标记 + 本地草稿
+        descBaseline: "",
+        descDraftRestored: false,
         savingDesc: false,
         // 其他
         rescanning: false,
@@ -82,11 +90,15 @@
         // Git 提交记录
         commitData: null,
         commitLoading: true,
+        commitLoadingMore: false,
+        commitLimit: 50,
+        commitTypeFilter: "",
         expandedCommits: [],
         // 截图
         screenshots: [],
         previewShot: null,
         uploadingShots: false,
+        uploadCount: 0,
         shotsDrag: false,
         // 更多菜单 / 描述实时预览
         moreOpen: false,
@@ -103,23 +115,41 @@
       gitInfo() {
         return (this.meta && this.meta.git) || { is_repo: false };
       },
-      themeName() {
-        return document.documentElement.getAttribute("data-theme") === "dark" ? "暗色" : "亮色";
+      themeIcon() {
+        this.themeTick;
+        const pref = window.themePref();
+        return pref === "auto" ? "monitor" : (pref === "dark" ? "moon" : "sun");
+      },
+      themeLabel() {
+        this.themeTick;
+        return window.themeName();
+      },
+      descDirty() {
+        return ((this.p && this.p.description) || "") !== this.descBaseline;
+      },
+      hasDescDraft() { return this.descDraftRestored; },
+      prevProject() {
+        const i = this.siblings.findIndex(s => s.id === this.projectId);
+        return i > 0 ? this.siblings[i - 1] : null;
+      },
+      nextProject() {
+        const i = this.siblings.findIndex(s => s.id === this.projectId);
+        return (i >= 0 && i < this.siblings.length - 1) ? this.siblings[i + 1] : null;
       },
       // 头部数据徽章
       headBadges() {
         const m = this.meta || {};
         const b = [];
         if (this.gitInfo.is_repo) {
-          b.push({ ico: "⑂", label: "提交", val: this.fmtNum(this.gitInfo.commit_count) });
+          b.push({ icon: "commit", label: "提交", val: this.fmtNum(this.gitInfo.commit_count) });
         }
         if (m.stats) {
-          b.push({ ico: "▤", label: "文件", val: this.fmtNum(m.stats.file_count) });
-          b.push({ ico: "▣", label: "体积", val: this.fmtSize(m.stats.total_size) });
+          b.push({ icon: "files", label: "文件", val: this.fmtNum(m.stats.file_count) });
+          b.push({ icon: "drive", label: "体积", val: this.fmtSize(m.stats.total_size) });
         }
         const langs = (this.p && this.p.tags || []).filter(t => this.tagClass(t) === "tag tag-lang")
           .slice(0, 2).join(" / ");
-        if (langs) b.push({ ico: "◈", label: "语言", val: langs });
+        if (langs) b.push({ icon: "layers", label: "语言", val: langs });
         return b;
       },
       // 近 12 周提交热力格（基于已加载提交）
@@ -181,6 +211,30 @@
           unpinnedList: unpinnedList.slice(0, 8),
         };
       },
+      // 提交类型分布（用于时间线上方的筛选 chip）
+      commitTypes() {
+        if (!this.commitData || !this.commitData.commits.length) return [];
+        const m = {};
+        for (const c of this.commitData.commits) {
+          const t = this.commitType(c.message) || "other";
+          m[t] = (m[t] || 0) + 1;
+        }
+        return Object.keys(m)
+          .sort((a, b) => m[b] - m[a])
+          .map(t => ({ type: t, count: m[t] }));
+      },
+      visibleCommits() {
+        if (!this.commitData || !this.commitData.commits) return [];
+        if (!this.commitTypeFilter) return this.commitData.commits;
+        return this.commitData.commits.filter(
+          c => (this.commitType(c.message) || "other") === this.commitTypeFilter);
+      },
+      // 后端单次最多 200 条，据此判断是否还能加载更早提交
+      hasMoreCommits() {
+        return this.commitLimit < 200
+          && !!this.commitData
+          && this.commitData.commits.length < (this.commitData.total_count || 0);
+      },
       // 按月统计提交数（基于当前加载的记录），简易柱状图数据
       commitMonths() {
         if (!this.commitData || !this.commitData.commits.length) return [];
@@ -221,9 +275,10 @@
           this.p = p;
           this.statuses = p.statuses || [];
           this.meta = p.auto_meta || {};
-          this.descHtml = p.description_html || "";
-          this.descLive = p.description_html || "";
           this.newPath = p.is_lost ? "" : p.path;
+          this.syncDesc();
+          this.restoreDescDraft();
+          this.loadSiblings();
           this.loadReadme();
           this.loadTree();
           this.loadNotes();
@@ -234,6 +289,41 @@
           if (e.status === 404) this.notFound = true;
         }
       },
+      // 描述：同步基线（用于脏标记），并尝试恢复上次未保存草稿
+      syncDesc() {
+        this.descBaseline = (this.p && this.p.description) || "";
+        this.descLive = (this.p && this.p.description_html) || "";
+      },
+      restoreDescDraft() {
+        const saved = localStorage.getItem(DRAFT_PREFIX + this.projectId);
+        if (saved != null && saved !== this.p.description) {
+          this.p.description = saved;
+          this.descDraftRestored = true;
+          this.descLiveDebounce();
+        }
+      },
+      onDescInput() {
+        this.descLiveDebounce();
+        // 有未保存改动时写入本地草稿，刷新/误关后可恢复
+        if (this.descDirty) {
+          localStorage.setItem(DRAFT_PREFIX + this.projectId, this.p.description || "");
+        } else {
+          localStorage.removeItem(DRAFT_PREFIX + this.projectId);
+          this.descDraftRestored = false;
+        }
+      },
+      clearDescDraft() {
+        localStorage.removeItem(DRAFT_PREFIX + this.projectId);
+        this.descDraftRestored = false;
+      },
+      async loadSiblings() {
+        try {
+          const data = await api("/api/projects", { silent: true });
+          this.siblings = (data.projects || []).map(x => ({ id: x.id, name: x.name }));
+        } catch (e) { this.siblings = []; }
+      },
+      gotoSibling(target) { if (target) location.href = "/project/" + target.id; },
+      switchTheme() { window.cycleTheme(); this.themeTick++; },
       // ---- 开发笔记 ----
       async loadNotes() {
         try {
@@ -328,7 +418,18 @@
       async uploadShots(e) {
         const files = [...(e.target.files || [])];
         if (!files.length) return;
+        await this.postShots(files);
+        e.target.value = "";
+      },
+      async dropShots(e) {
+        this.shotsDrag = false;
+        const files = [...(e.dataTransfer?.files || [])];
+        if (!files.length) return;
+        await this.postShots(files);
+      },
+      async postShots(files) {
         this.uploadingShots = true;
+        this.uploadCount = files.length;
         try {
           const fd = new FormData();
           files.forEach(f => fd.append("files", f));
@@ -345,7 +446,7 @@
           toast("截图上传失败：" + err.message, "error");
         } finally {
           this.uploadingShots = false;
-          e.target.value = "";
+          this.uploadCount = 0;
         }
       },
       async deleteShot(s) {
@@ -386,16 +487,24 @@
         }, 500);
       },
       // ---- Git 提交记录 ----
-      async loadCommits() {
-        this.commitLoading = true;
-        this.expandedCommits = [];
+      async loadCommits(more) {
+        if (more) this.commitLoadingMore = true;
+        else this.commitLoading = true;
+        if (!more) this.expandedCommits = [];
         try {
-          this.commitData = await api(`/api/projects/${this.projectId}/commits`, { silent: true });
+          this.commitData = await api(
+            `/api/projects/${this.projectId}/commits?limit=${this.commitLimit}`, { silent: true });
         } catch (e) {
           this.commitData = null;
         } finally {
           this.commitLoading = false;
+          this.commitLoadingMore = false;
         }
+      },
+      loadMoreCommits() {
+        if (!this.hasMoreCommits) return;
+        this.commitLimit = Math.min(this.commitLimit + 50, 200);
+        this.loadCommits(true);
       },
       firstLine(msg) { return ((msg || "").split("\n")[0] || "").slice(0, 120); },
       toggleTree() {
@@ -458,22 +567,15 @@
           toast(`状态已更新为「${p.status}」`, "ok");
         } catch (e) { this.load(); }
       },
-      async previewDesc() {
-        this.descTab = "preview";
-        try {
-          const r = await api("/api/render-md", {
-            method: "POST", body: { text: this.p.description || "（暂无内容）", mode: "notes" },
-          });
-          this.descHtml = r.html;
-        } catch (e) { /* toast 已提示 */ }
-      },
       async saveDesc() {
         this.savingDesc = true;
         try {
           await api(`/api/projects/${this.projectId}`, {
             method: "PUT", body: { description: this.p.description },
           });
-          toast("笔记已保存到本机数据库", "ok");
+          this.descBaseline = this.p.description || "";
+          this.clearDescDraft();
+          toast("描述已保存到本机数据库", "ok");
         } catch (e) { /* toast 已提示 */ }
         finally { this.savingDesc = false; }
       },
@@ -485,19 +587,25 @@
           toast(target === "vscode" ? "已在 VS Code 中打开" : "已在资源管理器中打开", "ok");
         } catch (e) { /* toast 已提示 */ }
       },
+      // 重新解析后同步描述基线（保留用户未保存的草稿内容）
+      reloadMeta(p) {
+        this.p = p;
+        this.meta = p.auto_meta || {};
+        this.syncDesc();
+        this.newPath = p.path;
+      },
       async rescan() {
         this.rescanning = true;
         try {
           const r = await api(`/api/projects/${this.projectId}/rescan`, { method: "POST" });
-          this.p = r;
-          this.meta = r.auto_meta || {};
-          this.descHtml = r.description_html || "";
+          this.reloadMeta(r);
           if (r.parse_ok) {
             toast("重新解析完成", "ok");
             this.readme = null;
             this.tree = undefined;
             this.loadReadme();
             this.loadTree();
+            this.loadCommits();
           } else {
             toast("路径已失效，项目被标记为丢失", "error");
           }
@@ -510,15 +618,13 @@
           const p = await api(`/api/projects/${this.projectId}`, {
             method: "PUT", body: { path: this.newPath },
           });
-          this.p = p;
-          this.meta = p.auto_meta || {};
-          this.descHtml = p.description_html || "";
-          this.newPath = p.path;
+          this.reloadMeta(p);
           toast("路径已更新并重新解析", "ok");
           this.readme = null;
           this.tree = undefined;
           this.loadReadme();
           this.loadTree();
+          this.loadCommits();
         } catch (e) { /* toast 已提示 */ }
       },
       openEdit() {
@@ -546,11 +652,8 @@
               tags: this.editForm.tagsText.split(/[,，;；]/).map(s => s.trim()).filter(Boolean),
             },
           });
-          this.p = p;
-          this.meta = p.auto_meta || {};
-          this.descHtml = p.description_html || "";
+          this.reloadMeta(p);
           this.showEdit = false;
-          this.newPath = p.path;
           toast("档案信息已保存", "ok");
         } catch (e) { /* toast 已提示 */ }
         finally { this.savingEdit = false; }
@@ -562,37 +665,11 @@
         const n = this.screenshots.length;
         this.previewShot = this.screenshots[(i + dir + n) % n];
       },
-      // 拖拽文件到截图面板上传
-      async dropShots(e) {
-        this.shotsDrag = false;
-        const files = [...(e.dataTransfer?.files || [])];
-        if (!files.length) return;
-        const fd = new FormData();
-        files.forEach(f => fd.append("files", f));
-        try {
-          const resp = await fetch(`/api/projects/${this.projectId}/screenshots`, {
-            method: "POST", body: fd,
-          });
-          const r = await resp.json();
-          if (!resp.ok) throw new Error(r.detail || "上传失败");
-          let msg = `已保存 ${r.saved.length} 张截图`;
-          if (r.errors.length) msg += `，${r.errors.length} 张失败`;
-          toast(msg, r.errors.length ? "error" : "ok");
-          this.loadShots();
-        } catch (err) {
-          toast("拖拽上传失败：" + err.message, "error");
-        }
-      },
-      // 目录树：点击文件复制相对路径（兼容父目录 rel）
-      copyRel(node) {
-        if (!node) return;
-        if (node.type === "file" && node.rel) this.copyText(`${node.rel}/${node.name}`);
-        else this.copyText(node.rel || node.name);
-      },
       async removeProject() {
         if (!confirm(`确定删除「${this.p.name}」的档案记录吗？\n\n仅删除本系统中的索引数据，不会改动原项目文件夹的任何文件。`)) return;
         try {
           await api(`/api/projects/${this.projectId}`, { method: "DELETE" });
+          this.clearDescDraft();
           toast("档案记录已删除", "ok");
           setTimeout(() => { location.href = "/"; }, 600);
         } catch (e) { /* toast 已提示 */ }
@@ -601,23 +678,34 @@
     mounted() {
       this.load();
       window.addEventListener("scroll", this.onScroll, { passive: true });
-      // Esc 关闭更多菜单 / 编辑弹窗
-      this._onKey = (e) => {
-        if (e.key === "Escape") {
-          if (this.moreOpen) { this.moreOpen = false; return; }
-          if (this.showEdit) this.showEdit = false;
+      // 有未保存内容时拦截刷新/关闭；草稿已落 localStorage，误关也能恢复
+      this._onBeforeUnload = (e) => {
+        if (this.descDirty || this.noteDraft || this.logDraft) {
+          e.preventDefault();
+          e.returnValue = "";
         }
+      };
+      window.addEventListener("beforeunload", this._onBeforeUnload);
+      // Esc 关闭更多菜单 / 编辑弹窗 / 截图灯箱
+      this._onKey = (e) => {
+        if (e.key !== "Escape") return;
+        if (this.previewShot) { this.previewShot = null; return; }
+        if (this.moreOpen) { this.moreOpen = false; return; }
+        if (this.showEdit) this.showEdit = false;
       };
       document.addEventListener("keydown", this._onKey);
     },
     beforeUnmount() {
       window.removeEventListener("scroll", this.onScroll);
+      window.removeEventListener("beforeunload", this._onBeforeUnload);
       document.removeEventListener("keydown", this._onKey);
     },
   });
 
   app.component("tree-node", TreeNode);
   app.component("lpa-select", window.LpaSelect);
+  app.component("lpa-icon", window.LpaIcon);
+  app.directive("modal", window.LpaModal);
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用
   Object.assign(app.config.globalProperties, window.LPA_HELPERS);
   app.mount("#app");

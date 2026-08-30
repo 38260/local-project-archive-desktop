@@ -10,10 +10,25 @@
 <body>
 <div id="app" v-cloak>
   <header class="topbar">
-    <a class="btn" href="/">← 返回首页</a>
-    <span class="logo">📁 本地项目档案 <span class="dim">/ 项目详情</span></span>
+    <a class="btn" href="/" title="返回首页">
+      <lpa-icon name="arrow-left" :size="15"></lpa-icon><span class="btn-text">返回首页</span>
+    </a>
+    <button class="btn icon-only" v-if="prevProject" @click="gotoSibling(prevProject)"
+            :title="'上一个项目：' + prevProject.name" aria-label="上一个项目">
+      <lpa-icon name="chevron-left" :size="15"></lpa-icon>
+    </button>
+    <button class="btn icon-only" v-if="nextProject" @click="gotoSibling(nextProject)"
+            :title="'下一个项目：' + nextProject.name" aria-label="下一个项目">
+      <lpa-icon name="chevron-right" :size="15"></lpa-icon>
+    </button>
+    <span class="logo">
+      <lpa-icon name="folder" :size="18"></lpa-icon>
+      <span class="btn-text">本地项目档案 <span class="dim">/ 项目详情</span></span>
+    </span>
     <span class="spacer"></span>
-    <button class="btn" @click="toggleTheme" :title="'切换主题（当前：' + themeName + '）'">☀/🌙</button>
+    <button class="btn" @click="switchTheme" :title="'主题：' + themeLabel + '（点击切换：跟随系统 / 亮色 / 暗色）'">
+      <lpa-icon :name="themeIcon" :size="15"></lpa-icon><span class="btn-text">{{ themeLabel }}</span>
+    </button>
   </header>
 
   <main class="container" v-if="p">
@@ -28,28 +43,44 @@
       </div>
       <button class="proj-card-path" type="button" @click="copyText(p.path)"
               :title="'点击复制：' + p.path" :disabled="p.is_lost">
-        <span class="proj-path-ico">📁</span>
+        <lpa-icon name="folder" :size="14"></lpa-icon>
         <span class="proj-path-text">{{ p.path }}</span>
-        <span class="proj-path-copy">⧉</span>
+        <lpa-icon name="copy" :size="13" class="proj-path-copy"></lpa-icon>
       </button>
       <div class="badge-row" v-if="headBadges.length">
         <span class="dbadge" v-for="b in headBadges" :key="b.label">
-          <span class="db-ico">{{ b.ico }}</span><b>{{ b.val }}</b>{{ b.label }}
+          <lpa-icon :name="b.icon" :size="13" class="db-ico"></lpa-icon><b>{{ b.val }}</b>{{ b.label }}
         </span>
       </div>
       <div class="action-row">
-        <button class="btn primary" @click="openIn('explorer')" :disabled="p.is_lost">📂 资源管理器</button>
-        <button class="btn primary" @click="openIn('vscode')" :disabled="p.is_lost">⌨ VSCode</button>
-        <button class="btn" @click="copyText(p.path)">⧉ 复制路径</button>
+        <button class="btn primary" @click="openIn('explorer')" :disabled="p.is_lost">
+          <lpa-icon name="folder-open" :size="15"></lpa-icon>资源管理器
+        </button>
+        <button class="btn primary" @click="openIn('vscode')" :disabled="p.is_lost">
+          <lpa-icon name="terminal" :size="15"></lpa-icon>VSCode
+        </button>
+        <button class="btn" @click="copyText(p.path)">
+          <lpa-icon name="copy" :size="15"></lpa-icon>复制路径
+        </button>
         <span class="more-wrap">
-          <button class="btn" @click.stop="moreOpen = !moreOpen">⋯ 更多</button>
+          <button class="btn" @click.stop="moreOpen = !moreOpen" aria-haspopup="menu" :aria-expanded="moreOpen ? 'true' : 'false'">
+            <lpa-icon name="more" :size="15"></lpa-icon>更多
+          </button>
           <span class="more-mask" v-if="moreOpen" @click="moreOpen = false"
                 style="position:fixed;inset:0;z-index:70"></span>
-          <span class="more-list" v-if="moreOpen" style="z-index:80" @click="moreOpen = false">
-            <button class="btn" @click="rescan">🔄 重新解析</button>
-            <button class="btn" @click="openEdit">✏ 编辑档案</button>
-            <button class="btn" @click="exportHtml">📥 导出 HTML</button>
-            <button class="btn danger" @click="removeProject">🗑 删除档案</button>
+          <span class="more-list" v-if="moreOpen" style="z-index:80" role="menu" @click="moreOpen = false">
+            <button class="btn" role="menuitem" @click="rescan" :disabled="rescanning">
+              <lpa-icon name="refresh" :size="15" :class="{spin: rescanning}"></lpa-icon>{{ rescanning ? "解析中…" : "重新解析" }}
+            </button>
+            <button class="btn" role="menuitem" @click="openEdit">
+              <lpa-icon name="pencil" :size="15"></lpa-icon>编辑档案
+            </button>
+            <button class="btn" role="menuitem" @click="exportHtml">
+              <lpa-icon name="download" :size="15"></lpa-icon>导出 HTML
+            </button>
+            <button class="btn danger" role="menuitem" @click="removeProject">
+              <lpa-icon name="trash" :size="15"></lpa-icon>删除档案
+            </button>
           </span>
         </span>
       </div>
@@ -57,15 +88,17 @@
 
     <!-- 丢失项目提示与路径修复 -->
     <div class="banner-lost" v-if="p.is_lost">
-      <span>⚠️ <b>丢失项目</b>：{{ p.lost_reason || "项目路径不存在，文件夹可能已被删除或移动" }}</span>
-      <input type="text" v-model.trim="newPath" placeholder="输入项目的新路径，如 D:\code\new-location"
+      <lpa-icon name="warning" :size="16"></lpa-icon>
+      <span><b>丢失项目</b>：{{ p.lost_reason || "项目路径不存在，文件夹可能已被删除或移动" }}</span>
+      <input type="text" v-model.trim="newPath" aria-label="项目的新路径"
+             placeholder="输入项目的新路径，如 D:\code\new-location"
              @keyup.enter="updatePath">
       <button class="btn primary" @click="updatePath" :disabled="!newPath">更新路径</button>
     </div>
 
     <div class="detail-layout" :class="{ 'tree-collapsed': treeCollapsed }">
-    <!-- 左侧锚点目录 -->
-    <nav class="toc-nav">
+    <!-- 左侧锚点目录（窄屏自动降级为顶部横向条） -->
+    <nav class="toc-nav" aria-label="页面目录">
       <span class="toc-title">页面目录</span>
       <a v-for="s in sections" :key="s.id" :class="{ on: activeSection === s.id }"
          @click="scrollTo(s.id)" :title="s.label">{{ s.label }}</a>
@@ -79,7 +112,9 @@
       <div class="info-path-row">
         <span class="info-k">本地路径</span>
         <code class="info-path" :title="p.path">{{ p.path }}</code>
-        <button class="icon-btn" title="复制路径" @click="copyText(p.path)">⧉</button>
+        <button class="icon-btn" title="复制路径" aria-label="复制路径" @click="copyText(p.path)">
+          <lpa-icon name="copy" :size="15"></lpa-icon>
+        </button>
       </div>
       <div class="info-tiles">
         <div class="info-tile">
@@ -221,10 +256,10 @@
           </div>
         </div>
       </template>
-    </section>
 
       <div class="dep-stats" v-if="depStats.total">
-        📦 依赖共 <b>{{ depStats.total }}</b> 项：
+        <lpa-icon name="package" :size="14"></lpa-icon>
+        依赖共 <b>{{ depStats.total }}</b> 项：
         固定版本 <b class="c-ok">{{ depStats.pinned }}</b> ·
         范围约束 <b class="c-warn">{{ depStats.ranged }}</b> ·
         未标注版本 <b class="c-danger">{{ depStats.unpinned }}</b>
@@ -237,7 +272,10 @@
     <!-- 项目描述（存数据库，不写入原项目目录） -->
     <section class="panel" id="sec-desc">
       <h2>项目描述
-        <span class="right section-note">存储于本机数据库，不会写入原项目文件夹</span>
+        <span class="right section-note">
+          <span v-if="descDirty" class="dirty-dot" title="有未保存的修改">● 未保存</span>
+          存储于本机数据库，不会写入原项目文件夹
+        </span>
       </h2>
       <div class="split">
         <div>
@@ -247,15 +285,21 @@
             <button @click="mdWrap('descEditor', '`', '`')" title="行内代码">‹›</button>
             <button @click="mdWrap('descEditor', '\n## ', '')" title="二级标题">H2</button>
             <button @click="mdWrap('descEditor', '- ', '')" title="列表">••</button>
-            <button @click="mdWrap('descEditor', '\n```bash\n', '\n```')" title="代码块">▤</button>
+            <button @click="mdWrap('descEditor', '\n```bash\n', '\n```')" title="代码块" aria-label="代码块">
+              <lpa-icon name="code" :size="14"></lpa-icon>
+            </button>
           </div>
-          <textarea ref="descEditor" class="md-editor" v-model="p.description" @input="descLiveDebounce"
+          <textarea ref="descEditor" class="md-editor" v-model="p.description"
+                    @input="onDescInput"
                     placeholder="用 Markdown 记录：&#10;## 项目背景&#10;## 实现功能&#10;## 运行部署命令"></textarea>
         </div>
         <div class="md-preview md-body" v-html="descLive"></div>
       </div>
-      <div style="margin-top:10px;text-align:right">
-        <button class="btn primary" @click="saveDesc" :disabled="savingDesc">💾 保存描述</button>
+      <div class="editor-actions">
+        <span class="draft-hint" v-if="hasDescDraft">已恢复上次未保存的草稿</span>
+        <button class="btn primary" @click="saveDesc" :disabled="savingDesc || !descDirty">
+          <lpa-icon name="save" :size="15"></lpa-icon>{{ savingDesc ? "保存中…" : "保存描述" }}
+        </button>
       </div>
     </section>
 
@@ -268,7 +312,9 @@
       <div class="panel-compact-bar" v-if="!notes.length && noteDraft === null">
         暂无笔记，随手记录开发体会与踩坑
         <span class="fill"></span>
-        <button class="btn sm primary" @click="noteDraft = ''">＋ 新建笔记</button>
+        <button class="btn sm primary" @click="noteDraft = ''">
+          <lpa-icon name="plus" :size="13"></lpa-icon>新建笔记
+        </button>
       </div>
       <div v-if="noteDraft !== null">
         <div class="md-toolbar">
@@ -282,7 +328,9 @@
                   placeholder="记录开发体会、思考心得、踩坑点、解决方案…（Markdown，保存后自动记录创建时间）"></textarea>
         <div class="editor-actions">
           <button class="btn" @click="noteDraft = null">取消</button>
-          <button class="btn primary" @click="saveNewNote" :disabled="!noteDraft.trim()">💾 保存笔记</button>
+          <button class="btn primary" @click="saveNewNote" :disabled="!noteDraft.trim()">
+            <lpa-icon name="save" :size="15"></lpa-icon>保存笔记
+          </button>
         </div>
       </div>
       <div class="note-list" v-show="notes.length">
@@ -296,7 +344,9 @@
             <textarea ref="noteEditEditor" class="md-editor" style="min-height:110px" v-model="editingNoteContent"></textarea>
             <div class="editor-actions">
               <button class="btn" @click="editingNoteId = null">取消</button>
-              <button class="btn primary" @click="saveEditNote(n)" :disabled="!editingNoteContent.trim()">💾 保存修改</button>
+              <button class="btn primary" @click="saveEditNote(n)" :disabled="!editingNoteContent.trim()">
+                <lpa-icon name="save" :size="15"></lpa-icon>保存修改
+              </button>
             </div>
           </template>
           <template v-else>
@@ -305,8 +355,12 @@
               <span>创建 {{ fmtTime(n.created_at) }}</span>
               <span v-if="n.updated_at !== n.created_at">· 编辑于 {{ fmtTime(n.updated_at) }}</span>
               <span class="fill"></span>
-              <button class="icon-btn" title="编辑笔记" @click="startEditNote(n)">✏ 编辑</button>
-              <button class="icon-btn" title="删除笔记" @click="deleteNote(n)">🗑 删除</button>
+              <button class="icon-btn" title="编辑笔记" @click="startEditNote(n)">
+                <lpa-icon name="pencil" :size="14"></lpa-icon>编辑
+              </button>
+              <button class="icon-btn" title="删除笔记" @click="deleteNote(n)">
+                <lpa-icon name="trash" :size="14"></lpa-icon>删除
+              </button>
             </div>
           </template>
         </div>
@@ -322,12 +376,15 @@
       <div class="panel-compact-bar" v-if="!changelogs.length && logDraft === null">
         暂无变更日志，记录人为的版本改动
         <span class="fill"></span>
-        <button class="btn sm primary" @click="openLogDraft">＋ 新增条目</button>
+        <button class="btn sm primary" @click="openLogDraft">
+          <lpa-icon name="plus" :size="13"></lpa-icon>新增条目
+        </button>
       </div>
       <div v-if="logDraft !== null">
         <div class="log-form-row">
-          <input type="text" v-model.trim="logDraftTitle" placeholder="条目标题，如：v1.1.0 新增导出功能">
-          <input type="date" v-model="logDraftDate" title="条目日期">
+          <input type="text" v-model.trim="logDraftTitle" aria-label="条目标题"
+                 placeholder="条目标题，如：v1.1.0 新增导出功能">
+          <input type="date" v-model="logDraftDate" aria-label="条目日期" title="条目日期">
         </div>
         <div class="md-toolbar">
           <button @click="mdWrap('logDraftEditor', '**', '**')" title="加粗">B</button>
@@ -338,20 +395,24 @@
                   placeholder="记录人为的版本改动、功能新增、重大调整…（Markdown，与 git 提交记录相互独立）"></textarea>
         <div class="editor-actions">
           <button class="btn" @click="logDraft = null">取消</button>
-          <button class="btn primary" @click="saveNewLog" :disabled="!logDraft.trim()">💾 保存条目</button>
+          <button class="btn primary" @click="saveNewLog" :disabled="!logDraft.trim()">
+            <lpa-icon name="save" :size="15"></lpa-icon>保存条目
+          </button>
         </div>
       </div>
       <div class="note-list" v-show="changelogs.length">
         <div class="note-item" v-for="c in changelogs" :key="c.id">
           <template v-if="editingLogId === c.id">
             <div class="log-form-row">
-              <input type="text" v-model.trim="editLogForm.title" placeholder="条目标题">
-              <input type="date" v-model="editLogForm.entry_date" title="条目日期">
+              <input type="text" v-model.trim="editLogForm.title" aria-label="条目标题" placeholder="条目标题">
+              <input type="date" v-model="editLogForm.entry_date" aria-label="条目日期" title="条目日期">
             </div>
             <textarea ref="logEditEditor" class="md-editor" style="min-height:100px" v-model="editLogForm.content"></textarea>
             <div class="editor-actions">
               <button class="btn" @click="editingLogId = null">取消</button>
-              <button class="btn primary" @click="saveEditLog(c)" :disabled="!editLogForm.content.trim()">💾 保存修改</button>
+              <button class="btn primary" @click="saveEditLog(c)" :disabled="!editLogForm.content.trim()">
+                <lpa-icon name="save" :size="15"></lpa-icon>保存修改
+              </button>
             </div>
           </template>
           <template v-else>
@@ -364,8 +425,12 @@
               <span>记录于 {{ fmtTime(c.created_at) }}</span>
               <span v-if="c.updated_at !== c.created_at">· 编辑于 {{ fmtTime(c.updated_at) }}</span>
               <span class="fill"></span>
-              <button class="icon-btn" title="编辑条目" @click="startEditLog(c)">✏ 编辑</button>
-              <button class="icon-btn" title="删除条目" @click="deleteLog(c)">🗑 删除</button>
+              <button class="icon-btn" title="编辑条目" @click="startEditLog(c)">
+                <lpa-icon name="pencil" :size="14"></lpa-icon>编辑
+              </button>
+              <button class="icon-btn" title="删除条目" @click="deleteLog(c)">
+                <lpa-icon name="trash" :size="14"></lpa-icon>删除
+              </button>
             </div>
           </template>
         </div>
@@ -380,7 +445,11 @@
           显示最近 {{ commitData.commits.length }} 条 · 点击单条展开详情
         </span>
       </h2>
-      <div class="loading" v-if="commitLoading">加载中…</div>
+      <!-- 骨架屏：避免时间线加载完成时把整页往下推 -->
+      <div class="skel-stack" v-if="commitLoading">
+        <span class="skel" style="width:100%;height:52px"></span>
+        <span class="skel" v-for="i in 6" :key="i" style="width:100%;height:26px"></span>
+      </div>
       <template v-else-if="commitData && commitData.is_repo && commitData.commits.length">
         <div class="commit-stats">
           <div class="stat-block" v-for="m in commitMonths" :key="m.key">
@@ -390,9 +459,16 @@
           </div>
         </div>
         <div class="section-note" style="margin-bottom:6px">统计基于当前加载的提交</div>
+        <div class="commit-filters" v-if="commitTypes.length > 1">
+          <button type="button" class="tfilter" :class="{on: commitTypeFilter === ''}"
+                  @click="commitTypeFilter = ''">全部 {{ commitData.commits.length }}</button>
+          <button type="button" class="tfilter" v-for="t in commitTypes" :key="t.type"
+                  :class="['ct-' + t.type, {on: commitTypeFilter === t.type}]"
+                  @click="commitTypeFilter = t.type">{{ t.type }} {{ t.count }}</button>
+        </div>
         <div class="commit-scroll">
           <ul class="commit-timeline">
-            <li v-for="c in commitData.commits" :key="c.hash">
+            <li v-for="c in visibleCommits" :key="c.hash">
               <div class="ct-row" @click="toggleCommit(c.hash)">
                 <span class="ct-dot"></span>
                 <span class="ct-hash">{{ c.short }}</span>
@@ -403,7 +479,9 @@
                   <span class="ct-user-dot" :style="{ background: userColor(c.author) }"></span>
                   {{ c.author }} · {{ fmtTime(c.date) }}
                 </span>
-                <span class="ct-caret">{{ expandedCommits.includes(c.hash) ? "▾" : "▸" }}</span>
+                <span class="ct-caret">
+                  <lpa-icon :name="expandedCommits.includes(c.hash) ? 'chevron-down' : 'chevron-right'" :size="13"></lpa-icon>
+                </span>
               </div>
               <div class="ct-detail" v-if="expandedCommits.includes(c.hash)">
                 <div class="kv-line"><span class="k">完整哈希</span><span class="v">{{ c.hash }}</span></div>
@@ -421,6 +499,14 @@
             </li>
           </ul>
         </div>
+        <div class="commit-more">
+          <button class="btn" v-if="hasMoreCommits" @click="loadMoreCommits" :disabled="commitLoading">
+            <lpa-icon name="chevron-down" :size="15"></lpa-icon>加载更早提交
+          </button>
+          <span class="section-note" v-else-if="commitData.total_count > commitData.commits.length">
+            已加载全部 {{ commitData.commits.length }} 条（后端单次上限 200 条）
+          </span>
+        </div>
       </template>
       <div class="section-note" v-else-if="commitData && commitData.is_repo">该仓库还没有任何提交。</div>
       <div class="section-note" v-else-if="commitData">当前目录不是 Git 仓库，无法展示提交记录。</div>
@@ -436,7 +522,8 @@
       <h2>项目截图
         <span class="count">{{ screenshots.length }} 张</span>
         <span class="right">
-          <label class="btn sm" style="cursor:pointer">⬆ 上传截图
+          <label class="btn sm" style="cursor:pointer">
+            <lpa-icon name="upload" :size="14"></lpa-icon>上传截图
             <input type="file" accept="image/png,image/jpeg,image/webp" multiple
                    style="display:none" @change="uploadShots">
           </label>
@@ -445,18 +532,23 @@
       <div class="shot-grid" v-if="screenshots.length">
         <div class="shot" v-for="s in screenshots" :key="s.file">
           <img :src="s.url" :alt="s.file" loading="lazy" @click="previewShot = s">
-          <button class="icon-btn shot-del" title="删除截图"
-                  @click="deleteShot(s)">🗑</button>
+          <button class="icon-btn shot-del" title="删除截图" aria-label="删除截图"
+                  @click="deleteShot(s)">
+            <lpa-icon name="trash" :size="14"></lpa-icon>
+          </button>
           <span class="shot-size">{{ fmtSize(s.size) }}</span>
         </div>
       </div>
       <label class="shots-empty" v-else :class="{ on: shotsDrag }">
         <input type="file" accept="image/png,image/jpeg,image/webp" multiple
                class="shots-empty-input" @change="uploadShots">
-        <span class="shots-empty-ico" aria-hidden="true">🖼</span>
+        <lpa-icon name="image" :size="28" :stroke="1.4" class="shots-empty-ico"></lpa-icon>
         <span class="shots-empty-title">拖拽图片到此处，或点击上传</span>
         <span class="shots-empty-note">PNG / JPEG / WebP · 每张 ≤5MB · 存本系统 data 目录</span>
       </label>
+      <div class="upload-veil" v-if="uploadingShots">
+        <span class="spinner" aria-hidden="true"></span>正在上传 {{ uploadCount }} 张截图…
+      </div>
     </section>
 
     <!-- 项目 README -->
@@ -466,7 +558,12 @@
       </h2>
       <div class="md-body" v-if="readme && readme.exists" v-html="readme.html"></div>
       <div class="section-note" v-else-if="readme">项目根目录未找到 README.md 文件</div>
-      <div class="loading" v-else>加载中…</div>
+      <div class="skel-stack" v-else>
+        <span class="skel" style="width:38%;height:22px"></span>
+        <span class="skel" style="width:100%;height:14px"></span>
+        <span class="skel" style="width:92%;height:14px"></span>
+        <span class="skel" style="width:74%;height:14px"></span>
+      </div>
     </section>
 
     </div>
@@ -475,25 +572,34 @@
     <aside class="detail-side">
       <section class="panel tree-panel">
         <h2>
+          <lpa-icon name="list" :size="15"></lpa-icon>
           <span v-if="!treeCollapsed">目录树（只读预览）</span>
           <span v-else title="目录树（只读预览）">目录树</span>
           <span class="right">
             <button class="icon-btn" @click="toggleTree"
-                    :title="treeCollapsed ? '展开目录树' : '收起目录树'">{{ treeCollapsed ? "▸ 展开" : "▾ 收起" }}</button>
+                    :title="treeCollapsed ? '展开目录树' : '收起目录树'"
+                    :aria-expanded="treeCollapsed ? 'false' : 'true'">
+              <lpa-icon :name="treeCollapsed ? 'chevron-right' : 'chevron-down'" :size="14"></lpa-icon>
+              {{ treeCollapsed ? "展开" : "收起" }}
+            </button>
           </span>
         </h2>
         <div class="tree-scroll" v-show="!treeCollapsed">
           <div class="tree" v-if="tree">
             <ul style="padding-left:0">
               <li class="t-row">
-                📂 <span class="t-name" style="font-weight:600">{{ p.name }}</span>
+                <lpa-icon name="folder-open" :size="14"></lpa-icon>
+                <span class="t-name" style="font-weight:600">{{ p.name }}</span>
                 <ul>
                   <tree-node v-for="c in tree.children" :key="c.name" :node="c" :depth="1"></tree-node>
                 </ul>
               </li>
             </ul>
           </div>
-          <div class="loading" v-else-if="tree === undefined">加载中…</div>
+          <div class="skel-stack" v-else-if="tree === undefined">
+            <span class="skel" v-for="i in 8" :key="i"
+                  :style="{ width: (50 + (i % 4) * 12) + '%', height: '16px' }"></span>
+          </div>
           <div class="section-note" v-else>目录树不可用（路径丢失或读取失败）</div>
         </div>
         <div class="section-note" v-if="tree && tree.truncated && !treeCollapsed" style="margin-top:8px">
@@ -507,55 +613,70 @@
   <main class="container" v-else-if="notFound">
     <div class="empty-tip">
       项目不存在或档案已被删除。<br><br>
-      <a class="btn primary" href="/">← 返回首页</a>
+      <a class="btn primary" href="/">
+        <lpa-icon name="arrow-left" :size="15"></lpa-icon>返回首页
+      </a>
     </div>
   </main>
-  <main class="container" v-else>
-    <div class="loading">正在加载…</div>
-  </main>
+  <div class="container" v-else>
+    <div class="skel-stack" style="padding:24px 0">
+      <span class="skel" style="width:260px;height:30px"></span>
+      <span class="skel" style="width:100%;height:120px"></span>
+      <span class="skel" style="width:100%;height:200px"></span>
+    </div>
+  </div>
 
   <!-- 截图预览 -->
-  <div class="lightbox" v-if="previewShot" @click="previewShot = null">
+  <div class="lightbox" v-if="previewShot" @click="previewShot = null" role="dialog" aria-modal="true" aria-label="截图预览">
     <img :src="previewShot.url" alt="截图预览">
     <button class="lb-nav lb-prev" v-if="screenshots.length > 1"
-            @click.stop="navShot(-1)">‹</button>
+            aria-label="上一张" @click.stop="navShot(-1)">
+      <lpa-icon name="chevron-left" :size="22"></lpa-icon>
+    </button>
     <button class="lb-nav lb-next" v-if="screenshots.length > 1"
-            @click.stop="navShot(1)">›</button>
+            aria-label="下一张" @click.stop="navShot(1)">
+      <lpa-icon name="chevron-right" :size="22"></lpa-icon>
+    </button>
     <span class="lb-count">{{ screenshots.indexOf(previewShot) + 1 }} / {{ screenshots.length }}</span>
+    <button class="lb-close" aria-label="关闭预览" @click="previewShot = null">
+      <lpa-icon name="x" :size="20"></lpa-icon>
+    </button>
   </div>
 
   <!-- 编辑档案 -->
   <div class="modal-mask" v-if="showEdit" @click.self="showEdit = false">
-    <div class="modal">
-      <h3>编辑档案信息</h3>
+    <div class="modal" v-modal role="dialog" aria-modal="true" aria-labelledby="edit-title">
+      <h3 id="edit-title">编辑档案信息</h3>
       <div class="field">
-        <label>本地项目文件夹路径</label>
-        <input type="text" v-model.trim="editForm.path">
+        <label for="edit-path">本地项目文件夹路径</label>
+        <input type="text" id="edit-path" v-model.trim="editForm.path">
         <div class="hint">修改路径会立即重新解析（用于项目移动后的路径更新）。</div>
       </div>
       <div class="field">
-        <label>项目名称</label>
-        <input type="text" v-model.trim="editForm.name">
+        <label for="edit-name">项目名称</label>
+        <input type="text" id="edit-name" v-model.trim="editForm.name">
       </div>
       <div class="field">
-        <label>别名</label>
-        <input type="text" v-model.trim="editForm.alias">
+        <label for="edit-alias">别名</label>
+        <input type="text" id="edit-alias" v-model.trim="editForm.alias">
       </div>
       <div class="field">
-        <label>项目分类</label>
-        <input type="text" v-model.trim="editForm.category">
+        <label for="edit-cat">项目分类</label>
+        <input type="text" id="edit-cat" v-model.trim="editForm.category">
       </div>
       <div class="field">
-        <label>项目状态</label>
+        <label for="edit-status">项目状态</label>
         <lpa-select v-model="editForm.status" :options="statuses"></lpa-select>
       </div>
       <div class="field">
-        <label>技术栈标签（逗号分隔）</label>
-        <input type="text" v-model="editForm.tagsText">
+        <label for="edit-tags">技术栈标签（逗号分隔）</label>
+        <input type="text" id="edit-tags" v-model.trim="editForm.tagsText">
       </div>
       <div class="actions">
         <button class="btn" @click="showEdit = false">取消</button>
-        <button class="btn primary" @click="saveEdit" :disabled="savingEdit">保存</button>
+        <button class="btn primary" @click="saveEdit" :disabled="savingEdit">
+          {{ savingEdit ? "保存中…" : "保存" }}
+        </button>
       </div>
     </div>
   </div>

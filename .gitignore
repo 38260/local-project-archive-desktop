@@ -32,3 +32,6 @@ build/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ===== AI 工具本地工作数据（会话记忆 / 临时产物，不入库） =====
+.workbuddy/
