@@ -912,7 +912,7 @@ body.modal-open { overflow: hidden; }
 .detail-main section.panel { scroll-margin-top: calc(var(--topbar-h) + 12px); }
 .toc-nav { position: sticky; top: var(--topbar-h); display: flex; flex-direction: column; gap: 1px; }
 .toc-nav .toc-title {
-  font-size: 14px; font-weight: 800; color: var(--muted);
+  font-size: 15px; font-weight: 800; color: var(--muted);
   padding: 0 var(--s-3) var(--s-2);
 }
 .toc-nav a {
@@ -932,10 +932,10 @@ body.modal-open { overflow: hidden; }
 .toc-tree { gap: 2px; }
 .toc-group { margin-bottom: 2px; }
 .toc-group-head {
-  display: flex; align-items: center; gap: 6px;
-  width: 100%; padding: 6px var(--s-3);
+  display: flex; align-items: center; gap: 7px;
+  width: 100%; padding: 7px var(--s-3);
   background: none; border: none; cursor: pointer;
-  font: inherit; font-size: 13.5px; font-weight: 700; color: var(--text);
+  font: inherit; font-size: 15px; font-weight: 700; color: var(--text);
   text-align: left; border-radius: var(--r-sm);
   transition: background .15s;
 }
@@ -951,8 +951,8 @@ body.modal-open { overflow: hidden; }
   width: 2px; border-radius: 1px; background: var(--border);
 }
 .toc-group-body a {
-  display: block; border-left: none; font-size: 14px;
-  padding: 5px 8px; border-radius: var(--r-sm);
+  display: block; border-left: none; font-size: 15.5px;
+  padding: 6px 8px; border-radius: var(--r-sm);
 }
 .toc-group-body a.on {
   border-left: none;
