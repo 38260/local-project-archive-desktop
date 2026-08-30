@@ -76,20 +76,19 @@ def in_stroke(px, py, pts, width) -> bool:
 
 
 def in_folder(x: int, y: int, size: int) -> bool:
-    """点是否落在白色文件夹上：主体矩形 + 左上角标签凸起。"""
+    """点是否落在白色文件夹上：圆角主体 + 左上圆角标签凸起。"""
     fw = size * 0.54
     fh = size * 0.38
     fx = (size - fw) / 2
     fy = (size - fh) / 2 + size * 0.05
     tab_w = fw * 0.44
     tab_h = fh * 0.22
-    # 主体
-    if fx <= x < fx + fw and fy <= y < fy + fh:
+    r = max(1, round(size * 0.03))
+    # 主体（圆角）
+    if in_rounded_rect(x - fx, y - fy, fw, fh, r):
         return True
-    # 标签
-    if fx <= x < fx + tab_w and fy - tab_h <= y < fy:
-        return True
-    return False
+    # 标签（圆角，底部伸进主体内隐藏接缝）
+    return in_rounded_rect(x - fx, y - (fy - tab_h), tab_w, tab_h + r * 2, r)
 
 
 def in_code_glyph(x, y, size) -> bool:

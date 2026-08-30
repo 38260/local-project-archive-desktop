@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>本地项目档案 · 项目详情</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%232f81f7'/><stop offset='1' stop-color='%230969da'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><path d='M23 74 V30 h22 v6 h32 v38 Z' fill='%23fafbfc'/><path d='M42 47 l-9 9 9 9 M58 47 l9 9 -9 9 M54 45 l-8 22' fill='none' stroke='%230969da' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <title>归迹拾光 · 项目详情</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%232f81f7'/><stop offset='1' stop-color='%230969da'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><path d='M23 74 V30 h22 v6 h32 v38 Z' fill='%23fafbfc' stroke='%23fafbfc' stroke-width='7' stroke-linejoin='round'/><path d='M42 47 l-9 9 9 9 M58 47 l9 9 -9 9 M54 45 l-8 22' fill='none' stroke='%230969da' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -23,7 +23,7 @@
     </button>
     <span class="logo">
       <lpa-icon name="folder" :size="18"></lpa-icon>
-      <span class="btn-text">本地项目档案 <span class="dim">/ 项目详情</span></span>
+      <span class="btn-text">归迹拾光 <span class="dim">/ 项目详情</span></span>
     </span>
     <span class="spacer"></span>
     <button class="btn" @click="switchTheme" :title="'主题：' + themeLabel + '（点击切换：跟随系统 / 亮色 / 暗色）'">
@@ -553,9 +553,15 @@
     <!-- 项目 README -->
     <section class="panel" id="sec-readme">
       <h2>项目 README
-        <span class="right section-note" v-if="readme">{{ readme.file }}</span>
+        <span class="right" style="display:inline-flex;align-items:center;gap:8px">
+          <span class="section-note" v-if="readme">{{ readme.file }}</span>
+          <button class="btn sm" v-if="readme && readme.exists && readme.raw"
+                  @click="copyReadme" title="复制 README 原文（Markdown 源码）">
+            <lpa-icon name="copy" :size="13"></lpa-icon>复制全文
+          </button>
+        </span>
       </h2>
-      <div class="md-body" v-if="readme && readme.exists" v-html="readme.html"></div>
+      <div class="md-body readme-selectable" v-if="readme && readme.exists" v-html="readme.html"></div>
       <div class="section-note" v-else-if="readme">项目根目录未找到 README.md 文件</div>
       <div class="skel-stack" v-else>
         <span class="skel" style="width:38%;height:22px"></span>
