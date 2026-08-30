@@ -62,7 +62,9 @@ CREATE INDEX IF NOT EXISTS idx_changelogs_project ON changelogs(project_id);
 
 
 BACKUP_DIR = DATA_DIR / "backups"
-_BACKUP_NAME_RE = re.compile(r"^projects-\d{8}-\d{6}\.db$")
+# 毫秒后缀可选兼容旧命名；精确到秒会在「备份后立刻恢复同一份」时被恢复前的
+# 保险备份（同秒同名）覆盖目标备份，导致恢复成当前状态
+_BACKUP_NAME_RE = re.compile(r"^projects-\d{8}-\d{6}(?:-\d{3})?\.db$")
 
 
 def backup_file_name_ok(name: str) -> bool:
@@ -94,7 +96,8 @@ def _backup_db(force: bool = False) -> str | None:
                     return None  # 数据库没变，无需重复备份
             except (OSError, ValueError):
                 pass
-        name = f"projects-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
+        now = datetime.now()
+        name = f"projects-{now:%Y%m%d-%H%M%S}-{now.microsecond // 1000:03d}.db"
         shutil.copy2(DB_PATH, BACKUP_DIR / name)
         state_file.write_text(json.dumps({"mtime": st.st_mtime, "size": st.st_size}),
                               encoding="utf-8")
@@ -117,7 +120,6 @@ def _backup_db(force: bool = False) -> str | None:
 def init_db() -> None:
     """初始化数据目录并建表（已有数据库则直接复用，数据不丢失）。"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    _backup_db()
     with get_db() as conn:
         conn.executescript(_SCHEMA)
         # 轻量迁移：老库补「置顶」列
@@ -125,6 +127,8 @@ def init_db() -> None:
         if "pinned" not in cols:
             conn.execute("ALTER TABLE projects "
                          "ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+    # 建表之后再备份：全新库首启也能留下初始基线（建表前文件不存在会被跳过）
+    _backup_db()
 
 
 @contextmanager
