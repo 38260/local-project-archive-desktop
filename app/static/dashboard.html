@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>本地项目档案 · 首页</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%232f81f7'/><stop offset='1' stop-color='%230969da'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><path d='M23 74 V30 h22 v6 h32 v38 Z' fill='%23fafbfc'/><path d='M42 47 l-9 9 9 9 M58 47 l9 9 -9 9 M54 45 l-8 22' fill='none' stroke='%230969da' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <title>归迹拾光 · 首页</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%232f81f7'/><stop offset='1' stop-color='%230969da'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><path d='M23 74 V30 h22 v6 h32 v38 Z' fill='%23fafbfc' stroke='%23fafbfc' stroke-width='7' stroke-linejoin='round'/><path d='M42 47 l-9 9 9 9 M58 47 l9 9 -9 9 M54 45 l-8 22' fill='none' stroke='%230969da' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
   <header class="topbar">
     <span class="logo">
       <lpa-icon name="folder" :size="18"></lpa-icon>
-      本地项目档案 <span class="dim">/ 本机索引库 · 数据不出本机</span>
+      归迹拾光 <span class="dim">/ 本机索引库 · 数据不出本机</span>
     </span>
     <span class="spacer"></span>
     <button class="btn" @click="openScan" title="批量扫描导入">
@@ -26,8 +26,6 @@
               aria-haspopup="menu" :aria-expanded="toolsOpen ? 'true' : 'false'">
         <lpa-icon name="more" :size="15"></lpa-icon><span class="btn-text">工具</span>
       </button>
-      <span class="more-mask" v-if="toolsOpen" @click="toolsOpen = false"
-            style="position:fixed;inset:0;z-index:70"></span>
       <span class="more-list" v-if="toolsOpen" style="z-index:80" role="menu"
             @click="toolsOpen = false">
         <button class="btn" role="menuitem" @click="rescanAll" :disabled="rescanningAll"
@@ -402,6 +400,26 @@
         </div>
         <div class="setting-row" style="margin-top:10px">
           <div>
+            <span class="setting-title">提交记录单次加载数</span>
+            <span class="setting-desc">详情页「提交记录」一次读取的条数上限，大仓库可调小以加快加载</span>
+          </div>
+          <lpa-select :model-value="String(prefs['commits.limit'] || 200)"
+                      :options="[{v:'50',l:'50 条'},{v:'100',l:'100 条'},{v:'200',l:'200 条（最多）'}]"
+                      @update:model-value="v => { prefs['commits.limit'] = Number(v); savePref('commits.limit'); }"></lpa-select>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <span class="setting-title">提交热力图范围</span>
+            <span class="setting-desc">详情页 GitHub 风格贡献热力图展示的时间跨度</span>
+          </div>
+          <span class="setting-btns">
+            <button v-for="w in [{v:26,l:'半年'},{v:53,l:'一年'}]" :key="w.v" class="btn sm"
+                    :class="{ primary: Number(prefs['ui.heatmap_weeks'] || 53) === w.v }"
+                    @click="prefs['ui.heatmap_weeks'] = w.v; savePref('ui.heatmap_weeks');">{{ w.l }}</button>
+          </span>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
             <span class="setting-title">启动时自动检查路径丢失</span>
             <span class="setting-desc">服务启动后在后台校验各项目文件夹是否还在（只更新标记，不重新解析，不影响启动速度）</span>
           </div>
@@ -454,6 +472,17 @@
                      @change="importBackup" :disabled="importingBackup">
             </label>
           </span>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <span class="setting-title">导出 HTML 包含笔记与日志</span>
+            <span class="setting-desc">关闭后「导出 HTML 报告」只含项目档案信息，不含开发笔记与变更日志</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" v-model="prefs['export.html_include_notes']"
+                   @change="savePref('export.html_include_notes')" aria-label="导出 HTML 包含笔记与日志">
+            <span class="switch-slider"></span>
+          </label>
         </div>
         <div class="setting-row" style="margin-top:10px">
           <div>
@@ -519,7 +548,7 @@
         </div>
       </div>
       <div class="app-info">
-        本地项目档案 <b>v{{ appVersion }}</b> · 服务端口 <b>{{ appPort }}</b> ·
+        归迹拾光 <b>v{{ appVersion }}</b> · 服务端口 <b>{{ appPort }}</b> ·
         数据：<span class="mono">{{ dataPath }}</span>
       </div>
       <div class="actions">
@@ -527,6 +556,10 @@
       </div>
     </div>
   </div>
+  <!-- 工具菜单关闭遮罩：必须挂在 topbar 之外——topbar 的 backdrop-filter 会把
+       position:fixed 后代的包含块劫持为顶栏自身，导致遮罩盖不住页面其余部分 -->
+  <span class="more-mask" v-if="toolsOpen" @click="toolsOpen = false"
+        style="position:fixed;inset:0;z-index:70"></span>
 </div>
 
 <script src="/static/js/vendor/vue.global.prod.js"></script>
