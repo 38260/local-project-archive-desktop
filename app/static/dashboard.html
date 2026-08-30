@@ -336,6 +336,17 @@
                  v-model.number="prefs['scan.default_depth']"
                  @change="savePref('scan.default_depth')" aria-label="默认扫描深度">
         </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <span class="setting-title">启动时自动检查路径丢失</span>
+            <span class="setting-desc">服务启动后在后台校验各项目文件夹是否还在（只更新标记，不重新解析，不影响启动速度）</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" v-model="prefs['scan.refresh_on_start']"
+                   @change="savePref('scan.refresh_on_start')" aria-label="启动时自动检查路径丢失">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
       </div>
       <div class="field">
         <label>数据维护</label>

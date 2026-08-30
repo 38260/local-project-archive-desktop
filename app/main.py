@@ -58,6 +58,11 @@ async def lifespan(app: FastAPI):
     for f in (_DASHBOARD, _PROJECT_PAGE, STATIC_DIR / "js" / "vendor" / "vue.global.prod.js"):
         if not Path(f).is_file():
             raise RuntimeError(f"缺少前端资源文件：{f}")
+    # 「启动自动刷新」：后台校验项目路径是否丢失（只更新标记，不重新解析）
+    from app.services import settings_store
+    if settings_store.get("scan.refresh_on_start"):
+        import threading
+        threading.Thread(target=projects.refresh_lost_marks, daemon=True).start()
     yield
 
 
