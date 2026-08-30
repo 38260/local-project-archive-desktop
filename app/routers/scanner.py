@@ -25,7 +25,14 @@ def scan(body: ScanRequest):
     if not os.path.isdir(root):
         raise HTTPException(400, dir_not_exists_hint(root) if not os.path.exists(root)
                             else f"路径不是文件夹：{root}")
-    return scan_root(root, max_depth=body.max_depth)
+    result = scan_root(root, max_depth=body.max_depth)
+    # 标记已在档案库中的候选，前端据此灰显并默认不勾选，避免重复导入
+    with get_db() as conn:
+        existing = {r["path"].lower() for r in
+                    conn.execute("SELECT path FROM projects").fetchall()}
+    for c in result["candidates"]:
+        c["imported"] = c["path"].lower() in existing
+    return result
 
 
 @router.post("/import")
