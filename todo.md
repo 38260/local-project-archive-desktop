@@ -96,7 +96,7 @@ dev_deps = [f"{k}@{v}" for k, v in (data.get("devDependencies") or {}).items()]
 
 | # | 位置 | 问题 | 建议 |
 |---|---|---|---|
-| 7.1 | `app/db.py:90` | `sqlite3.connect` 无 timeout，并发写会 `database is locked` | `sqlite3.connect(DB_PATH, timeout=15)` |
+| 7.1 | `app/db.py:90` | `sqlite3.connect` 无 timeout，并发写会 `database is locked` | `sqlite3.connect(DB_PATH, timeout=15)` ✅已修复 |
 | 7.2 | `app/routers/projects.py:567` | `_shot_list` 中 `f.stat()` 遇并发删除会 500 | 单文件套 try/except 跳过 |
 | 7.3 | `app/routers/projects.py:597` | 截图上传先整读入内存再校验 5MB，超大文件吃内存 | 分块读取，超限提前终止 |
 | 7.4 | `app/static/js/project.js:106` | `_descTimer` 放在 `data()`，`_` 前缀属性不被 Vue 代理 | 移出 data，放入 methods 闭包 |

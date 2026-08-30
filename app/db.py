@@ -87,7 +87,8 @@ def init_db() -> None:
 @contextmanager
 def get_db():
     """打开一次数据库连接，用完即关。"""
-    conn = sqlite3.connect(DB_PATH)
+    # timeout：并发写时等待锁而不是立即报 "database is locked"
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
     # 启用外键约束，项目删除时级联清理其笔记与变更日志
     conn.execute("PRAGMA foreign_keys = ON")
