@@ -147,7 +147,7 @@ dev_deps = [f"{k}@{v}" for k, v in (data.get("devDependencies") or {}).items()]
 
 1. 🔴 **导入 JSON 备份** ✅（2026-08-30）：`POST /api/import` 已实现并验证（按路径去重跳过、笔记/变更日志随项目恢复、非法状态兜底为进行中）；设置弹窗已加「数据维护」导出/导入按钮。
 2. 🟠 **备份管理** ✅（2026-08-30）：`backup.enabled`/`backup.keep` 设置化（替代硬编码 10）；数据库无变化时跳过备份；新增列表/立即备份/恢复（恢复前先自动备份当前库）/删除接口与设置面板 UI，已验证。
-3. 🟠 **数据目录与日志**：设置页"打开数据文件夹"按钮 → `GET /api/settings/open-data-folder` → `os.startfile(DATA_DIR)`；"打开日志文件"按钮。
+3. 🟠 **数据目录与日志** ✅（2026-08-30）：`GET /api/settings/open-data-folder`、`GET /api/settings/open-log`（开发模式无日志文件时 404 并解释原因）；设置弹窗「数据位置」行已加两个按钮，已验证。
 
 ### 中优先：桌面行为与体验
 

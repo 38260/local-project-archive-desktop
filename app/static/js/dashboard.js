@@ -302,6 +302,18 @@
           this.loadBackups();
         } catch (e) { /* toast 已提示 */ }
       },
+      async openDataFolder() {
+        try {
+          const r = await api("/api/settings/open-data-folder");
+          toast("已打开数据文件夹", "ok");
+          this.dataPath = r.path || this.dataPath;
+        } catch (e) { /* toast 已提示 */ }
+      },
+      async openLog() {
+        try {
+          await api("/api/settings/open-log");
+        } catch (e) { /* toast 已提示（开发模式无日志文件时会解释原因） */ }
+      },
 
       // ---- 手动录入 ----
       openAdd() {
