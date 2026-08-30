@@ -702,6 +702,8 @@ body.modal-open { overflow: hidden; }
   gap: 10px;
   margin-bottom: 14px;
 }
+/* 时间线内容长（两个完整时间戳），占两格宽避免折行 */
+.info-tile.tile-wide { grid-column: span 2; }
 .info-tile {
   background: var(--bg);
   border: 1px solid var(--border);
