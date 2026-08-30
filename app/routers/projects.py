@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -708,7 +709,16 @@ def launch_project(project_id: int, body: LaunchRequest):
                 raise HTTPException(
                     400, f"直接运行的目标文件不存在：{command}\n"
                          "「直接运行」需要可执行文件的完整路径。")
-            os.startfile(command)  # noqa: S606 与资源管理器双击行为一致
+            if os.path.normpath(workdir) == os.path.normpath(path):
+                os.startfile(command)  # noqa: S606 与资源管理器双击行为一致
+            elif sys.version_info >= (3, 13):
+                # 3.13 起 startfile 支持 cwd；不少程序靠相对路径读自身配置
+                os.startfile(command, cwd=workdir)  # noqa: S606
+            else:
+                # 旧版 Python：走系统 shell 的 start /D 指定工作目录
+                flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                subprocess.Popen(f'cmd /c start "" /D "{workdir}" "{command}"',
+                                 creationflags=flags)
             return {"ok": True, "mode": "open",
                     "note": "已直接运行（与资源管理器双击等效）"}
         # console：新终端窗口跑命令；窗口由用户关闭或 Ctrl+C 停止。
