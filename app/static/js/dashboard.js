@@ -50,6 +50,7 @@
         backupEnabled: true,
         backupKeep: 10,
         backupSaving: false,
+        prefs: {},        // 通用设置键值（来自 /api/settings）
       };
     },
     computed: {
@@ -202,6 +203,7 @@
         this.showSettings = true;
         this.loadAutostart();
         this.loadBackups();
+        this.loadPrefs();
       },
       async loadAutostart() {
         try {
@@ -313,6 +315,18 @@
         try {
           await api("/api/settings/open-log");
         } catch (e) { /* toast 已提示（开发模式无日志文件时会解释原因） */ }
+      },
+      async loadPrefs() {
+        try {
+          this.prefs = await api("/api/settings", { silent: true });
+        } catch (e) { this.prefs = {}; }
+      },
+      async savePref(key) {
+        try {
+          await api("/api/settings", {
+            method: "PUT", body: { [key]: this.prefs[key] ?? "" },
+          });
+        } catch (e) { this.loadPrefs(); }   // 失败回滚显示
       },
 
       // ---- 手动录入 ----

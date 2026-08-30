@@ -141,7 +141,7 @@ dev_deps = [f"{k}@{v}" for k, v in (data.get("devDependencies") or {}).items()]
 
 - [x] 新增 `app/services/settings_store.py`（2026-08-30 已实现：默认值字典 + 容错读取 + 原子写入）
 - [x] 扩展 `app/routers/settings.py`：新增 `GET/PUT /api/settings`（通用键值读写，已验证）
-- [ ] 前端：设置弹窗增加通用开关/输入绑定（复用现有 `.switch` 与 `toggleXxx` 模式）
+- [x] 前端：设置弹窗增加通用开关/输入绑定（`loadPrefs`/`savePref` 模式已落地，2026-08-30）
 
 ### 高优先：数据闭环
 
@@ -154,7 +154,7 @@ dev_deps = [f"{k}@{v}" for k, v in (data.get("devDependencies") or {}).items()]
 4. 🟠 **关闭窗口行为**：退出 vs 最小化到系统托盘（`pystray` 或 pywebview 隐藏窗口）。与自启动强耦合：自启动后无窗口必须靠托盘唤出。
 5. 🟠 **自启动静默启动**：自启动时最小化/后台启动开关（否则每次登录弹窗打扰）。
 6. 🟠 **记住窗口大小/位置**：现固定 `1440×900`（`desktop.py`）；关闭时写 `settings.json`，下次还原。
-7. 🟠 **默认外部编辑器**：目前写死 `code`。支持 VS Code / Cursor / JetBrains / 自定义命令。
+7. 🟠 **默认外部编辑器** ✅（2026-08-30）：`editor.command` 设置项，空=默认 code；未找到命令时 400 友好提示；设置弹窗「使用偏好」可修改，已验证。
 8. 🟡 **默认扫描深度持久化**：`scan.default_depth`，打开扫描弹窗时读取（现每次重置为 3）。
 9. 🟡 **记住上次扫描根目录**。
 10. 🟡 **启动自动刷新项目状态**：开关 `scan.refresh_on_start`（默认关），启动后自动跑"路径丢失"检测。
