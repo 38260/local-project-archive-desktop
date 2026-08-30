@@ -21,6 +21,16 @@ import time
 import traceback
 from pathlib import Path
 
+# ---- windowed 模式适配（模块级，须在任何可能访问 stdout/stderr 的库之前）----
+# PyInstaller --noconsole 打包后 sys.stdout / sys.stderr 为 None：
+# uvicorn 的彩色日志格式化器（ColourizedFormatter）构造时会访问
+# sys.stdout.isatty()，直接抛 AttributeError，程序起不来。
+# 补成 devnull 即可让一切正常，真实日志已由 setup_logging 落盘。
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
 
 # --------------------------------------------------------------------------
 # 日志与异常兜底
