@@ -53,7 +53,7 @@ if (typeof d === "string") msg = d;
 else if (Array.isArray(d) && d.length) msg = d[0].msg || msg;
 ```
 
-- [ ] `api()` 兼容数组形式的 detail
+- [x] `api()` 兼容数组形式的 detail（2026-08-30 已修复并验证）
 
 ### 🔴 B4. 手动录入 / 改路径时解析异常裸 500
 

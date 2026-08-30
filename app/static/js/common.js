@@ -93,7 +93,12 @@
     let data = null;
     try { data = await resp.json(); } catch (e) { /* 空响应 */ }
     if (!resp.ok) {
-      const msg = (data && data.detail) ? data.detail : `请求失败（HTTP ${resp.status}）`;
+      // 422 校验错误的 detail 是对象数组，直接显示会变成 [object Object]
+      const d = data && data.detail;
+      let msg;
+      if (typeof d === "string") msg = d;
+      else if (Array.isArray(d) && d.length) msg = d[0].msg || d[0].loc && `字段 ${d[0].loc.join(".")} 无效`;
+      msg = msg || `请求失败（HTTP ${resp.status}）`;
       if (!opt.silent) toast(msg, "error");
       const err = new Error(msg);
       err.status = resp.status;
