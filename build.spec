@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller 打包配置（onedir 模式）。
 
-产出 dist/LocalProjectArchive/，双击其中的 exe 即打开原生窗口。
+产出 dist/Tracelight/，双击其中的 exe 即打开原生窗口。
 构建：  pyinstaller build.spec --noconfirm --clean
 
 采用 onedir 而非 onefile：onefile 每次启动都要把几十 MB 解压到临时目录，
@@ -76,7 +76,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="LocalProjectArchive",
+    name="Tracelight",
     icon="assets/app.ico",
     console=False,          # 不弹控制台黑框
     disable_windowed_traceback=False,
@@ -92,5 +92,5 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=False,               # UPX 压缩会显著提高杀软误报率，关掉
-    name="LocalProjectArchive",
+    name="Tracelight",
 )
