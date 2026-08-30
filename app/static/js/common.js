@@ -29,6 +29,12 @@
     applyTheme(next);
     return next;
   };
+  // 直接指定某一态（设置面板用）
+  window.setThemePref = function (pref) {
+    if (!["auto", "light", "dark"].includes(pref)) return themePref();
+    applyTheme(pref);
+    return pref;
+  };
 
   // ---------- Toast（入场/退场动画 + 堆叠上限 + 同文案合并） ----------
   const TOAST_MAX = 4;
