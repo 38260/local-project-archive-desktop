@@ -445,46 +445,24 @@
           显示最近 {{ commitData.commits.length }} 条 · 点击单条展开详情
         </span>
       </h2>
-      <!-- GitHub 风格贡献热力图：全量提交按天聚合，点击有提交的日期可查看当天提交 -->
-      <div class="gh-heat gh-heat--fluid" v-if="heatGrid"
-           :title="`最近 ${heatWeeks} 周提交热力图，点击有提交的日期查看当天记录`">
-        <div class="gh-heat-head">
+      <!-- 按月提交柱状图：全量历史按日历月聚合，比逐日网格更直观 -->
+      <div class="month-chart" v-if="monthBars.length" role="img" :aria-label="monthChartLabel">
+        <div class="month-chart-head">
           <span class="gh-heat-total">
-            {{ heatWeeks === 26 ? "最近半年" : "最近一年" }}共
-            <b>{{ fmtNum(heatGrid.total) }}</b> 次提交
+            {{ monthSpan === 6 ? "最近半年" : "最近一年" }}共
+            <b>{{ fmtNum(monthTotal) }}</b> 次提交
           </span>
-          <span class="hm-legend" aria-hidden="true">
-            <span>少</span>
-            <span class="hm-cell gh l0"></span>
-            <span class="hm-cell gh l1"></span>
-            <span class="hm-cell gh l2"></span>
-            <span class="hm-cell gh l3"></span>
-            <span class="hm-cell gh l4"></span>
-            <span>多</span>
-          </span>
+          <span class="section-note">每月提交量 · 全量历史</span>
         </div>
-        <div class="gh-heat-inner" :style="{ maxWidth: (heatWeeks * 21 + 30) + 'px' }">
-          <div class="gh-months" aria-hidden="true">
-            <span v-for="m in heatGrid.monthMarks" :key="'m' + m.col"
-                  class="gh-month" :style="{ left: (m.col / heatWeeks * 100) + '%' }">{{ m.label }}</span>
-          </div>
-          <div class="gh-main">
-            <div class="gh-day-col" aria-hidden="true">
-              <span v-for="d in heatGrid.dayLabels" :key="'d' + d.row"
-                    class="gh-day-label" :style="{ gridRow: d.row + 1 }">{{ d.l }}</span>
+        <div class="month-bars">
+          <div class="mb-col" v-for="m in monthBars" :key="m.key"
+               :class="{ current: m.current }" :title="m.tip">
+            <span class="mb-num">{{ m.count || "" }}</span>
+            <div class="mb-track">
+              <div class="mb-bar" :class="{ now: m.current, zero: !m.count }"
+                   :style="{ height: Math.max(m.pct, 3) + '%' }"></div>
             </div>
-            <div class="gh-grid" role="img" :style="{ aspectRatio: heatWeeks + ' / 7' }"
-                   :aria-label="`提交热力图，共 ${fmtNum(heatGrid.total)} 次提交`">
-              <template v-for="(col, ci) in heatGrid.cols" :key="'c' + ci">
-                <template v-for="(cell, ri) in col" :key="ci + '-' + ri">
-                  <span v-if="cell" class="hm-cell gh"
-                        :class="['l' + cell.level, { today: cell.today, clickable: cell.n > 0 }]"
-                        :title="cell.label + (cell.n > 0 ? '，点击查看当天提交' : '')"
-                        @click="cell.n > 0 && showHeatDay(cell.date)"></span>
-                  <span v-else class="hm-cell gh empty"></span>
-                </template>
-              </template>
-            </div>
+            <span class="mb-label">{{ m.label }}</span>
           </div>
         </div>
       </div>
@@ -494,14 +472,6 @@
         <span class="skel" v-for="i in 6" :key="i" style="width:100%;height:26px"></span>
       </div>
       <template v-else-if="commitData && commitData.is_repo && commitData.commits.length">
-        <div class="commit-stats">
-          <div class="stat-block" v-for="m in commitMonths" :key="m.key">
-            <div class="stat-label">{{ m.label }}</div>
-            <div class="stat-bar-wrap"><div class="stat-bar" :style="{width: m.pct + '%'}"></div></div>
-            <div class="stat-num">{{ m.count }}</div>
-          </div>
-        </div>
-        <div class="section-note" style="margin-bottom:6px">统计基于当前加载的提交</div>
         <div class="commit-filters" v-if="commitTypes.length > 1">
           <button type="button" class="tfilter" :class="{on: commitTypeFilter === ''}"
                   @click="commitTypeFilter = ''">全部 {{ commitData.commits.length }}</button>
@@ -730,33 +700,6 @@
     </div>
   </div>
 
-  <!-- 热力图点击某天 → 当天提交记录 -->
-  <div class="modal-mask" v-if="heatDay" @click.self="heatDay = null">
-    <div class="modal heat-day-modal" role="dialog" aria-modal="true"
-         :aria-label="heatDay + ' 的提交记录'">
-      <h3>{{ heatDay }} 的提交
-        <span class="count" v-if="!heatDayLoading">{{ heatDayCommits.length }} 条</span>
-      </h3>
-      <div class="skel-stack" v-if="heatDayLoading">
-        <span class="skel" v-for="i in 4" :key="i" style="width:100%;height:26px"></span>
-      </div>
-      <template v-else>
-        <div class="heat-day-list" v-if="heatDayCommits.length">
-          <div class="heat-day-item" v-for="c in heatDayCommits" :key="c.hash">
-            <code class="mono hd-hash">{{ c.hash.slice(0, 8) }}</code>
-            <div class="hd-body">
-              <div class="hd-msg">{{ firstLine(c.message) }}</div>
-              <div class="hd-meta">{{ c.author }} · {{ fmtTime(c.date) }}</div>
-            </div>
-          </div>
-        </div>
-        <div class="section-note" v-else>该日期没有已记录的提交</div>
-      </template>
-      <div class="actions">
-        <button class="btn" @click="heatDay = null">关闭</button>
-      </div>
-    </div>
-  </div>
   <!-- 设置（共享组件，见 js/settings.js；首页同款） -->
   <lpa-settings-dialog ref="settings" :statuses="statuses" @changed="onSettingsChanged"></lpa-settings-dialog>
 </div>

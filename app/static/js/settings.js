@@ -294,8 +294,8 @@
               </div>
               <div class="setting-row" style="margin-top:10px">
                 <div>
-                  <span class="setting-title">提交热力图范围</span>
-                  <span class="setting-desc">详情页 GitHub 风格贡献热力图展示的时间跨度</span>
+                  <span class="setting-title">提交活动图范围</span>
+                  <span class="setting-desc">详情页按月提交柱状图展示的时间跨度（半年=近 6 个月 / 一年=近 12 个月）</span>
                 </div>
                 <span class="setting-btns">
                   <button v-for="w in [{v:26,l:'半年'},{v:53,l:'一年'}]" :key="w.v" class="btn sm"
