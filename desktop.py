@@ -444,6 +444,10 @@ def main() -> int:
     if use_webview:
         try:
             import webview
+            # pywebview 默认在 DownloadStarting 里 Cancel 掉一切下载（ALLOW_DOWNLOADS=False），
+            # 「导出 HTML / 导出 JSON」等 attachment 下载会被静默吞掉，表现为点了没反应。
+            # 开启后走系统保存对话框，默认落在用户下载目录。须在 webview.start() 前设置。
+            webview.settings["ALLOW_DOWNLOADS"] = True
         except ImportError:
             logger.warning("pywebview 不可用，回退到系统浏览器")
             use_webview = False
