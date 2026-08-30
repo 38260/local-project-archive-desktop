@@ -594,6 +594,13 @@
           toast(target === "vscode" ? "已在 VS Code 中打开" : "已在资源管理器中打开", "ok");
         } catch (e) { /* toast 已提示 */ }
       },
+      async togglePin() {
+        try {
+          const r = await api(`/api/projects/${this.projectId}/pin`, { method: "POST" });
+          this.p.pinned = r.pinned;
+          toast(r.pinned ? "已置顶，列表中将优先展示" : "已取消置顶", "ok");
+        } catch (e) { /* toast 已提示 */ }
+      },
       // 重新解析后同步描述基线（保留用户未保存的草稿内容）
       reloadMeta(p) {
         this.p = p;

@@ -93,7 +93,9 @@
           status: (a, b) => (STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status))
                             || byTime("updated_at")(a, b),
         }[key];
-        return this.projects.slice().sort(cmp);
+        // 置顶项目优先，其余按所选排序
+        return this.projects.slice().sort(
+          (a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || cmp(a, b));
       },
       filtered() {
         const q = this.q.toLowerCase();
@@ -188,6 +190,13 @@
         try {
           await api(`/api/projects/${p.id}/open`, { method: "POST", body: { target } });
           toast(target === "vscode" ? "已在 VS Code 打开" : "已在资源管理器打开", "ok");
+        } catch (e) { /* toast 已提示 */ }
+      },
+      async togglePin(p) {
+        try {
+          const r = await api(`/api/projects/${p.id}/pin`, { method: "POST" });
+          p.pinned = r.pinned;
+          toast(r.pinned ? `已置顶「${p.name}」` : `已取消置顶「${p.name}」`, "ok");
         } catch (e) { /* toast 已提示 */ }
       },
       exportJson() { location.href = "/api/export"; },

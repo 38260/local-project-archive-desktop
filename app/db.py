@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS projects (
     auto_meta    TEXT NOT NULL DEFAULT '{}',           -- 自动解析元数据 JSON
     is_lost      INTEGER NOT NULL DEFAULT 0,           -- 路径失效标记：1=丢失项目
     lost_reason  TEXT NOT NULL DEFAULT '',
+    pinned       INTEGER NOT NULL DEFAULT 0,           -- 1=置顶（列表内优先展示）
     fs_created   TEXT NOT NULL DEFAULT '',             -- 磁盘创建时间
     fs_modified  TEXT NOT NULL DEFAULT '',             -- 磁盘最后修改时间
     created_at   TEXT NOT NULL,                        -- 档案创建时间
@@ -119,6 +120,11 @@ def init_db() -> None:
     _backup_db()
     with get_db() as conn:
         conn.executescript(_SCHEMA)
+        # 轻量迁移：老库补「置顶」列
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(projects)")}
+        if "pinned" not in cols:
+            conn.execute("ALTER TABLE projects "
+                         "ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
 
 
 @contextmanager

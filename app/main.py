@@ -125,6 +125,7 @@ def export_all():
                 "description": r["description"],
                 "auto_meta": json.loads(r["auto_meta"] or "{}"),
                 "is_lost": bool(r["is_lost"]), "lost_reason": r["lost_reason"],
+                "pinned": bool(r["pinned"]) if "pinned" in r.keys() else False,
                 "fs_created": r["fs_created"], "fs_modified": r["fs_modified"],
                 "created_at": r["created_at"], "updated_at": r["updated_at"],
                 "notes": [
@@ -183,8 +184,8 @@ def import_backup(payload: dict):
             try:
                 cur = conn.execute(
                     "INSERT INTO projects (path, name, alias, category, status, tags, "
-                    "description, auto_meta, is_lost, lost_reason, fs_created, fs_modified, "
-                    "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "description, auto_meta, is_lost, lost_reason, pinned, fs_created, "
+                    "fs_modified, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (path, name,
                      str(item.get("alias") or ""), str(item.get("category") or ""),
                      status,
@@ -193,6 +194,7 @@ def import_backup(payload: dict):
                      json.dumps(item.get("auto_meta") or {}, ensure_ascii=False),
                      1 if item.get("is_lost") else 0,
                      str(item.get("lost_reason") or ""),
+                     1 if item.get("pinned") else 0,
                      str(item.get("fs_created") or ""), str(item.get("fs_modified") or ""),
                      str(item.get("created_at") or now), str(item.get("updated_at") or now)),
                 )

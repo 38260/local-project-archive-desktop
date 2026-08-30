@@ -65,6 +65,7 @@ def _row_to_dict(row, *, live_check: bool = True) -> dict:
         "description": row["description"],
         "is_lost": bool(row["is_lost"]),
         "lost_reason": row["lost_reason"],
+        "pinned": bool(row["pinned"]) if "pinned" in row.keys() else False,
         "fs_created": row["fs_created"],
         "fs_modified": row["fs_modified"],
         "created_at": row["created_at"],
@@ -162,7 +163,7 @@ def list_projects():
     """
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM projects ORDER BY "
+            "SELECT * FROM projects ORDER BY pinned DESC, "
             "CASE status WHEN '进行中' THEN 0 WHEN '已完成' THEN 1 "
             "WHEN '暂停' THEN 2 WHEN '归档废弃' THEN 3 ELSE 4 END ASC, "
             "updated_at DESC"
@@ -182,7 +183,7 @@ def list_projects_brief():
     """轻量列表（仅 id/name），详情页左右切换用，不做磁盘校验。"""
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT id, name FROM projects ORDER BY "
+            "SELECT id, name FROM projects ORDER BY pinned DESC, "
             "CASE status WHEN '进行中' THEN 0 WHEN '已完成' THEN 1 "
             "WHEN '暂停' THEN 2 WHEN '归档废弃' THEN 3 ELSE 4 END ASC, "
             "updated_at DESC"
@@ -206,6 +207,17 @@ def delete_all_projects():
     logger.warning("已清空全部档案，共 %d 条记录", n)
     return {"ok": True, "deleted": n,
             "note": "仅删除档案记录与截图，原项目文件未做任何改动"}
+
+
+@router.post("/{project_id}/pin")
+def toggle_pin(project_id: int):
+    """切换置顶状态：置顶项目在列表中优先展示。"""
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+        new = 0 if row["pinned"] else 1
+        conn.execute("UPDATE projects SET pinned=?, updated_at=? WHERE id=?",
+                     (new, _now(), project_id))
+    return {"ok": True, "pinned": bool(new)}
 
 
 @router.get("/{project_id}")
