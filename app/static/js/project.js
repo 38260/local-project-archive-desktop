@@ -109,6 +109,7 @@
         launchNoteSaving: false,
         showLaunchForm: false,
         launchFormSaving: false,
+        launchBusyKey: null,    // 启动中防连点
         launchForm: { id: null, name: "", command: "", cwd: "", mode: "console" },
         // 截图
         screenshots: [],
@@ -208,10 +209,25 @@
       monthChartLabel() {
         return `${this.monthSpan === 6 ? "最近半年" : "最近一年"}按月提交柱状图，共 ${this.monthTotal} 次提交`;
       },
-      // 启动面板入口总数（自定义 + 自动检测）
+      // 启动面板入口总数（自定义 + 去重后的自动检测）
       launchEntryCount() {
         if (!this.launch) return 0;
-        return (this.launch.launchers || []).length + (this.launch.suggestions || []).length;
+        return (this.launch.launchers || []).length + this.visibleSuggestions.length;
+      },
+      // 已转存为自定义启动项的建议不再重复展示（按 mode+cwd+command 去重）
+      visibleSuggestions() {
+        if (!this.launch) return [];
+        const saved = new Set((this.launch.launchers || [])
+          .map(l => `${l.mode}|${(l.cwd || "").trim()}|${l.command.trim()}`));
+        return (this.launch.suggestions || [])
+          .filter(s => !saved.has(`${s.mode}|${(s.cwd || "").trim()}|${s.command.trim()}`));
+      },
+      // 顶栏「启动」主按钮的默认入口：自定义优先，其次自动检测第一条
+      primaryLaunchEntry() {
+        if (!this.launch || !this.launch.supported) return null;
+        return (this.launch.launchers && this.launch.launchers[0])
+          || (this.visibleSuggestions && this.visibleSuggestions[0])
+          || null;
       },
       // 左侧目录：隐藏空内容面板的锚点
       sections() {
@@ -369,11 +385,13 @@
       },
       // 执行一个入口：entry 带 id 走已保存启动项，否则按完整命令直跑（自动检测）
       async runEntry(entry) {
+        if (this.launchBusyKey) return;              // 正在启动中，忽略连点
         const modeText = entry.mode === "open" ? "直接运行" : "在新终端窗口运行";
         const cmdText = entry.command + (entry.cwd ? `\n子目录：${entry.cwd}` : "");
         if (this.launchConfirm && !await confirmDialog(
           `将${modeText}：\n${cmdText}\n\n命令来自项目内文件，运行前请确认内容。`,
           { title: `启动 · ${entry.name}`, okText: "启动" })) return;
+        this.launchBusyKey = entry.id ? `l${entry.id}` : `s${entry.command}`;
         try {
           const body = entry.id
             ? { launcher_id: entry.id }
@@ -382,6 +400,11 @@
             { method: "POST", body });
           toast(r.note || "已启动", "ok");
         } catch (e) { /* toast 已提示 */ }
+        finally { this.launchBusyKey = null; }
+      },
+      quickLaunch() {
+        if (this.primaryLaunchEntry) this.runEntry(this.primaryLaunchEntry);
+        else this.scrollTo("sec-launch");   // 没有明确入口时跳到启动面板自行选择
       },
       toggleLaunchNoteEdit() {
         this.launchNoteDraft = (this.launch && this.launch.note) || "";
