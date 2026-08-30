@@ -1,7 +1,8 @@
 """生成应用图标：纯标准库绘制 PNG，再组装成多尺寸 ICO。
 
 零第三方依赖（不装 Pillow 也能跑），供 PyInstaller 的 icon= 参数使用。
-图形沿用应用的强调色 #0969da 圆角方块 + 白色文件夹，与首页 logo 呼应。
+图形为定稿方向 A：渐变蓝圆角方块（#2f81f7→#0969da，与应用强调色呼应）+
+白色文件夹，文件夹身镂空 `</>` 代码符（透出底色），表达「开发项目档案」。
 
 用法：
   python tools/make_icon.py             # 生成 assets/app.ico
@@ -16,7 +17,8 @@ import zlib
 from pathlib import Path
 
 ACCENT = (9, 105, 218)      # --accent #0969da
-WHITE = (255, 255, 255)
+ACCENT_HI = (47, 129, 247)  # 渐变亮端 #2f81f7
+WHITE = (250, 251, 252)
 SIZES = (16, 32, 48, 64, 256)
 
 
@@ -57,6 +59,22 @@ def in_rounded_rect(x: int, y: int, w: int, h: int, r: int) -> bool:
     return dx * dx + dy * dy <= r * r
 
 
+def _dist_seg(px, py, x1, y1, x2, y2) -> float:
+    vx, vy = x2 - x1, y2 - y1
+    L = vx * vx + vy * vy or 1.0
+    t = max(0.0, min(1.0, ((px - x1) * vx + (py - y1) * vy) / L))
+    dx, dy = px - (x1 + t * vx), py - (y1 + t * vy)
+    return (dx * dx + dy * dy) ** 0.5
+
+
+def in_stroke(px, py, pts, width) -> bool:
+    """点是否落在折线笔画内（到任一线段距离 <= width/2）。"""
+    for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+        if _dist_seg(px, py, x1, y1, x2, y2) <= width / 2:
+            return True
+    return False
+
+
 def in_folder(x: int, y: int, size: int) -> bool:
     """点是否落在白色文件夹上：主体矩形 + 左上角标签凸起。"""
     fw = size * 0.54
@@ -74,6 +92,28 @@ def in_folder(x: int, y: int, size: int) -> bool:
     return False
 
 
+def in_code_glyph(x, y, size) -> bool:
+    """点是否落在 `</>` 笔画上（相对文件夹主体定位）。"""
+    fw = size * 0.54
+    fh = size * 0.38
+    fx = (size - fw) / 2
+    fy = (size - fh) / 2 + size * 0.05
+    sw = max(2.0, size * 0.035)
+    left = [(fx + 0.32 * fw, fy + 0.28 * fh), (fx + 0.18 * fw, fy + 0.52 * fh),
+            (fx + 0.32 * fw, fy + 0.76 * fh)]
+    right = [(fx + 0.68 * fw, fy + 0.28 * fh), (fx + 0.82 * fw, fy + 0.52 * fh),
+             (fx + 0.68 * fw, fy + 0.76 * fh)]
+    slash = [(fx + 0.56 * fw, fy + 0.24 * fh), (fx + 0.44 * fw, fy + 0.80 * fh)]
+    return (in_stroke(x, y, left, sw) or in_stroke(x, y, right, sw)
+            or in_stroke(x, y, slash, sw))
+
+
+def tile_color(x: int, y: int, size: int):
+    """竖向渐变：上亮下深，模拟顶光。"""
+    t = y / size
+    return tuple(int(ACCENT_HI[i] + (ACCENT[i] - ACCENT_HI[i]) * t) for i in range(3))
+
+
 def render(size: int) -> bytearray:
     buf = bytearray(size * size * 4)
     radius = max(1, round(size * 0.20))
@@ -83,7 +123,11 @@ def render(size: int) -> bytearray:
             i = row + x * 4
             if not in_rounded_rect(x, y, size, size, radius):
                 continue                       # 圆角外保持透明
-            r, g, b = WHITE if in_folder(x, y, size) else ACCENT
+            base = tile_color(x, y, size)
+            if in_folder(x, y, size) and not in_code_glyph(x, y, size):
+                r, g, b = WHITE                # 文件夹；代码符处镂空回底色
+            else:
+                r, g, b = base
             buf[i:i + 4] = bytes((r, g, b, 255))
     return buf
 
