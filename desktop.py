@@ -31,6 +31,9 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
+# 窗口/托盘统一显示名（与任务栏、告警弹窗保持一致）
+WINDOW_TITLE = "归迹拾光"
+
 
 # --------------------------------------------------------------------------
 # 日志与异常兜底
@@ -338,9 +341,71 @@ def open_browser_window(url: str, server) -> None:
         server.should_exit = True
 
 
+def set_app_identity() -> None:
+    """注册独立 AppUserModelID：任务栏把本进程当独立应用，而不是挂在 python.exe 下。"""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        # 裸字符串会与全局 .ico 路径无关联，但必须与打包快捷方式的 AUMID 一致才完全生效
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("GuijiShiguang.LocalProjectArchive")
+    except Exception:
+        pass
+
+
+def apply_window_icon(logger):
+    """给窗口换上应用图标。
+
+    开发模式下宿主是 python.exe（Anaconda 发行版），任务栏/标题栏会显示
+    Jupyter 风格的 Python 默认图标；打包 exe 自带图标无此问题。这里用
+    WM_SETICON 直接把 assets/app.ico 设给窗口，两端一致。
+    """
+    if os.name != "nt":
+        return
+
+    def _apply(title):
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            hwnd = user32.FindWindowW(None, title)
+            if not hwnd:
+                return False
+            from app.config import BASE_DIR
+            icon_file = str(BASE_DIR / "assets" / "app.ico")
+            if not os.path.exists(icon_file):
+                return False
+            IMAGE_ICON, LR_LOADFROMFILE = 1, 0x10
+            WM_SETICON, ICON_SMALL, ICON_BIG = 0x80, 0, 1
+            hicon = user32.LoadImageW(None, icon_file, IMAGE_ICON, 0, 0,
+                                      LR_LOADFROMFILE | 0x40)  # 0x40=LR_DEFAULTSIZE
+            if not hicon:
+                return False
+            user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, hicon)
+            user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, hicon)
+            logger.info("窗口图标已设置")
+            return True
+        except Exception as exc:
+            logger.warning("设置窗口图标失败：%s", exc)
+            return False
+
+    # 窗口显示后再设（句柄在创建后才稳定）；标题即窗口名
+    def _on_shown(*_args):
+        import threading
+        threading.Timer(0.5, lambda: _apply(WINDOW_TITLE)).start()
+
+    _apply(WINDOW_TITLE)          # 先试一次（多数情况窗口已就绪）
+    try:
+        import webview
+        for w in webview.windows:
+            w.events.shown += _on_shown
+    except Exception:
+        pass
+
+
 def main() -> int:
     import argparse
 
+    set_app_identity()
     parser = argparse.ArgumentParser(description="归迹拾光管理系统（桌面模式）")
     parser.add_argument("--port", type=int, default=0, help="指定端口（默认自动挑选）")
     parser.add_argument("--browser", action="store_true", help="用系统浏览器打开")
@@ -401,14 +466,17 @@ def main() -> int:
     start_hidden = tray_enabled and _setting_true("app.start_minimized")
 
     window = webview.create_window(
-        "归迹拾光", url, width=width, height=height, min_size=(1024, 700),
+        WINDOW_TITLE, url, width=width, height=height, min_size=(1024, 700),
         hidden=start_hidden, **pos_kwargs)
     if window is None:
         # 极少数环境下创建窗口会返回 None，不能让用户干等
         logger.error("pywebview 创建窗口失败，回退到系统浏览器")
-        alert("归迹拾光", "无法创建应用窗口，已改用浏览器打开。")
+        alert(WINDOW_TITLE, "无法创建应用窗口，已改用浏览器打开。")
         open_browser_window(url, server)
         return 0
+
+    # 任务栏/标题栏图标：开发模式宿主是 python.exe，不设会显示 Jupyter 风格默认图标
+    apply_window_icon(logger)
 
     tray_icon = start_tray(window, server, logger) if tray_enabled else None
 
