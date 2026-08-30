@@ -12,13 +12,16 @@ from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
-from app.config import DATA_DIR, STATUS_VALUES
+from app.config import (
+    DATA_DIR, LAUNCHERS_MAX_PER_PROJECT, STATUS_VALUES,
+)
 from app.db import get_db
 from app.models import (
-    ChangelogCreate, ChangelogUpdate, NoteCreate, NoteUpdate, OpenRequest,
+    ChangelogCreate, ChangelogUpdate, LaunchNoteUpdate, LaunchRequest,
+    LauncherCreate, LauncherUpdate, NoteCreate, NoteUpdate, OpenRequest,
     ProjectCreate, ProjectUpdate,
 )
-from app.services import gitinfo, parser, settings_store
+from app.services import gitinfo, launcher as launcher_service, parser, settings_store
 from app.services.paths import (
     PathError, basename, dir_not_exists_hint, is_wsl_path, normalize_input_path,
 )
@@ -515,6 +518,210 @@ def open_project(project_id: int, body: OpenRequest):
     except OSError as exc:
         raise HTTPException(502, f"无法启动「{editor_cmd}」：{exc}")
     return {"ok": True, "target": "editor"}
+
+
+# ---------------------------------------------------------------------------
+# 快速启动：入口检测 / 说明 / 自定义启动项 / 执行
+# ---------------------------------------------------------------------------
+
+def _clean_launch_command(cmd: str) -> str:
+    """命令串基础防御：非空、无换行（防拼接注入）、长度受限。"""
+    cmd = (cmd or "").strip()
+    if not cmd:
+        raise HTTPException(422, "启动命令不能为空")
+    if "\n" in cmd or "\r" in cmd:
+        raise HTTPException(422, "启动命令不能包含换行符")
+    if len(cmd) > 500:
+        raise HTTPException(422, "启动命令过长（上限 500 字符）")
+    return cmd
+
+
+def _resolve_launch_cwd(project_path: str, cwd: str) -> str:
+    """启动子目录必须是项目内的相对路径；越界（.. 逃逸/绝对路径）一律拒绝。"""
+    cwd = (cwd or "").strip()
+    if not cwd:
+        return project_path
+    if os.path.isabs(cwd) or (len(cwd) > 1 and cwd[1] == ":") or cwd.startswith("~"):
+        raise HTTPException(422, "子目录必须是项目内的相对路径")
+    full = os.path.normpath(os.path.join(project_path, cwd))
+    base = os.path.normpath(project_path)
+    if full != base and not full.startswith(base + os.sep):
+        raise HTTPException(422, "子目录越出了项目范围")
+    if not os.path.isdir(full):
+        raise HTTPException(409, f"子目录不存在：{cwd}")
+    return full
+
+
+def _launchers_row_dict(r) -> dict:
+    return {"id": r["id"], "name": r["name"], "command": r["command"],
+            "cwd": r["cwd"], "mode": r["mode"], "sort": r["sort"],
+            "created_at": r["created_at"], "updated_at": r["updated_at"]}
+
+
+@router.get("/{project_id}/launch")
+def get_launch(project_id: int):
+    """启动面板数据：说明（服务端渲染 HTML）+ 自动检测建议 + 自定义启动项。
+
+    检测按需进行（打开面板时才扫），漏斗式：先找项目内可执行文件，
+    一个没有才做构建配置推断；任何检测失败都降级为空建议。
+    """
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+        rows = conn.execute(
+            "SELECT * FROM launchers WHERE project_id=? ORDER BY sort, id",
+            (project_id,)).fetchall()
+    path = row["path"]
+    if not os.path.isdir(path):
+        raise HTTPException(409, dir_not_exists_hint(path))
+    # 一键启动依赖 Windows Shell；UNC 形式的 WSL 路径在 Windows 侧跑不了脚本
+    supported = os.name == "nt" and not is_wsl_path(path)
+    if supported:
+        result = launcher_service.detect_launchers(path)
+        suggestions, kind = result["items"], result["kind"]
+    else:
+        suggestions, kind = [], "none"
+    return {
+        "note": row["launch_note"] or "",
+        "note_html": render_markdown(row["launch_note"] or "", mode="notes"),
+        "supported": supported,
+        "detect_kind": kind,
+        "suggestions": suggestions,
+        "launchers": [_launchers_row_dict(r) for r in rows],
+    }
+
+
+@router.put("/{project_id}/launch-note")
+def update_launch_note(project_id: int, body: LaunchNoteUpdate):
+    """保存启动说明（Markdown），返回更新后的渲染 HTML。"""
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+        conn.execute("UPDATE projects SET launch_note=?, updated_at=? WHERE id=?",
+                     (body.note, _now(), project_id))
+    return {"ok": True, "note": body.note,
+            "note_html": render_markdown(body.note, mode="notes")}
+
+
+def _validate_launcher_payload(body: LauncherCreate, project_path: str) -> str:
+    """自定义启动项的保存校验：命令防御 + cwd 越界检查（提前失败，别等执行时）。"""
+    command = _clean_launch_command(body.command)
+    cwd = (body.cwd or "").strip()
+    if not cwd:
+        return command
+    if os.path.isabs(cwd) or (len(cwd) > 1 and cwd[1] == ":") or cwd.startswith("~"):
+        raise HTTPException(422, "子目录必须是项目内的相对路径")
+    full = os.path.normpath(os.path.join(project_path, cwd))
+    base = os.path.normpath(project_path)
+    if full != base and not full.startswith(base + os.sep):
+        raise HTTPException(422, "子目录越出了项目范围")
+    return command
+
+
+@router.post("/{project_id}/launchers")
+def create_launcher(project_id: int, body: LauncherCreate):
+    """新增自定义启动项（自动检测的建议经「转存」后也走这里落库）。"""
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+    command = _validate_launcher_payload(body, row["path"])
+    with get_db() as conn:
+        n = conn.execute("SELECT COUNT(*) FROM launchers WHERE project_id=?",
+                         (project_id,)).fetchone()[0]
+        if n >= LAUNCHERS_MAX_PER_PROJECT:
+            raise HTTPException(409, f"每个项目最多 {LAUNCHERS_MAX_PER_PROJECT} 个启动项")
+        nxt = conn.execute(
+            "SELECT COALESCE(MAX(sort), 0) + 1 FROM launchers WHERE project_id=?",
+            (project_id,)).fetchone()[0]
+        cur = conn.execute(
+            "INSERT INTO launchers (project_id, name, command, cwd, mode, sort, "
+            "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+            (project_id, body.name.strip(), command, body.cwd.strip(), body.mode,
+             nxt, _now(), _now()))
+        row = conn.execute("SELECT * FROM launchers WHERE id=?",
+                           (cur.lastrowid,)).fetchone()
+    return _launchers_row_dict(row)
+
+
+@router.put("/{project_id}/launchers/{launcher_id}")
+def update_launcher(project_id: int, launcher_id: int, body: LauncherUpdate):
+    """编辑自定义启动项。"""
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+    command = _validate_launcher_payload(body, row["path"])
+    with get_db() as conn:
+        row = conn.execute("SELECT id FROM launchers WHERE id=? AND project_id=?",
+                           (launcher_id, project_id)).fetchone()
+        if row is None:
+            raise HTTPException(404, "启动项不存在")
+        conn.execute(
+            "UPDATE launchers SET name=?, command=?, cwd=?, mode=?, updated_at=? WHERE id=?",
+            (body.name.strip(), command, body.cwd.strip(), body.mode, _now(), launcher_id))
+        row = conn.execute("SELECT * FROM launchers WHERE id=?",
+                           (launcher_id,)).fetchone()
+    return _launchers_row_dict(row)
+
+
+@router.delete("/{project_id}/launchers/{launcher_id}")
+def delete_launcher(project_id: int, launcher_id: int):
+    """删除自定义启动项。"""
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM launchers WHERE id=? AND project_id=?",
+                           (launcher_id, project_id))
+        if cur.rowcount == 0:
+            raise HTTPException(404, "启动项不存在")
+    return {"ok": True, "deleted": launcher_id}
+
+
+@router.post("/{project_id}/launch")
+def launch_project(project_id: int, body: LaunchRequest):
+    """执行启动。两种模式：
+    - open：直接运行（os.startfile，双击等效）——命令须指向已存在的文件；
+    - console：新开终端窗口运行命令（CREATE_NEW_CONSOLE），日志可见、Ctrl+C 可停。
+
+    安全约束：绝不自动执行（前端确认后才调用）；命令无换行；
+    cwd 不得越出项目目录；WSL/UNC 路径项目不支持。
+    """
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+    path = row["path"]
+    if os.name != "nt" or is_wsl_path(path):
+        raise HTTPException(400, "当前环境不支持一键启动（仅 Windows 本地路径可用）")
+    if not os.path.isdir(path):
+        raise HTTPException(409, dir_not_exists_hint(path))
+
+    if body.launcher_id is not None:
+        with get_db() as conn:
+            l = conn.execute("SELECT * FROM launchers WHERE id=? AND project_id=?",
+                             (body.launcher_id, project_id)).fetchone()
+        if l is None:
+            raise HTTPException(404, "启动项不存在")
+        command, mode, cwd = l["command"], l["mode"], l["cwd"]
+    else:
+        command, mode, cwd = body.command or "", body.mode or "console", body.cwd or ""
+    command = _clean_launch_command(command)
+    workdir = _resolve_launch_cwd(path, cwd)
+
+    try:
+        if mode == "open":
+            # 双击等效：目标必须是已存在的文件（bat/cmd/exe 等）
+            if not os.path.isabs(command):
+                command = os.path.normpath(os.path.join(path, command))
+            if not os.path.isfile(command):
+                raise HTTPException(
+                    400, f"直接运行的目标文件不存在：{command}\n"
+                         "「直接运行」需要可执行文件的完整路径。")
+            os.startfile(command)  # noqa: S606 与资源管理器双击行为一致
+            return {"ok": True, "mode": "open",
+                    "note": "已直接运行（与资源管理器双击等效）"}
+        # console：新终端窗口跑命令；窗口由用户关闭或 Ctrl+C 停止
+        proc = subprocess.Popen(  # noqa: S603 本地工具，用户确认后执行
+            ["cmd", "/k", command], cwd=workdir,
+            creationflags=subprocess.CREATE_NEW_CONSOLE)
+        logger.info("项目 %s 启动命令已执行（pid=%s）：%s", project_id, proc.pid, command)
+        return {"ok": True, "mode": "console", "pid": proc.pid,
+                "note": "已在新终端窗口启动；关闭窗口或 Ctrl+C 即停止"}
+    except HTTPException:
+        raise
+    except OSError as exc:
+        raise HTTPException(502, f"启动失败：{exc}")
 
 
 # ---------------------------------------------------------------------------

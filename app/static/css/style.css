@@ -1104,6 +1104,42 @@ body.modal-open { overflow: hidden; }
 .mb-col.current .mb-label { color: var(--accent); font-weight: 600; }
 /* 暗色下柱体稍提亮，与面板底色保持对比 */
 [data-theme="dark"] .mb-bar { opacity: .82; }
+
+/* ---- 快速启动面板 ---- */
+.launch-note { padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); margin-bottom: var(--s-3); }
+.launch-note .md-body { font-size: 14px; }
+.launch-note-edit textarea {
+  width: 100%; padding: 9px 12px; font: inherit; font-family: var(--mono);
+  font-size: 13px; line-height: 1.6; border: 1px solid var(--border);
+  border-radius: var(--r-sm); background: var(--panel-2); color: var(--text);
+  resize: vertical;
+}
+.launch-note-edit textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.launch-note-actions { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-2); }
+.launch-group-label { font-size: 13px; font-weight: 600; color: var(--text); margin: var(--s-3) 0 var(--s-2); }
+.launch-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.launch-entry { display: flex; align-items: stretch; gap: 4px; }
+.launch-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--panel-2); color: var(--text); cursor: pointer; text-align: left;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.launch-btn:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.launch-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lb-ico { color: var(--accent); flex: none; }
+.lb-body { min-width: 0; }
+.lb-body b { display: block; font-size: 14px; }
+.lb-cmd {
+  display: block; margin-top: 2px; font-family: var(--mono); font-size: 11.5px;
+  color: var(--muted); max-width: 320px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.lb-tag {
+  margin-left: 6px; font-size: 10px; font-weight: 600; color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; vertical-align: 1px;
+}
+.lb-ops { display: flex; flex-direction: column; justify-content: center; gap: 2px; }
 /* P1-10：按提交类型筛选 */
 .commit-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .tfilter {

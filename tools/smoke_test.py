@@ -305,6 +305,35 @@ def main():
               and "开发笔记" in html_text and "踩坑" in html_text
               and "变更日志" in html_text)
 
+
+        # ---- 快速启动 ----
+        # p1 是 Node 项目（node 目录）：放入 start.bat 后应命中「直接可执行」漏斗层
+        bat_path = os.path.join(node, "start.bat")
+        with open(bat_path, "w", encoding="utf-8") as f:
+            f.write("@echo off" + chr(13) + chr(10) + "echo demo")
+        st, l = req("GET", f"/api/projects/{p1['id']}/launch")
+        check("启动面板数据", st == 200 and "note_html" in l and "suggestions" in l)
+        check("检测到 start.bat 直启入口",
+              l["detect_kind"] == "direct"
+              and any(i["source"] == "start.bat" for i in l["suggestions"]))
+        st, _ = req("PUT", f"/api/projects/{p1['id']}/launch-note", {"note": "先起后端再起前端"})
+        st, l2 = req("GET", f"/api/projects/{p1['id']}/launch")
+        check("启动说明保存并渲染", st == 200 and "先起后端" in l2["note"] and "先起后端" in l2["note_html"])
+        st, lc = req("POST", f"/api/projects/{p1['id']}/launchers",
+                     {"name": "启动后端", "command": "python main.py", "mode": "console"})
+        check("添加自定义启动项", st == 200 and lc.get("id"))
+        st, _ = req("POST", f"/api/projects/{p1['id']}/launchers",
+                    {"name": "坏命令", "command": "echo a" + chr(10) + "b"})
+        check("命令含换行被拒绝", st == 422)
+        st, _ = req("POST", f"/api/projects/{p1['id']}/launchers",
+                    {"name": "越界", "command": "echo hi", "cwd": ".."})
+        check("子目录越界被拒绝", st == 422)
+        st, _ = req("POST", f"/api/projects/{p1['id']}/launch",
+                    {"command": "D:/__not_exist__/x.exe", "mode": "open"})
+        check("直接运行目标不存在返回 400", st == 400)
+        st, _ = req("DELETE", f"/api/projects/{p1['id']}/launchers/{lc['id']}")
+        check("删除自定义启动项", st == 200)
+        os.remove(bat_path)
         # ---- 列表与统计 ----
         st, lst = req("GET", "/api/projects")
         check("列表统计 total>=3", lst["stats"]["total"] >= 3)

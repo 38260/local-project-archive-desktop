@@ -338,6 +338,17 @@
                   <span class="switch-slider"></span>
                 </label>
               </div>
+              <div class="setting-row" style="margin-top:10px">
+                <div>
+                  <span class="setting-title">启动前确认</span>
+                  <span class="setting-desc">点击「启动」按钮时先弹窗展示将运行的命令，确认后才执行（建议开启）</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" v-model="prefs['launch.confirm']"
+                         @change="savePref('launch.confirm')" aria-label="启动前确认">
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
             </div>
           </div>
 

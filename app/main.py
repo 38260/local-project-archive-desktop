@@ -181,8 +181,17 @@ def export_all():
                 "auto_meta": json.loads(r["auto_meta"] or "{}"),
                 "is_lost": bool(r["is_lost"]), "lost_reason": r["lost_reason"],
                 "pinned": bool(r["pinned"]) if "pinned" in r.keys() else False,
+                "launch_note": r["launch_note"] if "launch_note" in r.keys() else "",
                 "fs_created": r["fs_created"], "fs_modified": r["fs_modified"],
                 "created_at": r["created_at"], "updated_at": r["updated_at"],
+                "launchers": [
+                    {"name": l["name"], "command": l["command"], "cwd": l["cwd"],
+                     "mode": l["mode"], "sort": l["sort"], "created_at": l["created_at"],
+                     "updated_at": l["updated_at"]}
+                    for l in conn.execute(
+                        "SELECT * FROM launchers WHERE project_id=? ORDER BY sort, id",
+                        (r["id"],)).fetchall()
+                ],
                 "notes": [
                     {"content": n["content"], "created_at": n["created_at"],
                      "updated_at": n["updated_at"]}
@@ -246,8 +255,9 @@ def import_backup(payload: dict):
             try:
                 cur = conn.execute(
                     "INSERT INTO projects (path, name, alias, category, status, tags, "
-                    "description, auto_meta, is_lost, lost_reason, pinned, fs_created, "
-                    "fs_modified, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "description, auto_meta, is_lost, lost_reason, pinned, launch_note, "
+                    "fs_created, fs_modified, created_at, updated_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (path, name,
                      str(item.get("alias") or ""), str(item.get("category") or ""),
                      status,
@@ -257,6 +267,7 @@ def import_backup(payload: dict):
                      1 if item.get("is_lost") else 0,
                      str(item.get("lost_reason") or ""),
                      1 if item.get("pinned") else 0,
+                     str(item.get("launch_note") or ""),
                      str(item.get("fs_created") or ""), str(item.get("fs_modified") or ""),
                      str(item.get("created_at") or now), str(item.get("updated_at") or now)),
                 )
@@ -276,9 +287,20 @@ def import_backup(payload: dict):
                     conn.execute(
                         "INSERT INTO changelogs (project_id, title, content, entry_date, "
                         "created_at, updated_at) VALUES (?,?,?,?,?,?)",
-                        (pid, str(c.get("title") or ""), str(c["content"]),
+                        (pid, str(c.get("title") or ""), c["content"],
                          str(c.get("entry_date") or ""),
                          str(c.get("created_at") or now), str(c.get("updated_at") or now)))
+            # 自定义启动项随项目恢复；命令为空或非法 mode 的条目兜底处理
+            for l in item.get("launchers") or []:
+                if isinstance(l, dict) and str(l.get("command") or "").strip():
+                    conn.execute(
+                        "INSERT INTO launchers (project_id, name, command, cwd, mode, "
+                        "sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+                        (pid, str(l.get("name") or "启动"), str(l["command"]).strip(),
+                         str(l.get("cwd") or ""),
+                         l.get("mode") if l.get("mode") in ("console", "open") else "console",
+                         int(l.get("sort") or 0),
+                         str(l.get("created_at") or now), str(l.get("updated_at") or now)))
             existing.add(path.lower())
             imported += 1
     return {"imported": imported, "skipped": skipped, "failed": failed}
