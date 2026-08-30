@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="本地项目档案", version=APP_VERSION, docs_url="/api/docs",
+app = FastAPI(title="归迹拾光", version=APP_VERSION, docs_url="/api/docs",
               lifespan=lifespan)
 
 init_db()

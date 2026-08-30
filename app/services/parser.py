@@ -396,10 +396,10 @@ def render_readme_file(readme_path: str) -> dict:
         with open(readme_path, encoding="utf-8-sig", errors="replace") as f:
             text = f.read(512 * 1024)  # 最大 512KB，避免异常超大文件
         return {"file": os.path.basename(readme_path), "exists": True,
-                "html": render_markdown(text, mode="readme")}
+                "html": render_markdown(text, mode="readme"), "raw": text}
     except OSError as exc:
         return {"file": os.path.basename(readme_path), "exists": False,
-                "error": f"README 读取失败：{exc}", "html": ""}
+                "error": f"README 读取失败：{exc}", "html": "", "raw": ""}
 
 
 # ---------------------------------------------------------------------------

@@ -93,9 +93,12 @@
         commitData: null,
         commitLoading: true,
         commitLoadingMore: false,
-        commitLimit: 50,
+        commitLimit: 50,        // 初始加载量，被设置 commits.limit 覆盖
         commitTypeFilter: "",
         expandedCommits: [],
+        // GitHub 风格贡献热力图
+        heat: null,             // 后端 /heatmap 原始数据
+        heatWeeks: 53,          // 展示周数，被设置 ui.heatmap_weeks 覆盖
         // 截图
         screenshots: [],
         previewShot: null,
@@ -110,6 +113,11 @@
         // 左侧锚点目录（sections 已改为计算属性，空面板自动隐藏）
         activeSection: "sec-info",
         spySuspendedUntil: 0,
+        // 目录树分组的折叠状态（记忆在 localStorage，默认全部展开）
+        tocCollapsed: (() => {
+          try { return JSON.parse(localStorage.getItem("lpa-toc-collapsed") || "[]"); }
+          catch (e) { return []; }
+        })(),
       };
     },
     computed: {
@@ -153,30 +161,50 @@
         if (langs) b.push({ icon: "layers", label: "语言", val: langs });
         return b;
       },
-      // 近 12 周提交热力格（基于已加载提交）
-      // 按周一对齐：含本周在内共 12 列×7 行，覆盖到本周日（一定包含今天）
-      heatmap() {
-        if (!this.commitData || !this.commitData.commits.length) return [];
-        const days = {};
-        for (const c of this.commitData.commits) {
-          days[c.date.slice(0, 10)] = (days[c.date.slice(0, 10)] || 0) + 1;
-        }
-        const cells = [];
+      // GitHub 风格贡献热力图：列=周（周日起始），行=周日…周六，未来日期留空对齐
+      heatGrid() {
+        if (!this.heat || !this.heat.is_repo) return null;
+        const days = this.heat.days || {};
+        const weeks = this.heatWeeks;
         const now = new Date();
-        const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-        const mondayOffset = (now.getDay() + 6) % 7; // 距本周一的天数
-        // 用本地年月日构造，避免时区把日期拨到前一天
-        const start = new Date(now.getFullYear(), now.getMonth(),
-                               now.getDate() - mondayOffset - 7 * 11);
-        for (let i = 0; i < 84; i++) {
-          const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-          const n = days[key] || 0;
-          cells.push({ key: key + i, count: n, today: key === todayKey,
-                       level: n === 0 ? 0 : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 3 : 4,
-                       label: `${key}：${n} 次提交` });
+        const key = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const todayKey = key(now);
+        // 网格最后一天 = 本周周日；起点 = weeks 周前的周日
+        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - now.getDay()) % 7);
+        const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 7 * weeks + 1);
+        const cols = [];
+        const monthMarks = [];
+        let lastMonth = -1;
+        for (let w = 0; w < weeks; w++) {
+          const col = [];
+          for (let r = 0; r < 7; r++) {
+            const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + r);
+            if (d > end) { col.push(null); continue; }
+            const k = key(d);
+            const n = days[k] || 0;
+            col.push({
+              key: k + "_" + r, date: k, n,
+              level: n === 0 ? 0 : n <= 2 ? 1 : n <= 5 ? 2 : n <= 9 ? 3 : 4,
+              today: k === todayKey,
+              label: `${k}：${n} 次提交`,
+            });
+          }
+          // 月份标签取该列周四（row=4），换月即标记；含未来日期的未满列不标
+          if (!col.includes(null)) {
+            const mid = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + 4);
+            if (mid.getMonth() !== lastMonth) {
+              monthMarks.push({ col: w, label: `${mid.getMonth() + 1}月` });
+              lastMonth = mid.getMonth();
+            }
+          }
+          cols.push(col);
         }
-        return cells;
+        return {
+          cols, monthMarks,
+          total: this.heat.total || 0,
+          start, end,
+          dayLabels: [{ row: 1, l: "一" }, { row: 3, l: "三" }, { row: 5, l: "五" }],
+        };
       },
       // 左侧目录：隐藏空内容面板的锚点
       sections() {
@@ -193,6 +221,22 @@
           { id: "sec-readme", label: "README", hide: !(this.readme && this.readme.exists) },
         ];
         return list.filter(x => !x.hide);
+      },
+      // 目录树分组：条目沿用 sections 的空面板过滤，空组整组隐藏
+      sectionGroups() {
+        const byId = {};
+        for (const s of this.sections) byId[s.id] = s.label;
+        const pick = ids => ids.filter(id => byId[id]).map(id => ({ id, label: byId[id] }));
+        return [
+          { id: "g-overview", icon: "folder", label: "概览",
+            items: pick(["sec-info", "sec-git"]) },
+          { id: "g-build", icon: "package", label: "构建与统计",
+            items: pick(["sec-configs", "sec-stats"]) },
+          { id: "g-records", icon: "file-text", label: "内容记录",
+            items: pick(["sec-desc", "sec-notes", "sec-changelogs", "sec-commits"]) },
+          { id: "g-attach", icon: "image", label: "附件",
+            items: pick(["sec-shots", "sec-readme"]) },
+        ].filter(g => g.items.length);
       },
       // 依赖版本统计：固定(== / @精确版本) / 范围(^ ~ > <) / 未标注
       depStats() {
@@ -272,6 +316,10 @@
       },
     },
     methods: {
+      // 复制 README 原文（Markdown 源码）；正文本身可自由拖选复制
+      async copyReadme() {
+        if (this.readme && this.readme.raw) await this.copyText(this.readme.raw);
+      },
       async load() {
         try {
           const p = await api(`/api/projects/${this.projectId}`);
@@ -286,10 +334,32 @@
           this.loadTree();
           this.loadNotes();
           this.loadChangelogs();
-          this.loadCommits();
           this.loadShots();
+          // 先拿设置（决定提交记录加载数），再加载提交与热力图
+          await this.loadPrefs();
+          this.loadCommits();
         } catch (e) {
           if (e.status === 404) this.notFound = true;
+        }
+      },
+      // 读取通用设置：提交记录加载数 / 热力图范围（设置里改了立即生效于下次加载）
+      async loadPrefs() {
+        try {
+          const s = await api("/api/settings", { silent: true });
+          if (s) {
+            if (s["commits.limit"]) this.commitLimit = Number(s["commits.limit"]) || 200;
+            if (s["ui.heatmap_weeks"]) this.heatWeeks = Number(s["ui.heatmap_weeks"]) || 53;
+          }
+        } catch (e) { /* 设置读取失败不影响详情页 */ }
+        this.loadHeatmap();
+      },
+      // GitHub 风格热力图：独立接口，全量按天聚合（不受提交记录条数上限影响）
+      async loadHeatmap() {
+        try {
+          this.heat = await api(
+            `/api/projects/${this.projectId}/heatmap?weeks=${this.heatWeeks}`, { silent: true });
+        } catch (e) {
+          this.heat = null;
         }
       },
       // 描述：同步基线（用于脏标记），并尝试恢复上次未保存草稿
@@ -520,6 +590,13 @@
       toggleTree() {
         this.treeCollapsed = !this.treeCollapsed;
         localStorage.setItem("lpa-tree-collapsed", this.treeCollapsed ? "1" : "0");
+      },
+      // 目录树分组折叠（跨项目记忆展开偏好）
+      toggleGroup(id) {
+        const i = this.tocCollapsed.indexOf(id);
+        if (i >= 0) this.tocCollapsed.splice(i, 1);
+        else this.tocCollapsed.push(id);
+        localStorage.setItem("lpa-toc-collapsed", JSON.stringify(this.tocCollapsed));
       },
       toggleCommit(hash) {
         const i = this.expandedCommits.indexOf(hash);

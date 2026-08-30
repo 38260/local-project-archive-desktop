@@ -35,6 +35,11 @@ DEFAULTS: dict = {
     "add.default_category": "",
     # 列表偏好
     "ui.show_archived_default": False,
+    # 详情页
+    "commits.limit": 200,            # 提交记录单次加载数（后端上限 200）
+    "ui.heatmap_weeks": 53,          # 提交热力图范围（26=半年 / 53=一年）
+    # 导出
+    "export.html_include_notes": True,  # 导出 HTML 是否包含笔记与变更日志
     # 桌面行为
     "app.start_minimized": False,    # 自启动/启动时不弹窗口（配合托盘）
     "tray.close_to_tray": False,     # 关闭按钮最小化到托盘而不是退出
