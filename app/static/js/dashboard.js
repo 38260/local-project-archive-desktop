@@ -245,7 +245,14 @@
         }
         try {
           const dir = await bridge.select_folder();
-          if (dir) this[target] = dir;
+          if (!dir) return;
+          // target 支持 "form.path" 这类点路径：逐层定位后再赋值
+          // （this["form.path"] = dir 只会创建同名新属性，输入框不会更新）
+          const seg = target.split(".");
+          const leaf = seg.pop();
+          let obj = this;
+          for (const s of seg) obj = obj[s];
+          obj[leaf] = dir;
         } catch (e) {
           toast("选择文件夹失败：" + (e.message || e), "error");
         }
