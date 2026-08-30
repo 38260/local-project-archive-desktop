@@ -8,6 +8,7 @@ import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
@@ -512,13 +513,17 @@ def open_project(project_id: int, body: OpenRequest):
 # ---------------------------------------------------------------------------
 
 @router.get("/{project_id}/commits")
-def get_commits(project_id: int, limit: int = Query(50, ge=1, le=200)):
-    """读取最近 git 提交记录，供前端时间线与简易统计展示。"""
+def get_commits(project_id: int, limit: int = Query(50, ge=1, le=200),
+                date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$")):
+    """读取最近 git 提交记录，供前端时间线与简易统计展示。
+
+    date 传 "YYYY-MM-DD" 时只返回当天提交（热力图点击查看用）。
+    """
     with get_db() as conn:
         row = _get_row_or_404(conn, project_id)
     if not os.path.isdir(row["path"]):
         raise HTTPException(409, dir_not_exists_hint(row["path"]))
-    return gitinfo.collect_commit_log(row["path"], limit=limit)
+    return gitinfo.collect_commit_log(row["path"], limit=limit, date=date)
 
 
 @router.get("/{project_id}/heatmap")
