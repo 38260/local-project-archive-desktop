@@ -19,6 +19,7 @@
         appVersion: "",
         appPort: "",
         rescanningAll: false,
+        rescanProgress: { done: 0, total: 0, ok: 0, failed: [] },
         projects: [],
         stats: { total: 0, active: 0, archived: 0, lost: 0 },
         statuses: [],
@@ -200,18 +201,35 @@
         } catch (e) { /* toast 已提示 */ }
       },
       exportJson() { location.href = "/api/export"; },
-      // 用后端批量接口一次性解析（内部线程池并发），避免串行 N 次请求
+      // 后台任务 + 轮询进度，避免一个长请求卡住界面
       async rescanAll() {
         if (!this.projects.length) { toast("暂无项目可解析", "error"); return; }
         if (!confirm(`用最新解析器重新解析全部 ${this.projects.length} 个项目？\n\n已有标签会保留，新识别的技术栈会补充进来。`)) return;
         this.rescanningAll = true;
+        this.rescanProgress = { done: 0, total: this.projects.length, ok: 0, failed: [] };
         try {
           const r = await api("/api/projects/rescan-all", { method: "POST" });
-          let msg = `已重新解析 ${r.rescanned} 个项目`;
-          if (r.failed.length) {
-            msg += `，${r.failed.length} 个失败：${r.failed[0].name}（${r.failed[0].reason}）`;
+          if (r.started === false) {
+            toast("已有重新解析任务在进行中", "error");
+            this.rescanningAll = false;
+            return;
           }
-          toast(msg, r.failed.length ? "error" : "ok");
+          this.pollRescan();
+        } catch (e) { this.rescanningAll = false; }
+      },
+      async pollRescan() {
+        try {
+          const p = await api("/api/projects/rescan-all/progress", { silent: true });
+          this.rescanProgress = p;
+          if (p.running) {
+            setTimeout(() => this.pollRescan(), 800);
+            return;
+          }
+          let msg = `已重新解析 ${p.ok} 个项目`;
+          if (p.failed && p.failed.length) {
+            msg += `，${p.failed.length} 个失败：${p.failed[0].name}（${p.failed[0].reason}）`;
+          }
+          toast(msg, p.failed && p.failed.length ? "error" : "ok");
           this.load();
         } catch (e) { /* toast 已提示 */ }
         finally { this.rescanningAll = false; }
