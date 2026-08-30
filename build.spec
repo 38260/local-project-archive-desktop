@@ -34,6 +34,10 @@ hiddenimports = [
     # ---- pywebview 与 Windows 后端（pythonnet / clr）----
     "webview",
     "clr",
+    # ---- 系统托盘 ----
+    "pystray",
+    "pystray._win32",
+    "PIL",
 ]
 
 # 随包分发的只读资源（运行期通过 sys._MEIPASS 访问）
