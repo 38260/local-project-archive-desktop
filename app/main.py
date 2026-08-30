@@ -105,6 +105,23 @@ def health(request: Request):
             "data_path": str(DB_PATH), "port": request.url.port}
 
 
+@app.post("/api/show-window")
+def show_window():
+    """唤出桌面主窗口（仅桌面模式有效）。
+
+    二次启动的实例通过此接口把收进托盘/静默隐藏的窗口唤出来，
+    避免用户「程序在运行却找不到窗口」。浏览器模式无窗口，返回 ok=False。
+    """
+    w = getattr(app.state, "main_window", None)
+    if w is None:
+        return {"ok": False, "reason": "browser-mode"}
+    try:
+        w.show()
+        return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(500, f"唤出窗口失败：{exc}")
+
+
 @app.get("/api/heatmap")
 def heatmap_all(weeks: int = Query(53, ge=8, le=104)):
     """全部 git 项目的按天提交聚合（首页总热力图）。
