@@ -194,7 +194,7 @@ def main():
         check("更新描述/状态/标签", st == 200 and up["status"] == "已完成" and up["tags"] == ["手动标签"])
         st, p2 = req("GET", f"/api/projects/{p1['id']}")
         check("描述已持久化", notes in p2["description"])
-        check("详情返回状态选项列表", st == 200 and p2.get("statuses") == ["进行中", "已完成", "暂停", "归档废弃"])
+        check("详情返回状态选项列表", st == 200 and p2.get("statuses") == ["进行中", "已完成", "暂停", "归档", "废弃"])
 
         # ---- 自定义开发笔记 ----
         st, note_a = req("POST", f"/api/projects/{p1['id']}/notes",
@@ -308,9 +308,9 @@ def main():
         # ---- 列表与统计 ----
         st, lst = req("GET", "/api/projects")
         check("列表统计 total>=3", lst["stats"]["total"] >= 3)
-        # 状态排序：进行中 → 已完成 → 暂停 → 归档废弃
-        prio = {"进行中": 0, "已完成": 1, "暂停": 2, "归档废弃": 3}
-        seq = [prio.get(p["status"], 4) for p in lst["projects"]]
+        # 状态排序：进行中 → 已完成 → 暂停 → 归档 → 废弃
+        prio = {"进行中": 0, "已完成": 1, "暂停": 2, "归档": 3, "废弃": 4}
+        seq = [prio.get(p["status"], 5) for p in lst["projects"]]
         check("列表按状态优先级排序", seq == sorted(seq), f"实际顺序 {seq}")
 
         # ---- 丢失项目检测与路径更新 ----

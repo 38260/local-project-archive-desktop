@@ -235,7 +235,14 @@ def import_backup(payload: dict):
             if path.lower() in existing:
                 skipped += 1
                 continue
-            status = item.get("status") if item.get("status") in STATUS_VALUES else "进行中"
+            # 旧备份里的「归档废弃」迁移为「归档」；其余非法状态兜底"进行中"
+            raw_status = item.get("status")
+            if raw_status in STATUS_VALUES:
+                status = raw_status
+            elif raw_status == "归档废弃":
+                status = "归档"
+            else:
+                status = "进行中"
             try:
                 cur = conn.execute(
                     "INSERT INTO projects (path, name, alias, category, status, tags, "

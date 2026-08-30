@@ -161,13 +161,13 @@ def create_project(body: ProjectCreate):
 @router.get("")
 def list_projects():
     """全部项目列表（含实时路径有效性），按置顶与状态优先级排序：
-    置顶 → 进行中 → 已完成 → 暂停 → 归档废弃，同组内按更新时间倒序。筛选由前端完成。
+    置顶 → 进行中 → 已完成 → 暂停 → 归档 → 废弃，同组内按更新时间倒序。筛选由前端完成。
     """
     with get_db() as conn:
         rows = conn.execute(
             "SELECT * FROM projects ORDER BY pinned DESC, "
             "CASE status WHEN '进行中' THEN 0 WHEN '已完成' THEN 1 "
-            "WHEN '暂停' THEN 2 WHEN '归档废弃' THEN 3 ELSE 4 END ASC, "
+            "WHEN '暂停' THEN 2 WHEN '归档' THEN 3 WHEN '废弃' THEN 4 ELSE 5 END ASC, "
             "updated_at DESC"
         ).fetchall()
         # 路径校验并发执行：盘多/含网络盘时逐个 isdir 是首屏瓶颈
@@ -175,8 +175,9 @@ def list_projects():
             items = list(pool.map(lambda r: _row_to_dict(r, live_check=True), rows))
     stats = {
         "total": len(items),
-        "active": sum(1 for i in items if i["status"] != "归档废弃" and not i["is_lost"]),
-        "archived": sum(1 for i in items if i["status"] == "归档废弃"),
+        "active": sum(1 for i in items if i["status"] not in ("归档", "废弃") and not i["is_lost"]),
+        "archived": sum(1 for i in items if i["status"] == "归档"),
+        "discarded": sum(1 for i in items if i["status"] == "废弃"),
         "lost": sum(1 for i in items if i["is_lost"]),
     }
     return {"projects": items, "stats": stats, "statuses": STATUS_VALUES}
@@ -189,7 +190,7 @@ def list_projects_brief():
         rows = conn.execute(
             "SELECT id, name FROM projects ORDER BY pinned DESC, "
             "CASE status WHEN '进行中' THEN 0 WHEN '已完成' THEN 1 "
-            "WHEN '暂停' THEN 2 WHEN '归档废弃' THEN 3 ELSE 4 END ASC, "
+            "WHEN '暂停' THEN 2 WHEN '归档' THEN 3 WHEN '废弃' THEN 4 ELSE 5 END ASC, "
             "updated_at DESC"
         ).fetchall()
     return {"projects": [{"id": r["id"], "name": r["name"]} for r in rows]}

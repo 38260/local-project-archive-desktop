@@ -91,7 +91,7 @@
 [data-status="进行中"], .s-进行中, .sv-进行中 { --st: var(--st-doing); }
 [data-status="已完成"], .s-已完成, .sv-已完成 { --st: var(--st-done); }
 [data-status="暂停"],   .s-暂停,   .sv-暂停   { --st: var(--st-hold); }
-[data-status="归档废弃"], .s-归档废弃, .sv-归档废弃 { --st: var(--st-arch); }
+[data-status="归档"], [data-status="废弃"], .s-归档, .s-废弃, .sv-归档, .sv-废弃 { --st: var(--st-arch); }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -285,7 +285,7 @@ input[type="search"] { width: 320px; }
 }
 /* 进行中 / 已完成 / 暂停：实色填充；归档：保持弱化描边，不抢视觉 */
 .badge.s-进行中, .badge.s-已完成, .badge.s-暂停 { color: #fff; background: var(--st); }
-.badge.s-归档废弃 { color: var(--muted); background: var(--panel-2); border-color: var(--border); }
+.badge.s-归档, .badge.s-废弃 { color: var(--muted); background: var(--panel-2); border-color: var(--border); }
 .badge.lost { color: #fff; border-color: var(--danger); background: var(--danger); font-weight: 700; }
 [data-theme="dark"] .badge.lost { background: #da3633; border-color: #da3633; }  /* 暗色下降一档亮度 */
 .tag {
@@ -379,6 +379,7 @@ input[type="search"] { width: 320px; }
 .stat.stat-total b { color: var(--accent); }
 .stat.stat-active b { color: var(--ok); }
 .stat.stat-archived b { color: var(--muted); }
+.stat.stat-discarded b { color: var(--warn); }
 .stat.stat-lost b { color: var(--danger); }
 /* 有丢失项目时整卡呼吸提醒 */
 .stat.stat-lost.pulse { border-color: var(--danger); animation: lost-pulse 2s ease-in-out infinite; }

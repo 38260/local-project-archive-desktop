@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS projects (
     name         TEXT NOT NULL,                        -- 项目名称
     alias        TEXT NOT NULL DEFAULT '',             -- 别名
     category     TEXT NOT NULL DEFAULT '',             -- 项目分类
-    status       TEXT NOT NULL DEFAULT '进行中',        -- 进行中/已完成/暂停/归档废弃
+    status       TEXT NOT NULL DEFAULT '进行中',        -- 进行中/已完成/暂停/归档/废弃
     tags         TEXT NOT NULL DEFAULT '[]',           -- 技术栈标签，JSON 数组
     description  TEXT NOT NULL DEFAULT '',             -- 用户 Markdown 描述（存数据库，不落盘）
     auto_meta    TEXT NOT NULL DEFAULT '{}',           -- 自动解析元数据 JSON
@@ -117,6 +117,17 @@ def _backup_db(force: bool = False) -> str | None:
         return None
 
 
+def normalize_statuses() -> int:
+    """把旧状态「归档废弃」归一为「归档」，返回受影响行数。
+
+    init_db 与「恢复备份」后都要调用：恢复的老备份文件里可能仍带旧值，
+    不能等下次重启才修正。语句幂等，无旧值时为 0 行更新。
+    """
+    with get_db() as conn:
+        cur = conn.execute("UPDATE projects SET status='归档' WHERE status='归档废弃'")
+        return cur.rowcount
+
+
 def init_db() -> None:
     """初始化数据目录并建表（已有数据库则直接复用，数据不丢失）。"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -127,6 +138,9 @@ def init_db() -> None:
         if "pinned" not in cols:
             conn.execute("ALTER TABLE projects "
                          "ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+        # 轻量迁移：旧「归档废弃」拆分为「归档」（归档=有意收尾留档，应可展示；
+        # 废弃=彻底不要）。更新语句幂等，迁移后无残留旧值。
+        conn.execute("UPDATE projects SET status='归档' WHERE status='归档废弃'")
     # 建表之后再备份：全新库首启也能留下初始基线（建表前文件不存在会被跳过）
     _backup_db()
 
