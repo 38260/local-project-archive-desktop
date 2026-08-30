@@ -330,8 +330,13 @@
       },
 
       // ---- 手动录入 ----
-      openAdd() {
+      async openAdd() {
         this.form = this.emptyForm();
+        // 应用设置里的默认状态/分类
+        if (!this.prefs || !Object.keys(this.prefs).length) await this.loadPrefs();
+        const ds = this.prefs["add.default_status"];
+        if (ds && this.statuses.includes(ds)) this.form.status = ds;
+        this.form.category = this.prefs["add.default_category"] || "";
         this.showAdd = true;
       },
       async submitAdd() {
@@ -364,6 +369,7 @@
         if (!this.prefs || !Object.keys(this.prefs).length) await this.loadPrefs();
         this.scanDepth = Math.min(6, Math.max(1, Number(this.prefs["scan.default_depth"]) || 3));
         this.scanRoot = this.prefs["scan.last_root"] || "";
+        this.importForm.category = this.prefs["add.default_category"] || "";
         this.$nextTick(() => this.$refs.scanRootInput && this.$refs.scanRootInput.focus());
       },
       closeScan() { this.showScan = false; this.candidates = null; },
@@ -408,6 +414,13 @@
       // 展示数据文件位置，明确档案是持久化的
       api("/api/health", { silent: true })
         .then(h => { this.dataPath = h.data_path || ""; })
+        .catch(() => {});
+      // 偏好：默认是否显示归档项目
+      api("/api/settings", { silent: true })
+        .then(p => {
+          this.prefs = p || {};
+          if (p && p["ui.show_archived_default"]) this.showArchived = true;
+        })
         .catch(() => {});
       // 全局快捷键：/ 聚焦搜索；Esc 关弹窗或清空搜索
       this._onKey = (e) => {
