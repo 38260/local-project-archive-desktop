@@ -4,15 +4,20 @@
 环境 / 非 git 目录 / 损坏仓库都不会影响服务运行。
 """
 import logging
+import re
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 try:
     from git import InvalidGitRepositoryError, NoSuchPathError, Repo
+    from git.exc import GitCommandError
     _GITPY_AVAILABLE = True
 except ImportError:  # GitPython 未安装时优雅降级
     _GITPY_AVAILABLE = False
+
+# numstat 行：新增行数 \t 删除行数 \t 文件路径（二进制文件为 -）
+_NUMSTAT_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.+)$")
 
 
 def collect_git_info(path: str) -> dict:
@@ -101,6 +106,7 @@ def collect_git_info(path: str) -> dict:
 def collect_commit_log(path: str, limit: int = 50) -> dict:
     """读取 git 提交记录（时间线可视化用），只读操作。
 
+    一次 `git log --numstat` 取回提交与变更规模，避免逐提交算 diff（大仓库慢）。
     返回 {is_repo, total_count, commits: [{hash, short, author, email, date,
     message, stats}], error}；非 git 目录时 is_repo=False。
     """
@@ -124,29 +130,48 @@ def collect_commit_log(path: str, limit: int = 50) -> dict:
         except Exception:
             pass
 
-        for commit in repo.iter_commits(max_count=limit):
+        # \x1e 分隔提交，\x1f 分隔字段；%B 为完整提交信息，其后跟 numstat 行
+        raw = repo.git.log(
+            f"--max-count={limit}", "--numstat",
+            "--pretty=format:%x1e%H%x1f%an%x1f%ae%x1f%cI%x1f%B")
+        for block in raw.split("\x1e"):
+            if not block.strip():
+                continue
+            parts = block.split("\x1f", 4)
+            if len(parts) < 5:
+                continue
+            c_hash, author, email, date, rest = parts
+            # rest = 完整提交信息 + 空行 + numstat 行 + 尾部空行；从尾部收集 numstat
+            lines = rest.splitlines()
+            while lines and not lines[-1].strip():
+                lines.pop()   # 先剥掉 numstat 块之后的空行
+            files = insertions = deletions = 0
+            while lines:
+                m = _NUMSTAT_RE.match(lines[-1].strip())
+                if not m:
+                    break
+                lines.pop()
+                files += 1
+                if m.group(1) != "-":
+                    insertions += int(m.group(1))
+                if m.group(2) != "-":
+                    deletions += int(m.group(2))
+            # numstat 与提交信息之间隔着一个空行，吃掉它
+            while lines and not lines[-1].strip():
+                lines.pop()
             entry = {
-                "hash": commit.hexsha,
-                "short": commit.hexsha[:8],
-                "author": commit.author.name,
-                "email": commit.author.email,
-                "date": commit.committed_datetime.isoformat(),
-                "message": (commit.message or "").strip(),
-                "stats": None,
+                "hash": c_hash,
+                "short": c_hash[:8],
+                "author": author,
+                "email": email,
+                "date": date,
+                "message": "\n".join(lines).strip(),
+                "stats": {"files": files, "insertions": insertions,
+                          "deletions": deletions} if files else None,
             }
-            # 变更规模（文件数/增删行数），失败时留空不影响整体
-            try:
-                total = commit.stats.total
-                entry["stats"] = {
-                    "files": total.get("files", 0),
-                    "insertions": total.get("insertions", 0),
-                    "deletions": total.get("deletions", 0),
-                }
-            except Exception:
-                pass
             result["commits"].append(entry)
-    except ValueError:
-        # 空仓库（尚无任何提交）时 iter_commits 抛 ValueError
+    except GitCommandError:
+        # 空仓库（尚无任何提交）时 git log 直接失败
         result["error"] = "仓库还没有任何提交"
     except Exception as exc:
         result["error"] = f"提交记录读取失败：{exc}"
