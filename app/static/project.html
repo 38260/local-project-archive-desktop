@@ -100,11 +100,23 @@
     </div>
 
     <div class="detail-layout" :class="{ 'tree-collapsed': treeCollapsed }">
-    <!-- 左侧锚点目录（窄屏自动降级为顶部横向条） -->
-    <nav class="toc-nav" aria-label="页面目录">
+    <!-- 左侧锚点目录：目录树风格（分组可折叠，窄屏自动降级为顶部横向条） -->
+    <nav class="toc-nav toc-tree" aria-label="页面目录">
       <span class="toc-title">页面目录</span>
-      <a v-for="s in sections" :key="s.id" :class="{ on: activeSection === s.id }"
-         @click="scrollTo(s.id)" :title="s.label">{{ s.label }}</a>
+      <div class="toc-group" v-for="g in sectionGroups" :key="g.id"
+           :class="{ collapsed: tocCollapsed.includes(g.id) }">
+        <button type="button" class="toc-group-head"
+                @click="toggleGroup(g.id)"
+                :aria-expanded="!tocCollapsed.includes(g.id)">
+          <lpa-icon name="chevron-down" :size="12" class="toc-chev"></lpa-icon>
+          <lpa-icon :name="g.icon" :size="13" class="toc-folder"></lpa-icon>
+          <span class="toc-group-label">{{ g.label }}</span>
+        </button>
+        <div class="toc-group-body">
+          <a v-for="s in g.items" :key="s.id" :class="{ on: activeSection === s.id }"
+             @click="scrollTo(s.id)" :title="s.label">{{ s.label }}</a>
+        </div>
+      </div>
     </nav>
     <div class="detail-main">
 
@@ -153,22 +165,6 @@
     <!-- Git 信息 -->
     <section class="panel" id="sec-git" v-if="meta">
       <h2>Git 信息 <span class="right section-note">解析于 {{ fmtTime(meta.parsed_at) }}</span></h2>
-      <div class="hm-wrap" v-if="commitData && commitData.commits.length"
-           title="最近 12 周提交活动（基于已加载的提交）">
-        <div class="hm">
-          <span v-for="c in heatmap" :key="c.key" class="hm-cell"
-                :class="['l' + c.level, { today: c.today }]" :title="c.label"></span>
-        </div>
-        <div class="hm-legend" aria-hidden="true">
-          <span>少</span>
-          <span class="hm-cell l0"></span>
-          <span class="hm-cell l1"></span>
-          <span class="hm-cell l2"></span>
-          <span class="hm-cell l3"></span>
-          <span class="hm-cell l4"></span>
-          <span>多</span>
-        </div>
-      </div>
       <div class="meta-grid" v-if="gitInfo.is_repo">
         <div class="kv"><span class="k">当前分支</span><span class="v"><span class="chip-value">{{ gitInfo.branch || "－" }}</span></span></div>
         <div class="kv"><span class="k">提交总数</span><span class="v" style="font-size:16px;font-weight:700">{{ fmtNum(gitInfo.commit_count) }}</span></div>
@@ -444,6 +440,49 @@
           显示最近 {{ commitData.commits.length }} 条 · 点击单条展开详情
         </span>
       </h2>
+      <!-- GitHub 风格贡献热力图：全量提交按天聚合，独立于下方时间线的条数上限 -->
+      <div class="gh-heat" v-if="heatGrid" :title="`最近 ${heatWeeks} 周提交热力图`">
+        <div class="gh-heat-head">
+          <span class="gh-heat-total">
+            {{ heatWeeks === 26 ? "最近半年" : "最近一年" }}共
+            <b>{{ fmtNum(heatGrid.total) }}</b> 次提交
+          </span>
+          <span class="hm-legend" aria-hidden="true">
+            <span>少</span>
+            <span class="hm-cell gh l0"></span>
+            <span class="hm-cell gh l1"></span>
+            <span class="hm-cell gh l2"></span>
+            <span class="hm-cell gh l3"></span>
+            <span class="hm-cell gh l4"></span>
+            <span>多</span>
+          </span>
+        </div>
+        <div class="gh-heat-scroll">
+          <div class="gh-heat-inner">
+            <div class="gh-months" aria-hidden="true">
+              <span v-for="m in heatGrid.monthMarks" :key="'m' + m.col"
+                    class="gh-month" :style="{ left: (m.col * 14) + 'px' }">{{ m.label }}</span>
+            </div>
+            <div class="gh-main">
+              <div class="gh-day-col" aria-hidden="true">
+                <span v-for="d in heatGrid.dayLabels" :key="'d' + d.row"
+                      class="gh-day-label" :style="{ gridRow: d.row + 1 }">{{ d.l }}</span>
+              </div>
+              <div class="gh-grid" role="img"
+                   :aria-label="`提交热力图，共 ${fmtNum(heatGrid.total)} 次提交`">
+                <template v-for="(col, ci) in heatGrid.cols" :key="'c' + ci">
+                  <template v-for="(cell, ri) in col" :key="ci + '-' + ri">
+                    <span v-if="cell" class="hm-cell gh"
+                          :class="['l' + cell.level, { today: cell.today }]"
+                          :title="cell.label"></span>
+                    <span v-else class="hm-cell gh empty"></span>
+                  </template>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <!-- 骨架屏：避免时间线加载完成时把整页往下推 -->
       <div class="skel-stack" v-if="commitLoading">
         <span class="skel" style="width:100%;height:52px"></span>

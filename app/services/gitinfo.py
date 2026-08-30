@@ -178,6 +178,55 @@ def collect_commit_log(path: str, limit: int = 50) -> dict:
     return result
 
 
+def collect_heatmap(path: str, weeks: int = 53) -> dict:
+    """按天聚合最近 N 周的全部提交次数（GitHub 风格贡献热力图数据源）。
+
+    与 collect_commit_log 的 200 条上限无关：这里只遍历提交对象取日期，
+    不展开 diff，一年数千次提交也在毫秒级。author 日期可能早于 since 的
+    少量越界提交由前端按范围过滤。
+    """
+    from datetime import date, timedelta
+
+    result = {"is_repo": False, "days": {}, "total": 0, "weeks": weeks,
+              "start": None, "end": None}
+    if not _GITPY_AVAILABLE:
+        result["error"] = "GitPython 未安装，无法读取 git 信息"
+        return result
+    try:
+        repo = Repo(path)
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        return result
+    except Exception as exc:
+        logger.debug("热力图读取失败 %s: %s", path, exc)
+        result["error"] = f"git 信息读取失败：{exc}"
+        return result
+
+    result["is_repo"] = True
+    try:
+        today = date.today()
+        # 网格终点 = 本周周日；起点 = weeks 周前的周日（周日起始，与 GitHub 一致）
+        end = today + timedelta(days=(6 - today.weekday()) % 7 if today.weekday() != 6 else 0)
+        start = end - timedelta(days=7 * weeks - 1)
+        days: dict = {}
+        for c in repo.iter_commits():
+            d = c.committed_datetime.date()
+            if d > end:
+                continue
+            key = d.isoformat()
+            n = days.get(key)
+            days[key] = 1 if n is None else n + 1
+        # 范围内提交总数（范围外的历史提交不计入网格与总数）
+        total = sum(n for k, n in days.items() if date.fromisoformat(k) >= start)
+        result["days"] = days
+        result["total"] = total
+        result["start"] = start.isoformat()
+        result["end"] = end.isoformat()
+    except Exception as exc:
+        logger.debug("热力图聚合失败 %s: %s", path, exc)
+        result["error"] = f"热力图聚合失败：{exc}"
+    return result
+
+
 def format_time_local(dt: datetime) -> str:
     """datetime 转 ISO 字符串（本地时区）。"""
     return dt.astimezone().isoformat()

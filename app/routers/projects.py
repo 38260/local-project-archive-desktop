@@ -17,7 +17,7 @@ from app.models import (
     ChangelogCreate, ChangelogUpdate, NoteCreate, NoteUpdate, OpenRequest,
     ProjectCreate, ProjectUpdate,
 )
-from app.services import gitinfo, parser
+from app.services import gitinfo, parser, settings_store
 from app.services.paths import (
     PathError, basename, dir_not_exists_hint, is_wsl_path, normalize_input_path,
 )
@@ -457,7 +457,7 @@ def get_readme(project_id: int):
         raise HTTPException(409, dir_not_exists_hint(row["path"]))
     readme_path = parser.find_readme(row["path"])
     if readme_path is None:
-        return {"exists": False, "file": None, "html": ""}
+        return {"exists": False, "file": None, "html": "", "raw": ""}
     return parser.render_readme_file(readme_path)
 
 
@@ -519,6 +519,16 @@ def get_commits(project_id: int, limit: int = Query(50, ge=1, le=200)):
     if not os.path.isdir(row["path"]):
         raise HTTPException(409, dir_not_exists_hint(row["path"]))
     return gitinfo.collect_commit_log(row["path"], limit=limit)
+
+
+@router.get("/{project_id}/heatmap")
+def get_heatmap(project_id: int, weeks: int = Query(53, ge=8, le=104)):
+    """按天聚合最近 N 周提交数，供 GitHub 风格贡献热力图。"""
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+    if not os.path.isdir(row["path"]):
+        raise HTTPException(409, dir_not_exists_hint(row["path"]))
+    return gitinfo.collect_heatmap(row["path"], weeks=weeks)
 
 
 # ---------------------------------------------------------------------------
@@ -745,98 +755,214 @@ def delete_screenshot(project_id: int, filename: str):
 
 @router.get("/{project_id}/export-html")
 def export_project_html(project_id: int):
+    """导出单项目为自包含 HTML 档案页：离线可开、可打印、可直接分享。
+
+    视觉与主应用同风格（浅色卡片 + 蓝色主色）；是否包含笔记/变更日志
+    由设置 export.html_include_notes 控制。
+    """
     from fastapi.responses import HTMLResponse
     import html as _html
 
     with get_db() as conn:
         row = _get_row_or_404(conn, project_id)
-        notes = conn.execute("SELECT * FROM notes WHERE project_id=? ORDER BY id DESC",
-                             (project_id,)).fetchall()
-        logs = conn.execute("SELECT * FROM changelogs WHERE project_id=? "
-                            "ORDER BY entry_date DESC, id DESC",
-                            (project_id,)).fetchall()
+        include_notes = settings_store.get("export.html_include_notes", True)
+        notes = (conn.execute("SELECT * FROM notes WHERE project_id=? ORDER BY id DESC",
+                              (project_id,)).fetchall() if include_notes else [])
+        logs = (conn.execute("SELECT * FROM changelogs WHERE project_id=? "
+                             "ORDER BY entry_date DESC, id DESC",
+                             (project_id,)).fetchall() if include_notes else [])
     meta = json.loads(row["auto_meta"] or "{}")
     git = meta.get("git") or {}
 
     def esc(s):
         return _html.escape(str(s or ""))
 
+    def first_line(s, n=120):
+        return esc((str(s or "")).strip().splitlines()[0][:n] if str(s or "").strip() else "")
+
+    # ---- 状态徽章配色（语义与主应用一致：蓝=进行中 绿=完成 黄=暂停 灰=归档 红=丢失） ----
+    status = str(row["status"] or "")
+    if "完成" in status:
+        st_cls = "st-done"
+    elif "暂停" in status:
+        st_cls = "st-pause"
+    elif "归档" in status:
+        st_cls = "st-arch"
+    elif "丢失" in status:
+        st_cls = "st-lost"
+    else:
+        st_cls = "st-doing"
+
     tags_html = "".join(f"<span class='tag'>{esc(t)}</span>"
-                        for t in json.loads(row["tags"] or "[]")) or "<span class='tag'>无标签</span>"
-    notes_html = "".join(
-        f"<div class='card-item'><div class='md'>{render_markdown(n['content'], 'notes')}</div>"
-        f"<div class='meta'>创建 {esc(n['created_at'][:16])}</div></div>"
-        for n in notes) or "<p class='dim'>暂无笔记</p>"
-    logs_html = "".join(
-        f"<div class='card-item'><div class='log-head'><b>{esc(c['title'] or '未命名条目')}</b>"
-        f"<span class='date'>{esc(c['entry_date'])}</span></div>"
-        f"<div class='md'>{render_markdown(c['content'], 'notes')}</div>"
-        f"<div class='meta'>记录于 {esc(c['created_at'][:16])}</div></div>"
-        for c in logs) or "<p class='dim'>暂无变更日志</p>"
-    deps_html = ""
+                        for t in json.loads(row["tags"] or "[]"))
+
+    # ---- 概览键值卡 ----
+    overview_html = f"""
+      <div class="kv"><span class="k">本地路径</span><code class="path">{esc(row['path'])}</code></div>
+      <div class="kv"><span class="k">README 简介</span><span>{esc(meta.get('intro') or '－')}</span></div>
+      <div class="kv"><span class="k">磁盘时间</span><span>{esc(str(row['fs_created'])[:16])} → {esc(str(row['fs_modified'])[:16])}</span></div>
+      <div class="kv"><span class="k">档案时间</span><span>{esc(str(row['created_at'])[:16])} → {esc(str(row['updated_at'])[:16])}</span></div>"""
+
+    # ---- Git 指标卡 + 最近提交 ----
+    git_section = ""
+    if git.get("is_repo"):
+        lc = git.get("last_commit") or {}
+        lc_date = esc(str(lc.get("date"))[:10])
+        git_section = f"""
+    <section>
+      <h2>Git 信息</h2>
+      <div class="minis">
+        <div class="mini"><span class="mini-v mono">{esc(git.get('branch') or '－')}</span><span class="mini-k">当前分支</span></div>
+        <div class="mini"><span class="mini-v">{esc(git.get('commit_count') or '?')}</span><span class="mini-k">提交总数</span></div>
+        <div class="mini"><span class="mini-v mono">{esc(str(git.get('first_commit_date'))[:10] or '－')}</span><span class="mini-k">首次提交</span></div>
+        <div class="mini"><span class="mini-v mono">{lc_date or '－'}</span><span class="mini-k">最近提交</span></div>
+      </div>
+      <p class="dim lc-line">最近：<code class="mono">{esc(lc.get('hash'))}</code> {first_line(lc.get('message'))}</p>
+    </section>"""
+
+    # ---- 构建配置与依赖 ----
+    deps_sections = []
     for c in meta.get("configs", []):
         deps = c.get("dependencies") or []
         scripts = c.get("scripts") or {}
         if not deps and not scripts:
             continue
-        dep_chips = "".join(f"<span class='tag'>{esc(dp)}</span>" for dp in deps[:40])
-        script_chips = "".join(f"<span class='tag'>{esc(k)}</span>" for k in scripts)
-        deps_html += (f"<div class='card-item'><b>{esc(c.get('kind'))}</b> "
-                      f"<span class='dim'>{esc(c.get('file'))}</span> "
-                      f"<span class='dim'>v{esc(c.get('version'))}</span>"
-                      f"<div style='margin-top:6px'>{dep_chips}{script_chips}</div></div>")
-    lc = git.get("last_commit") or {}
-    git_html = ""
-    if git.get("is_repo"):
-        git_html = (f"<p>分支 <b>{esc(git.get('branch'))}</b> · 共 "
-                    f"<b>{git.get('commit_count') or '?'}</b> 次提交 · 首次提交 "
-                    f"{esc(str(git.get('first_commit_date'))[:10])}</p>"
-                    f"<p class='dim'>最近：{esc(lc.get('hash'))} {esc(lc.get('message'))}</p>")
+        dep_chips = "".join(f"<span class='dep mono'>{esc(dp)}</span>" for dp in deps[:48])
+        more = f"<span class='dim more'>等共 {len(deps)} 项</span>" if len(deps) > 48 else ""
+        script_rows = "".join(
+            f"<div class='script'><code class='mono'>{esc(k)}</code><span class='dim'>→</span>"
+            f"<code class='mono'>{esc(v)}</code></div>"
+            for k, v in list(scripts.items())[:12])
+        chips_html = f"<div class='chips'>{dep_chips}{more}</div>" if dep_chips else ""
+        scripts_html = f"<div class='scripts'>{script_rows}</div>" if script_rows else ""
+        ver = f" · v{esc(c.get('version'))}" if c.get("version") else ""
+        deps_sections.append(f"""
+      <div class="card">
+        <div class="card-head"><b>{esc(c.get('kind'))}</b>
+          <span class="dim">{esc(c.get('file'))}{ver}</span></div>
+        {chips_html}
+        {scripts_html}
+      </div>""")
+    deps_html = "".join(deps_sections) or "<p class='dim'>未识别到构建配置</p>"
+
+    # ---- 开发笔记卡 ----
+    notes_html = "".join(
+        f"<div class='card note'><div class='md'>{render_markdown(n['content'], 'notes')}</div>"
+        f"<div class='meta'>创建 {esc(n['created_at'][:16])}</div></div>"
+        for n in notes) or "<p class='dim'>暂无笔记</p>"
+
+    # ---- 变更日志时间线 ----
+    logs_html = "".join(
+        f"<div class='tl-item'><div class='tl-dot'></div>"
+        f"<div class='tl-body'><div class='tl-head'><b>{esc(c['title'] or '未命名条目')}</b>"
+        f"<span class='date mono'>{esc(c['entry_date'])}</span></div>"
+        f"<div class='md'>{render_markdown(c['content'], 'notes')}</div></div></div>"
+        for c in logs) or "<p class='dim'>暂无变更日志</p>"
+
+    notes_count = f"（{len(notes)}）" if include_notes else ""
+    logs_count = f"（{len(logs)}）" if include_notes else ""
+    exported_at = esc(datetime.now().astimezone().isoformat()[:16])
+    # 预计算可选片段（Python 3.11 及以下 f-string 内不能复用外层引号字符）
+    alias_html = f"<span class='alias'>{esc(row['alias'])}</span>" if row["alias"] else ""
+    cat_html = f"<span class='badge cat'>{esc(row['category'])}</span>" if row["category"] else ""
+    desc_html = render_markdown(row["description"], "notes") or "<p class='dim'>暂无描述</p>"
+
+    css = """
+:root { --bd:#d8dee4; --fg:#1f2328; --mut:#656d76; --acc:#0969da; --bg:#f6f8fa; --card:#fff; }
+* { box-sizing: border-box; }
+body { font: 15px/1.75 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: var(--fg); background: var(--bg); margin: 0; }
+.wrap { max-width: 900px; margin: 0 auto; padding: 0 24px 56px; }
+.hero { background: linear-gradient(135deg, #0b3d91 0%, #0969da 55%, #3ddc97 130%);
+      color: #fff; padding: 40px 0 34px; }
+.hero .wrap { padding-top: 0; padding-bottom: 0; }
+.crumb { font-size: 12.5px; opacity: .85; letter-spacing: .04em; margin-bottom: 10px; }
+.hero h1 { font-size: 30px; margin: 0 0 10px; letter-spacing: -.01em; }
+.hero .alias { font-size: 15px; font-weight: 400; opacity: .88; margin-left: 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.badge { display: inline-block; padding: 3px 12px; border-radius: 999px;
+      font-size: 13px; font-weight: 600; background: rgba(255,255,255,.18); backdrop-filter: blur(4px); }
+.badge.cat { background: rgba(255,255,255,.12); font-weight: 400; }
+.st-doing { background: #409cff; }
+.st-done { background: #2da44e; }
+.st-pause { background: #bf8700; }
+.st-arch { background: #57606a; }
+.st-lost { background: #cf222e; }
+section { background: var(--card); border: 1px solid var(--bd); border-radius: 12px;
+      padding: 20px 24px; margin-top: 20px; box-shadow: 0 1px 2px rgba(31,35,40,.04); }
+h2 { font-size: 16.5px; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+h2::before { content: ""; width: 4px; height: 15px; border-radius: 2px; background: var(--acc); }
+.tag { display: inline-block; background: rgba(255,255,255,.16); color: #fff;
+      border: 1px solid rgba(255,255,255,.35);
+      border-radius: 999px; padding: 2px 11px; margin: 2px 6px 2px 0; font-size: 13px; }
+.kv { display: flex; gap: 14px; padding: 7px 0; border-bottom: 1px dashed #eaeef2; font-size: 14.5px; }
+.kv:last-child { border-bottom: none; }
+.k { color: var(--mut); white-space: nowrap; min-width: 92px; }
+code, .mono { font-family: Consolas, "JetBrains Mono", monospace; }
+code.path { background: #f0f2f4; border: 1px solid var(--bd); border-radius: 6px;
+      padding: 2px 8px; font-size: 13px; word-break: break-all; }
+.minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.mini { background: var(--bg); border: 1px solid var(--bd); border-radius: 10px; padding: 12px 16px; }
+.mini-v { display: block; font-size: 19px; font-weight: 700; margin-bottom: 2px; }
+.mini-k { display: block; font-size: 12px; color: var(--mut); }
+.lc-line { margin: 12px 0 0; font-size: 13.5px; }
+.lc-line code { background: #f0f2f4; border-radius: 5px; padding: 1px 6px; font-size: 12.5px; }
+.card { background: var(--bg); border: 1px solid var(--bd); border-radius: 10px;
+      padding: 14px 18px; margin-bottom: 12px; }
+.card-head b { margin-right: 8px; }
+.chips { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dep { display: inline-block; background: #fff; border: 1px solid var(--bd);
+      border-radius: 6px; padding: 2px 9px; font-size: 12.5px; color: #0550ae; }
+.more { font-size: 12.5px; margin-left: 4px; }
+.scripts { margin-top: 10px; display: grid; gap: 4px; }
+.script { display: flex; gap: 10px; align-items: baseline; font-size: 13px; }
+.script code:first-child { background: #ddf4ff; color: #0550ae; border-radius: 5px; padding: 1px 8px; }
+.script code:last-child { background: #f0f2f4; border-radius: 5px; padding: 1px 8px; }
+.md p { margin: 6px 0; }
+.md pre { background: #f0f2f4; padding: 10px 12px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+.md code { background: #f0f2f4; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+.md pre code { background: none; padding: 0; }
+.note .meta, .card .meta { margin-top: 8px; font-size: 12px; color: #8b949e; }
+.tl-item { position: relative; padding: 0 0 18px 22px; border-left: 2px solid #d8dee4;
+      margin-left: 6px; }
+.tl-item:last-child { border-left-color: transparent; padding-bottom: 2px; }
+.tl-dot { position: absolute; left: -6px; top: 5px; width: 10px; height: 10px;
+      border-radius: 50%; background: var(--acc); border: 2px solid #fff;
+      box-shadow: 0 0 0 1px var(--acc); }
+.tl-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; }
+.tl-head .date { color: var(--acc); font-size: 13px; }
+.dim { color: var(--mut); }
+.dim.more { font-size: 12.5px; }
+.foot { margin-top: 32px; font-size: 12.5px; color: #8b949e; text-align: center; }
+@media print {
+  body { background: #fff; }
+  .hero { background: #0969da !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  section { box-shadow: none; break-inside: avoid; }
+}
+"""
 
     doc = f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(row['name'])} · 项目档案</title>
-<style>
-body {{ font: 15px/1.7 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-      color: #1f2328; background: #f6f7f9; margin: 0; }}
-.wrap {{ max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; }}
-h1 {{ font-size: 28px; margin: 0 0 4px; }}
-h2 {{ font-size: 17px; border-left: 3px solid #0969da; padding-left: 10px; margin: 28px 0 12px; }}
-.meta {{ font-size: 12px; color: #656d76; margin-top: 6px; }}
-.dim {{ color: #656d76; }}
-.md p {{ margin: 6px 0; }}
-.md pre {{ background: #f0f2f4; padding: 10px 12px; border-radius: 6px; overflow-x: auto; }}
-.md code {{ font-family: Consolas, monospace; background: #f0f2f4; padding: 1px 5px; border-radius: 4px; }}
-.tag {{ display: inline-block; background: rgba(9,105,218,.1); color: #0969da;
-      border-radius: 4px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 13px; }}
-.card-item {{ background: #fff; border: 1px solid #d8dee4; border-radius: 10px;
-            padding: 12px 16px; margin-bottom: 10px; }}
-.log-head b {{ margin-right: 8px; }} .date {{ color: #0969da; font-size: 13px; }}
-table.kv td {{ padding: 3px 12px 3px 0; vertical-align: top; }}
-.k {{ color: #656d76; white-space: nowrap; }}
-.foot {{ margin-top: 40px; font-size: 12px; color: #8b949e; border-top: 1px solid #d8dee4; padding-top: 12px; }}
-</style></head><body><div class="wrap">
-<h1>{esc(row['name'])}</h1>
-<p class="dim">{esc(row['alias'])} · 状态：{esc(row['status'])} · 分类：{esc(row['category']) or '－'}</p>
-<p>{tags_html}</p>
-<h2>基础信息</h2>
-<table class="kv">
-<tr><td class="k">本地路径</td><td>{esc(row['path'])}</td></tr>
-<tr><td class="k">README 简介</td><td>{esc(meta.get('intro') or '－')}</td></tr>
-<tr><td class="k">磁盘时间</td><td>{esc(str(row['fs_created'])[:16])} → {esc(str(row['fs_modified'])[:16])}</td></tr>
-</table>
-<h2>Git 信息</h2>
-{git_html or "<p class='dim'>非 Git 仓库</p>"}
-<h2>依赖与脚本</h2>
-{deps_html or "<p class='dim'>未识别到构建配置</p>"}
-<h2>项目描述</h2>
-<div class="md">{render_markdown(row['description'], 'notes') or "<p class='dim'>暂无描述</p>"}</div>
-<h2>开发笔记（{len(notes)}）</h2>
-{notes_html}
-<h2>变更日志（{len(logs)}）</h2>
-{logs_html}
-<div class="foot">由 本地项目档案 系统导出于 {esc(datetime.now().astimezone().isoformat()[:16])} ·
-数据仅含本机档案索引，原项目文件未做任何改动</div>
+<style>{css}</style></head><body>
+<header class="hero"><div class="wrap">
+  <div class="crumb">归迹拾光 · 项目档案导出</div>
+  <h1>{esc(row['name'])}{alias_html}</h1>
+  <div class="chips">
+    <span class="badge {st_cls}">{esc(status) or '未设置'}</span>
+    {cat_html}
+    {tags_html}
+  </div>
+</div></header>
+<div class="wrap">
+  <section><h2>基础信息</h2>{overview_html}</section>
+  {git_section}
+  <section><h2>依赖与脚本</h2>{deps_html}</section>
+  <section><h2>项目描述</h2><div class="md">{desc_html}</div></section>
+  <section><h2>开发笔记{notes_count}</h2>{notes_html}</section>
+  <section><h2>变更日志{logs_count}</h2>{logs_html}</section>
+  <div class="foot">由 归迹拾光 导出于 {exported_at} · 数据仅含本机档案索引，原项目文件未做任何改动</div>
 </div></body></html>"""
 
     import re as _re

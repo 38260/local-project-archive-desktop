@@ -62,7 +62,7 @@ def install_excepthook(logger) -> None:
     def hook(etype, value, tb):
         msg = "".join(traceback.format_exception(etype, value, tb))
         logger.error("未捕获异常：\n%s", msg)
-        alert("本地项目档案 - 出错了", msg)
+        alert("归迹拾光 - 出错了", msg)
 
     sys.excepthook = hook
 
@@ -299,7 +299,7 @@ def start_tray(window, server, logger):
         pystray.MenuItem("显示窗口", show_window, default=True),
         pystray.MenuItem("退出", quit_app),
     )
-    icon = pystray.Icon("LocalProjectArchive", image, "本地项目档案", menu)
+    icon = pystray.Icon("LocalProjectArchive", image, "归迹拾光", menu)
     threading.Thread(target=icon.run, daemon=True).start()
     logger.info("系统托盘已启用")
     return icon
@@ -341,7 +341,7 @@ def open_browser_window(url: str, server) -> None:
 def main() -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(description="本地项目档案管理系统（桌面模式）")
+    parser = argparse.ArgumentParser(description="归迹拾光管理系统（桌面模式）")
     parser.add_argument("--port", type=int, default=0, help="指定端口（默认自动挑选）")
     parser.add_argument("--browser", action="store_true", help="用系统浏览器打开")
     args = parser.parse_args()
@@ -354,7 +354,7 @@ def main() -> int:
     migrate_legacy_data(DATA_DIR, logger)
 
     if not acquire_single_instance(DATA_DIR, logger):
-        alert("本地项目档案", "程序已经在运行了。")
+        alert("归迹拾光", "程序已经在运行了。")
         return 0
 
     port = args.port or pick_port()
@@ -369,7 +369,7 @@ def main() -> int:
 
     if not wait_port(port):
         logger.error("服务未能在 20 秒内启动（端口 %s）", port)
-        alert("本地项目档案", f"服务启动失败。\n日志位置：{log_file}")
+        alert("归迹拾光", f"服务启动失败。\n日志位置：{log_file}")
         return 1
 
     url = f"http://{HOST}:{port}"
@@ -401,12 +401,12 @@ def main() -> int:
     start_hidden = tray_enabled and _setting_true("app.start_minimized")
 
     window = webview.create_window(
-        "本地项目档案", url, width=width, height=height, min_size=(1024, 700),
+        "归迹拾光", url, width=width, height=height, min_size=(1024, 700),
         hidden=start_hidden, **pos_kwargs)
     if window is None:
         # 极少数环境下创建窗口会返回 None，不能让用户干等
         logger.error("pywebview 创建窗口失败，回退到系统浏览器")
-        alert("本地项目档案", "无法创建应用窗口，已改用浏览器打开。")
+        alert("归迹拾光", "无法创建应用窗口，已改用浏览器打开。")
         open_browser_window(url, server)
         return 0
 

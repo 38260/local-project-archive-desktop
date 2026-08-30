@@ -182,7 +182,7 @@ def main():
             server.should_exit = True
         return 0
 
-    win = webview.create_window("本地项目档案", f"http://{HOST}:{port}",
+    win = webview.create_window("归迹拾光", f"http://{HOST}:{port}",
                                 width=1440, height=900, min_size=(1024, 700))
     win.events.closed += lambda: setattr(server, "should_exit", True)  # 关窗即退出
     webview.start()
@@ -201,7 +201,7 @@ def _excepthook(etype, value, tb):
     logging.error("未捕获异常：\n%s", msg)
     if getattr(sys, "frozen", False) and os.name == "nt":
         import ctypes
-        ctypes.windll.user32.MessageBoxW(0, msg[-1800:], "本地项目档案 - 出错了", 0x10)
+        ctypes.windll.user32.MessageBoxW(0, msg[-1800:], "归迹拾光 - 出错了", 0x10)
 sys.excepthook = _excepthook
 ```
 
@@ -316,7 +316,7 @@ PyInstaller 打出来的 exe 是"自解压 + 内存加载"结构，特徴和行�
 
 ### 5.3 `--noconsole` 后 print 全部失效
 
-`run.py:32` 那句 `print(f"本地项目档案服务已启动：{url}")` 在桌面模式下没人看得见。
+`run.py:32` 那句 `print(f"归迹拾光服务已启动：{url}")` 在桌面模式下没人看得见。
 所有输出必须改走 `logging` 写文件，见 §3.4。
 
 ### 5.4 首次启动白屏

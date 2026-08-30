@@ -13,7 +13,7 @@ if not exist .venv\Scripts\python.exe (
     if errorlevel 1 goto :err
 )
 
-echo 正在启动本地项目档案服务，浏览器将自动打开 http://127.0.0.1:8300 ...
+echo 正在启动归迹拾光服务，浏览器将自动打开 http://127.0.0.1:8300 ...
 echo 关闭本窗口或按 Ctrl+C 即可停止服务。
 .venv\Scripts\python.exe run.py %*
 goto :eof

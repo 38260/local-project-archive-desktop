@@ -15,7 +15,7 @@ from app.config import DEFAULT_PORT, HOST
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="本地项目档案管理系统")
+    parser = argparse.ArgumentParser(description="归迹拾光管理系统")
     parser.add_argument("--port", type=int, default=0,
                         help=f"服务端口（默认 {DEFAULT_PORT}，被占用时自动挑选空闲端口）")
     parser.add_argument("--no-browser", action="store_true",
@@ -34,7 +34,7 @@ def main() -> None:
     # 仅绑定本机回环地址，不对外网暴露
     if not args.no_browser:
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
-    print(f"本地项目档案服务已启动：{url}  （Ctrl+C 停止）")
+    print(f"归迹拾光服务已启动：{url}  （Ctrl+C 停止）")
     uvicorn.run(app, host=HOST, port=port, log_level="info")
 
 
