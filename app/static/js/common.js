@@ -82,6 +82,43 @@
     scheduleRemove(el, type);
   };
 
+  // ---------- 统一确认弹窗（替代原生 confirm，风格与应用一致） ----------
+  // 用法：const ok = await confirmDialog("确定删除？", { danger: true, okText: "删除" });
+  window.confirmDialog = function (message, opts) {
+    opts = opts || {};
+    return new Promise(resolve => {
+      const esc = s => String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const mask = document.createElement("div");
+      mask.className = "modal-mask";
+      mask.innerHTML = `
+        <div class="modal confirm-modal" role="dialog" aria-modal="true">
+          <h3>${esc(opts.title || "请确认")}</h3>
+          <div class="confirm-msg"></div>
+          <div class="actions">
+            <button type="button" class="btn c-cancel">${esc(opts.cancelText || "取消")}</button>
+            <button type="button" class="btn ${opts.danger ? "danger-solid" : "primary"} c-ok">${esc(opts.okText || "确定")}</button>
+          </div>
+        </div>`;
+      mask.querySelector(".confirm-msg").textContent = message;  // textContent 防注入
+      let settled = false;
+      const done = v => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener("keydown", onKey, true);
+        mask.remove();
+        resolve(v);
+      };
+      const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); done(false); } };
+      document.addEventListener("keydown", onKey, true);
+      mask.querySelector(".c-cancel").onclick = () => done(false);
+      mask.querySelector(".c-ok").onclick = () => done(true);
+      mask.addEventListener("mousedown", e => { if (e.target === mask) done(false); });
+      document.body.appendChild(mask);
+      mask.querySelector(".c-ok").focus();
+    });
+  };
+
   // ---------- API ----------
   window.api = async function (path, options) {
     const opt = Object.assign({ headers: {} }, options || {});
