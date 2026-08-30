@@ -322,6 +322,29 @@
         <div class="hint" v-else>
           开启后，登录 Windows 会自动在后台启动本程序。
         </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <span class="setting-title">关闭时最小化到系统托盘</span>
+            <span class="setting-desc">点关闭按钮不退出程序，收进托盘；右键托盘图标可选「显示窗口」或「退出」（仅桌面窗口模式生效）</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" v-model="prefs['tray.close_to_tray']"
+                   @change="savePref('tray.close_to_tray')" aria-label="关闭时最小化到托盘">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <span class="setting-title">启动时静默（不弹窗口）</span>
+            <span class="setting-desc">配合「开机自启动」与托盘使用：登录后只在托盘待命，需要时点托盘唤出</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" v-model="prefs['app.start_minimized']"
+                   :disabled="!prefs['tray.close_to_tray']"
+                   @change="savePref('app.start_minimized')" aria-label="启动时静默">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
       </div>
       <div class="field">
         <label>使用偏好</label>

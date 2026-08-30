@@ -176,6 +176,100 @@ def migrate_legacy_data(data_dir: Path, logger) -> None:
 # --------------------------------------------------------------------------
 # 服务与窗口
 # --------------------------------------------------------------------------
+def load_geometry(logger):
+    """读取上次窗口大小/位置；无效或缺失时返回 None 用默认。"""
+    try:
+        from app.services import settings_store
+        g = settings_store.get("window.geometry")
+        if isinstance(g, dict) and all(isinstance(g.get(k), int) for k in ("w", "h")):
+            return g
+    except Exception as exc:
+        logger.warning("读取窗口尺寸失败：%s", exc)
+    return None
+
+
+def save_geometry(window, logger):
+    """关窗时记录窗口大小/位置，下次启动还原。"""
+    try:
+        from app.services import settings_store
+        g = {"w": int(window.width), "h": int(window.height)}
+        # x/y 部分平台/版本不可用，缺失则不还原位置
+        try:
+            g["x"], g["y"] = int(window.x), int(window.y)
+        except (AttributeError, TypeError, ValueError):
+            pass
+        settings_store.set("window.geometry", g)
+    except Exception as exc:
+        logger.warning("保存窗口尺寸失败：%s", exc)
+
+
+# 「退出」流程标记：托盘菜单点退出后，closing 事件不再拦截关窗
+_EXITING = {"flag": False}
+
+
+def _tray_available() -> bool:
+    try:
+        import pystray  # noqa: F401
+        from PIL import Image  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _setting_true(key: str) -> bool:
+    try:
+        from app.services import settings_store
+        return bool(settings_store.get(key))
+    except Exception:
+        return False
+
+
+def start_tray(window, server, logger):
+    """系统托盘：显示窗口 / 退出。在独立线程跑图标消息循环。"""
+    try:
+        import pystray
+        from PIL import Image
+    except ImportError:
+        logger.warning("pystray/Pillow 不可用，托盘功能禁用")
+        return None
+
+    from app.config import BASE_DIR
+
+    icon_file = BASE_DIR / "assets" / "app.ico"
+    try:
+        image = Image.open(icon_file) if icon_file.exists() \
+            else Image.new("RGB", (64, 64), (9, 105, 218))
+    except Exception:
+        image = Image.new("RGB", (64, 64), (9, 105, 218))
+
+    def show_window(icon, item):
+        try:
+            window.show()
+        except Exception as exc:
+            logger.warning("托盘唤起窗口失败：%s", exc)
+
+    def quit_app(icon, item):
+        _EXITING["flag"] = True
+        server.should_exit = True
+        try:
+            icon.stop()
+        except Exception:
+            pass
+        try:
+            window.destroy()
+        except Exception:
+            os._exit(0)
+
+    menu = pystray.Menu(
+        pystray.MenuItem("显示窗口", show_window, default=True),
+        pystray.MenuItem("退出", quit_app),
+    )
+    icon = pystray.Icon("LocalProjectArchive", image, "本地项目档案", menu)
+    threading.Thread(target=icon.run, daemon=True).start()
+    logger.info("系统托盘已启用")
+    return icon
+
+
 def wait_port(port: int, host: str = "127.0.0.1", timeout: float = 20.0) -> bool:
     """轮询到服务真正在监听再开窗口，否则会白屏。"""
     deadline = time.time() + timeout
@@ -258,8 +352,22 @@ def main() -> int:
         open_browser_window(url, server)
         return 0
 
+    # 窗口大小/位置：还原上次的（无效或缺失时用默认）
+    geo = load_geometry(logger)
+    width, height = 1440, 900
+    pos_kwargs = {}
+    if geo:
+        width, height = geo["w"], geo["h"]
+        if "x" in geo and "y" in geo:
+            pos_kwargs = {"x": geo["x"], "y": geo["y"]}
+
+    # 托盘行为：关闭=隐藏到托盘；配合「静默启动」可开机不弹窗
+    tray_enabled = _tray_available() and _setting_true("tray.close_to_tray")
+    start_hidden = tray_enabled and _setting_true("app.start_minimized")
+
     window = webview.create_window(
-        "本地项目档案", url, width=1440, height=900, min_size=(1024, 700))
+        "本地项目档案", url, width=width, height=height, min_size=(1024, 700),
+        hidden=start_hidden, **pos_kwargs)
     if window is None:
         # 极少数环境下创建窗口会返回 None，不能让用户干等
         logger.error("pywebview 创建窗口失败，回退到系统浏览器")
@@ -267,8 +375,31 @@ def main() -> int:
         open_browser_window(url, server)
         return 0
 
-    # 关窗必须让服务退出，否则进程会残留成僵尸
-    window.events.closed += lambda: setattr(server, "should_exit", True)
+    tray_icon = start_tray(window, server, logger) if tray_enabled else None
+
+    if tray_enabled:
+        # 有托盘时，关闭按钮 = 隐藏到托盘而不是退出（托盘菜单点退出才真退出）
+        def _on_closing():
+            if _EXITING["flag"]:
+                return True          # 已在退出流程，放行关闭
+            try:
+                window.hide()
+            except Exception:
+                return True          # 隐藏失败就别拦着了
+            return False             # 取消本次关闭
+        window.events.closing += _on_closing
+
+    # 关窗（真正退出）必须让服务退出，否则进程会残留成僵尸；顺带记住窗口位置
+    def _on_closed():
+        server.should_exit = True
+        save_geometry(window, logger)
+        if tray_icon is not None:
+            try:
+                tray_icon.stop()
+            except Exception:
+                pass
+    window.events.closed += _on_closed
+
     webview.start(icon=icon_path(), debug=False)
     return 0
 
