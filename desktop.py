@@ -177,11 +177,16 @@ def migrate_legacy_data(data_dir: Path, logger) -> None:
 # 服务与窗口
 # --------------------------------------------------------------------------
 def load_geometry(logger):
-    """读取上次窗口大小/位置；无效或缺失时返回 None 用默认。"""
+    """读取上次窗口大小/位置；无效或缺失时返回 None 用默认。
+
+    同步过滤异常值（历史版本曾把最小化时的 -25600 坐标写进设置）。
+    """
     try:
         from app.services import settings_store
         g = settings_store.get("window.geometry")
-        if isinstance(g, dict) and all(isinstance(g.get(k), int) for k in ("w", "h")):
+        if isinstance(g, dict) and all(isinstance(g.get(k), int) for k in ("w", "h")) \
+                and g["w"] >= 300 and g["h"] >= 300 \
+                and g.get("x", 0) > -20000 and g.get("y", 0) > -20000:
             return g
     except Exception as exc:
         logger.warning("读取窗口尺寸失败：%s", exc)
@@ -189,18 +194,48 @@ def load_geometry(logger):
 
 
 def save_geometry(window, logger):
-    """关窗时记录窗口大小/位置，下次启动还原。"""
+    """记录窗口大小/位置；窗口处于最小化/隐藏等异常状态时跳过。
+
+    返回 True 表示已写入。pywebview 在窗口销毁或最小化时读尺寸会
+    返回 None / 屏幕外坐标（-25600），这类值写入会导致下次启动还原出坏窗口。
+    """
     try:
         from app.services import settings_store
-        g = {"w": int(window.width), "h": int(window.height)}
-        # x/y 部分平台/版本不可用，缺失则不还原位置
-        try:
-            g["x"], g["y"] = int(window.x), int(window.y)
-        except (AttributeError, TypeError, ValueError):
-            pass
-        settings_store.set("window.geometry", g)
+        w, h = int(window.width), int(window.height)
+        x, y = int(window.x), int(window.y)
+        if w < 300 or h < 300 or x < -20000 or y < -20000:
+            return False
+        settings_store.set("window.geometry", {"w": w, "h": h, "x": x, "y": y})
+        return True
     except Exception as exc:
         logger.warning("保存窗口尺寸失败：%s", exc)
+        return False
+
+
+def track_geometry(window, logger):
+    """跟踪窗口大小/位置变化并防抖持久化。
+
+    不在 closing/closed 时保存：那两个时机窗口已最小化或销毁，
+    读到的几何不可靠（曾导致保存出 -25600 的屏幕外坐标）。
+    """
+    import threading
+
+    timer = {"t": None}
+
+    def _save():
+        save_geometry(window, logger)
+
+    def _schedule(*_args):
+        if timer["t"] is not None:
+            timer["t"].cancel()
+        timer["t"] = threading.Timer(0.8, _save)
+        timer["t"].daemon = True
+        timer["t"].start()
+
+    # 显示后记录初始几何；拖动/缩放过程中防抖保存，静止 0.8s 后落盘
+    window.events.shown += _schedule
+    window.events.resized += _schedule
+    window.events.moved += _schedule
 
 
 # 「退出」流程标记：托盘菜单点退出后，closing 事件不再拦截关窗
@@ -377,6 +412,9 @@ def main() -> int:
 
     tray_icon = start_tray(window, server, logger) if tray_enabled else None
 
+    # 窗口大小/位置：变化时防抖持久化（closing/closed 时机窗口已不可读，见 track_geometry）
+    track_geometry(window, logger)
+
     if tray_enabled:
         # 有托盘时，关闭按钮 = 隐藏到托盘而不是退出（托盘菜单点退出才真退出）
         def _on_closing():
@@ -389,10 +427,9 @@ def main() -> int:
             return False             # 取消本次关闭
         window.events.closing += _on_closing
 
-    # 关窗（真正退出）必须让服务退出，否则进程会残留成僵尸；顺带记住窗口位置
+    # 关窗（真正退出）必须让服务退出，否则进程会残留成僵尸
     def _on_closed():
         server.should_exit = True
-        save_geometry(window, logger)
         if tray_icon is not None:
             try:
                 tray_icon.stop()
