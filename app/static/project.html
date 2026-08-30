@@ -75,6 +75,9 @@
             <button class="btn" role="menuitem" @click="openEdit">
               <lpa-icon name="pencil" :size="15"></lpa-icon>编辑档案
             </button>
+            <button class="btn" role="menuitem" @click="togglePin">
+              <lpa-icon name="pin" :size="15"></lpa-icon>{{ p.pinned ? "取消置顶" : "置顶" }}
+            </button>
             <button class="btn" role="menuitem" @click="exportHtml">
               <lpa-icon name="download" :size="15"></lpa-icon>导出 HTML
             </button>

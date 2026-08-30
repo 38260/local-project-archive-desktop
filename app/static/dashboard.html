@@ -120,6 +120,12 @@
             <div class="path-row" :title="p.path">
               <span class="path">{{ shortPath(p.path) }}</span>
               <span class="row-actions">
+                <button class="icon-btn" :class="{'pin-on': p.pinned}"
+                        :title="p.pinned ? '取消置顶' : '置顶（列表中优先展示）'"
+                        :aria-label="p.pinned ? '取消置顶' : '置顶'"
+                        @click.stop="togglePin(p)">
+                  <lpa-icon name="pin" :size="15"></lpa-icon>
+                </button>
                 <button class="icon-btn" title="资源管理器打开" aria-label="资源管理器打开" :disabled="p.is_lost"
                         @click.stop="quickOpen(p, 'explorer')">
                   <lpa-icon name="folder-open" :size="15"></lpa-icon>

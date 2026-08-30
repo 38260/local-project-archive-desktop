@@ -462,6 +462,8 @@ input[type="search"] { width: 320px; }
   color: var(--muted); font: 13px var(--sans); padding: 3px 6px; border-radius: var(--r-sm);
 }
 .icon-btn:hover { color: var(--accent); background: var(--accent-soft); }
+.icon-btn.pin-on { color: var(--warn); opacity: 1; }
+.icon-btn.pin-on:hover { color: var(--warn); background: var(--c-amber-bg); }
 .icon-btn:active { transform: scale(.92); }
 
 .empty-tip {
