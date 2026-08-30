@@ -320,6 +320,15 @@
         } catch (e) { /* 设置读取失败不影响详情页 */ }
         this.loadHeatmap();
       },
+      // ---- 设置（共享弹窗，见 js/settings.js；首页同款） ----
+      openSettings() { this.$refs.settings.open(); },
+      // 设置变更联动：prefs=编辑器命令/提交加载数/热力图范围随改随生效；
+      // data=数据被恢复/清空，整页重载（load 自带 404 处理）
+      onSettingsChanged(kind) {
+        this.themeTick++;   // 主题可能被设置弹窗改过，顶栏按钮文字/图标需刷新
+        if (kind === "data") { this.load(); return; }
+        this.loadPrefs();
+      },
       // GitHub 风格热力图：独立接口，全量按天聚合（不受提交记录条数上限影响）
       async loadHeatmap() {
         try {
@@ -766,9 +775,10 @@
         }
       };
       window.addEventListener("beforeunload", this._onBeforeUnload);
-      // Esc 关闭更多菜单 / 编辑弹窗 / 截图灯箱
+      // Esc 依次关闭：设置弹窗 → 提交日弹窗 → 灯箱 → 更多菜单 → 编辑弹窗
       this._onKey = (e) => {
         if (e.key !== "Escape") return;
+        if (this.$refs.settings && this.$refs.settings.visible) { this.$refs.settings.close(); return; }
         if (this.previewShot) { this.previewShot = null; return; }
         if (this.heatDay) { this.heatDay = null; return; }
         if (this.moreOpen) { this.moreOpen = false; return; }
@@ -786,6 +796,7 @@
   app.component("tree-node", TreeNode);
   app.component("lpa-select", window.LpaSelect);
   app.component("lpa-icon", window.LpaIcon);
+  app.component("lpa-settings-dialog", window.LpaSettingsDialog);
   app.directive("modal", window.LpaModal);
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用
   Object.assign(app.config.globalProperties, window.LPA_HELPERS);

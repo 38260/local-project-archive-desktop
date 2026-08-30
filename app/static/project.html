@@ -26,6 +26,9 @@
       <span class="btn-text">归迹拾光 <span class="dim">/ 项目详情</span></span>
     </span>
     <span class="spacer"></span>
+    <button class="btn icon-only" @click="openSettings" title="设置" aria-label="设置">
+      <lpa-icon name="settings" :size="15"></lpa-icon>
+    </button>
     <button class="btn" @click="switchTheme" :title="'主题：' + themeLabel + '（点击切换：跟随系统 / 亮色 / 暗色）'">
       <lpa-icon :name="themeIcon" :size="15"></lpa-icon><span class="btn-text">{{ themeLabel }}</span>
     </button>
@@ -754,10 +757,13 @@
       </div>
     </div>
   </div>
+  <!-- 设置（共享组件，见 js/settings.js；首页同款） -->
+  <lpa-settings-dialog ref="settings" :statuses="statuses" @changed="onSettingsChanged"></lpa-settings-dialog>
 </div>
 
 <script src="/static/js/vendor/vue.global.prod.js"></script>
 <script src="/static/js/common.js"></script>
+<script src="/static/js/settings.js"></script>
 <script src="/static/js/project.js"></script>
 </body>
 </html>

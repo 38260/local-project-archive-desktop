@@ -40,7 +40,6 @@
         heatCollapsed: localStorage.getItem("lpa-home-heat-collapsed") === "1",
         // 打开项目的编辑器（设置联动：卡片按钮图标/文字跟随）
         editorCmd: "code",
-        editorOptions: [],
         // 手动录入
         showAdd: false,
         submitting: false,
@@ -53,18 +52,8 @@
         scanDepth: 3,
         candidates: null,
         importForm: { category: "" },
-        // 设置
-        showSettings: false,
-        autostart: { enabled: false, available: false, saving: false },
-        importingBackup: false,
-        backups: [],
-        backupEnabled: true,
-        backupKeep: 10,
-        backupSaving: false,
-        prefs: {},        // 通用设置键值（来自 /api/settings）
-        themeOptions: [
-          { v: "auto", l: "跟随系统" }, { v: "light", l: "亮色" }, { v: "dark", l: "暗色" },
-        ],
+        // 通用设置键值（来自 /api/settings；设置弹窗本体在共享组件 js/settings.js）
+        prefs: {},
       };
     },
     computed: {
@@ -293,145 +282,6 @@
         finally { this.rescanningAll = false; }
       },
 
-      // ---- 设置 ----
-      openSettings() {
-        this.showSettings = true;
-        this.loadAutostart();
-        this.loadBackups();
-        this.loadPrefs();
-        this.loadEditors();
-      },
-      // 编辑器下拉选项：后端探测 PATH 上可用的命令（带友好显示名）
-      async loadEditors() {
-        try {
-          const r = await api("/api/settings/editors", { silent: true });
-          this.editorOptions = (r.editors || []).map(e => ({ v: e.cmd, l: e.name }));
-        } catch (e) {
-          this.editorOptions = Object.keys(window.EDITOR_META);
-        }
-      },
-      // 设置里选编辑器：同步卡片/详情按钮的图标与文字
-      chooseEditor(cmd) {
-        this.prefs["editor.command"] = cmd;
-        this.editorCmd = cmd;
-        this.savePref("editor.command");
-      },
-      async loadAutostart() {
-        try {
-          const r = await api("/api/settings/autostart", { silent: true });
-          this.autostart.enabled = !!r.enabled;
-          this.autostart.available = !!r.available;
-        } catch (e) {
-          this.autostart.available = false;
-        }
-      },
-      async toggleAutostart() {
-        this.autostart.saving = true;
-        const wanted = this.autostart.enabled;
-        try {
-          const r = await api("/api/settings/autostart", {
-            method: "PUT", body: { enabled: wanted },
-          });
-          this.autostart.enabled = !!r.enabled;
-          toast(r.enabled ? "已开启开机自启动" : "已关闭开机自启动", "ok");
-        } catch (e) {
-          this.autostart.enabled = !wanted;   // 失败回滚
-        } finally {
-          this.autostart.saving = false;
-        }
-      },
-      async importBackup(e) {
-        const file = e.target.files && e.target.files[0];
-        e.target.value = "";
-        if (!file) return;
-        let payload;
-        try {
-          payload = JSON.parse(await file.text());
-        } catch (err) {
-          toast("备份文件读取失败：不是有效的 JSON", "error");
-          return;
-        }
-        if (!Array.isArray(payload.projects)) {
-          toast("不是本系统导出的备份文件（缺少 projects 列表）", "error");
-          return;
-        }
-        if (!await confirmDialog(
-          `将导入 ${payload.projects.length} 个项目档案（已存在的路径会自动跳过）。继续吗？`,
-          { title: "导入 JSON 备份", okText: "导入" })) return;
-        this.importingBackup = true;
-        try {
-          const r = await api("/api/import", { method: "POST", body: payload });
-          let msg = `导入 ${r.imported} 个项目，跳过 ${r.skipped} 个已存在`;
-          if (r.failed.length) msg += `，${r.failed.length} 个失败`;
-          toast(msg, r.failed.length ? "error" : "ok");
-          this.load();
-        } catch (err) { /* toast 已提示 */ }
-        finally { this.importingBackup = false; }
-      },
-      async loadBackups() {
-        try {
-          const r = await api("/api/settings/backups", { silent: true });
-          this.backups = r.backups || [];
-          this.backupEnabled = !!r.auto_enabled;
-          this.backupKeep = r.keep || 10;
-        } catch (e) { /* 静默 */ }
-      },
-      async saveBackupPrefs() {
-        this.backupSaving = true;
-        const keep = Math.min(99, Math.max(1, Number(this.backupKeep) || 10));
-        try {
-          await api("/api/settings", {
-            method: "PUT",
-            body: { "backup.enabled": !!this.backupEnabled, "backup.keep": keep },
-          });
-          this.backupKeep = keep;
-        } catch (e) {
-          this.loadBackups();   // 失败回滚显示
-        } finally { this.backupSaving = false; }
-      },
-      async backupNow() {
-        this.backupSaving = true;
-        try {
-          const r = await api("/api/settings/backups", { method: "POST" });
-          toast(`已创建备份：${r.name}`, "ok");
-          this.loadBackups();
-        } catch (e) { /* toast 已提示 */ }
-        finally { this.backupSaving = false; }
-      },
-      async restoreBackup(b) {
-        if (!await confirmDialog(
-          `用备份 ${b.name}（${fmtTime(b.mtime)}）覆盖当前档案数据？\n恢复前会先自动备份当前数据，误操作可再次恢复。`,
-          { title: "从备份恢复", okText: "恢复" })) return;
-        this.backupSaving = true;
-        try {
-          await api("/api/settings/backups/restore", { method: "POST", body: { name: b.name } });
-          toast("已从备份恢复，正在刷新列表…", "ok");
-          this.load();
-          this.loadBackups();
-        } catch (e) { /* toast 已提示 */ }
-        finally { this.backupSaving = false; }
-      },
-      async deleteBackup(b) {
-        if (!await confirmDialog(`删除备份 ${b.name}？删除后不可恢复。`,
-          { title: "删除备份", okText: "删除", danger: true })) return;
-        try {
-          await api("/api/settings/backups", { method: "DELETE", body: { name: b.name } });
-          toast("备份已删除", "ok");
-          this.loadBackups();
-        } catch (e) { /* toast 已提示 */ }
-      },
-      async openDataFolder() {
-        try {
-          const r = await api("/api/settings/open-data-folder");
-          toast("已打开数据文件夹", "ok");
-          this.dataPath = r.path || this.dataPath;
-        } catch (e) { /* toast 已提示 */ }
-      },
-      async openLog() {
-        try {
-          await api("/api/settings/open-log");
-        } catch (e) { /* toast 已提示（开发模式无日志文件时会解释原因） */ }
-      },
       async loadPrefs() {
         try {
           this.prefs = await api("/api/settings", { silent: true });
@@ -453,22 +303,21 @@
         this.heatCollapsed = !this.heatCollapsed;
         localStorage.setItem("lpa-home-heat-collapsed", this.heatCollapsed ? "1" : "0");
       },
-      async savePref(key) {
-        try {
-          await api("/api/settings", {
-            method: "PUT", body: { [key]: this.prefs[key] ?? "" },
-          });
-        } catch (e) { this.loadPrefs(); }   // 失败回滚显示
+      // ---- 设置（共享弹窗，见 js/settings.js） ----
+      openSettings() { this.$refs.settings.open(); },
+      // 设置变更联动：prefs=刷新编辑器按钮/主题/热力图范围等联动状态；
+      // data=数据被导入/恢复/清空，整页重新加载
+      onSettingsChanged(kind, key, value) {
+        this.themeTick++;
+        if (key === "ui.show_archived_default") this.showArchived = !!value;
+        this.loadPrefs();
+        if (kind === "data") this.load();
       },
-      async clearAll() {
-        const v = await confirmDialog(
-          "确定要清空全部档案数据吗？此操作不可撤销。\n建议先在「数据维护」里导出 JSON 备份。\n\n为防止误触，请输入 CLEAR 确认：",
-          { title: "清空全部档案", okText: "确认清空", danger: true, requireText: "CLEAR" });
-        if (v !== "CLEAR") return;
+      async openDataFolder() {
         try {
-          const r = await api("/api/projects/all", { method: "DELETE" });
-          toast(`已清空 ${r.deleted} 条档案记录`, "ok");
-          this.load();
+          const r = await api("/api/settings/open-data-folder");
+          toast("已打开数据文件夹", "ok");
+          this.dataPath = r.path || this.dataPath;
         } catch (e) { /* toast 已提示 */ }
       },
 
@@ -580,8 +429,12 @@
           return;
         }
         if (e.key === "Escape") {
-          if (this.showAdd || this.showScan || this.showSettings) {
-            this.showAdd = false; this.showScan = false; this.showSettings = false;
+          if (this.$refs.settings && this.$refs.settings.visible) {
+            this.$refs.settings.close();
+            return;
+          }
+          if (this.showAdd || this.showScan) {
+            this.showAdd = false; this.showScan = false;
             return;
           }
           if (typing && document.activeElement.type === "search") {
@@ -599,6 +452,7 @@
   Object.assign(app.config.globalProperties, window.LPA_HELPERS);
   app.component("lpa-select", window.LpaSelect);
   app.component("lpa-icon", window.LpaIcon);
+  app.component("lpa-settings-dialog", window.LpaSettingsDialog);
   app.directive("modal", window.LpaModal);
   app.mount("#app");
 })();
