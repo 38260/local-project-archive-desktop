@@ -140,6 +140,21 @@
     });
   };
 
+  // ---------- 打开项目的编辑器：命令 → 名称/图标 映射（按钮与设置联动用） ----------
+  window.EDITOR_META = {
+    "code": { name: "VS Code", icon: "vscode" },
+    "code-insiders": { name: "VS Code Insiders", icon: "vscode" },
+    "cursor": { name: "Cursor", icon: "cursor" },
+    "windsurf": { name: "Windsurf", icon: "code" },
+    "subl": { name: "Sublime Text", icon: "code" },
+  };
+  window.editorIcon = function (cmd) {
+    return (window.EDITOR_META[cmd] || {}).icon || "code";
+  };
+  window.editorName = function (cmd) {
+    return (window.EDITOR_META[cmd] || {}).name || cmd || "编辑器";
+  };
+
   // ---------- API ----------
   window.api = async function (path, options) {
     const opt = Object.assign({ headers: {} }, options || {});
@@ -353,6 +368,8 @@
     folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
     "folder-open": '<path d="M4 20h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 4.9A2 2 0 0 0 7.93 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"/><path d="M2 14h20l-2.4 4.2a2 2 0 0 1-1.7 1H6.1a2 2 0 0 1-1.7-1L2 14Z"/>',
     terminal: '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
+    // Cursor：等距立方体（其品牌 logo 的几何特征）
+    cursor: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
     // VS Code 品牌折带形状：实心填充（path 内覆盖 svg 的 fill=none/stroke 默认）
     vscode: '<path fill="currentColor" stroke="none" d="M23.15 2.587 18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261a1 1 0 0 0 0 1.485L4.03 11.5.327 14.254a1 1 0 0 0 0 1.485l1.322 1.207a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 19.125V4.874a1.5 1.5 0 0 0-.85-1.287zm-5.146 9.591-6.525-4.913a.75.75 0 0 0-.963.043L6.32 11.5l4.196 4.192a.75.75 0 0 0 .963.043l6.525-4.913a.75.75 0 0 0 0-1.25z"/>',
     external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
@@ -457,6 +474,7 @@
     fmtTime, relTime, shortPath, fmtSize, fmtNum, copyText, statusBadgeClass,
     themeName, cycleTheme, tagClass,
     commitType, commitMsgText, userColor, fileColor,
+    editorIcon, editorName,
   };
 
   // ---------- 自定义下拉组件（替代原生 select：统一样式 + 键盘可达） ----------
@@ -474,7 +492,9 @@
     data() { return { open: false, focused: 0 }; },
     computed: {
       innerOptions() {
-        const list = this.options.map(o => ({ v: o, label: o }));
+        // 兼容字符串与 {v, l} 对象两种选项形式（如"50 条"这类带说明的项）
+        const list = this.options.map(o =>
+          typeof o === "string" ? { v: o, label: o } : { v: o.v, label: o.l ?? o.label ?? String(o.v) });
         if (this.allLabel) list.unshift({ v: "", label: this.allLabel });
         return list;
       },

@@ -199,9 +199,9 @@
                         @click.stop="quickOpen(p, 'explorer')">
                   <lpa-icon name="folder-open" :size="15"></lpa-icon>
                 </button>
-                <button class="icon-btn" title="VSCode 打开" aria-label="VSCode 打开" :disabled="p.is_lost"
+                <button class="icon-btn" :title="editorName + ' 打开'" :aria-label="editorName + ' 打开'" :disabled="p.is_lost"
                         @click.stop="quickOpen(p, 'vscode')">
-                  <lpa-icon name="vscode" :size="15"></lpa-icon>
+                  <lpa-icon :name="editorIcon(editorCmd)" :size="15"></lpa-icon>
                 </button>
                 <button class="icon-btn" title="复制路径" aria-label="复制路径" @click.stop="copyText(p.path)">
                   <lpa-icon name="copy" :size="15"></lpa-icon>
@@ -436,10 +436,10 @@
         <div class="setting-row" style="margin-top:10px">
           <div>
             <span class="setting-title">打开项目的编辑器</span>
-            <span class="setting-desc">详情页/卡片「VSCode 打开」使用的命令，需在 PATH 中（VS Code 默认 code，Cursor 为 cursor）</span>
+            <span class="setting-desc">详情页/卡片「{{ editorName }} 打开」按钮使用的编辑器，下拉里只列出本机可用的命令</span>
           </div>
-          <input type="text" class="pref-input" v-model.trim="prefs['editor.command']"
-                 @change="savePref('editor.command')" placeholder="code" aria-label="编辑器命令">
+          <lpa-select :model-value="prefs['editor.command'] || 'code'" :options="editorOptions"
+                      @update:model-value="chooseEditor" aria-label="编辑器"></lpa-select>
         </div>
         <div class="setting-row" style="margin-top:10px">
           <div>

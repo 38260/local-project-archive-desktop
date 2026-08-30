@@ -57,7 +57,7 @@
           <lpa-icon name="folder-open" :size="15"></lpa-icon>资源管理器
         </button>
         <button class="btn primary" @click="openIn('vscode')" :disabled="p.is_lost">
-          <lpa-icon name="vscode" :size="15"></lpa-icon>VSCode
+          <lpa-icon :name="editorIcon(editorCmd)" :size="15"></lpa-icon>{{ editorName(editorCmd) }}
         </button>
         <button class="btn" @click="copyText(p.path)">
           <lpa-icon name="copy" :size="15"></lpa-icon>复制路径
