@@ -347,6 +347,31 @@
             <span class="switch-slider"></span>
           </label>
         </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <span class="setting-title">录入默认状态 / 分类</span>
+            <span class="setting-desc">手动录入与批量导入时的初始值，留空用系统默认（进行中 / 无分类）</span>
+          </div>
+          <span class="setting-btns">
+            <lpa-select :model-value="prefs['add.default_status'] || '进行中'"
+                        :options="statuses"
+                        @update:model-value="v => { prefs['add.default_status'] = v; savePref('add.default_status'); }"></lpa-select>
+            <input type="text" class="pref-input" v-model.trim="prefs['add.default_category']"
+                   @change="savePref('add.default_category')" placeholder="默认分类" aria-label="默认分类">
+          </span>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <span class="setting-title">默认显示归档项目</span>
+            <span class="setting-desc">首页列表默认包含「归档废弃」状态的项目（可随时用筛选栏关闭）</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" v-model="prefs['ui.show_archived_default']"
+                   @change="savePref('ui.show_archived_default'); showArchived = !!prefs['ui.show_archived_default']"
+                   aria-label="默认显示归档项目">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
       </div>
       <div class="field">
         <label>数据维护</label>
