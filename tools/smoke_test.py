@@ -161,8 +161,10 @@ def main():
         git = p1["auto_meta"]["git"]
         check("识别 git 仓库与 main 分支", git["is_repo"] and git["branch"] == "main")
         check("最近提交信息可读", git["last_commit"] and "init" in git["last_commit"]["message"])
-        check("解析 package.json 依赖", any(c["file"] == "package.json" and "vue" in c["dependencies"]
-                                            for c in p1["auto_meta"]["configs"]))
+        check("解析 package.json 依赖",
+              any(c["file"] == "package.json"
+                  and any(d == "vue" or d.startswith("vue@") for d in c["dependencies"])
+                  for c in p1["auto_meta"]["configs"]))
         check("自动识别技术栈标签", "Node.js" in p1["tags"] and "Vue" in p1["tags"])
         check("README 已定位", p1["auto_meta"]["readme_file"] == "README.md")
         check("README 简介已提取", bool(p1["auto_meta"].get("intro"))
