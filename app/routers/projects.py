@@ -331,6 +331,30 @@ def rescan_all():
     return {"rescanned": ok, "failed": failed}
 
 
+def refresh_lost_marks() -> None:
+    """后台校验全部项目路径有效性，只更新丢失标记，不重新解析（快）。
+
+    由「启动自动刷新」开关控制，在后台线程运行，不阻塞服务启动。
+    """
+    with get_db() as conn:
+        rows = conn.execute("SELECT id, path, is_lost FROM projects").fetchall()
+    changed = 0
+    for r in rows:
+        try:
+            exists = os.path.isdir(r["path"])
+        except OSError:
+            exists = False
+        if bool(r["is_lost"]) != (not exists):
+            with get_db() as conn:
+                conn.execute("UPDATE projects SET is_lost=?, lost_reason=? WHERE id=?",
+                             (0 if exists else 1,
+                              "" if exists else dir_not_exists_hint(r["path"]),
+                              r["id"]))
+            changed += 1
+    if changed:
+        logger.info("启动路径校验：%d 个项目的丢失状态已更新", changed)
+
+
 @router.post("/{project_id}/rescan")
 def rescan_project(project_id: int):
     """重新解析磁盘信息；路径已失效时标记为丢失项目。"""
