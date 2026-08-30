@@ -38,7 +38,7 @@ const d = new Date();
 this.logDraftDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 ```
 
-- [ ] 修复 `openLogDraft()` 默认日期
+- [x] 修复 `openLogDraft()` 默认日期（2026-08-30 已修复）
 
 ### 🔴 B3. FastAPI 422 校验错误 toast 显示 `[object Object]`
 

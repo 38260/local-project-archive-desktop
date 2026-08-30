@@ -373,7 +373,10 @@
       openLogDraft() {
         this.logDraft = "";
         this.logDraftTitle = "";
-        this.logDraftDate = new Date().toISOString().slice(0, 10);
+        // 用本地年月日：toISOString() 取的是 UTC 日期，东八区凌晨会错成昨天
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        this.logDraftDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
       },
       async saveNewLog() {
         try {
