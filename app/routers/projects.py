@@ -177,6 +177,19 @@ def list_projects():
     return {"projects": items, "stats": stats, "statuses": STATUS_VALUES}
 
 
+@router.get("/brief")
+def list_projects_brief():
+    """轻量列表（仅 id/name），详情页左右切换用，不做磁盘校验。"""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, name FROM projects ORDER BY "
+            "CASE status WHEN '进行中' THEN 0 WHEN '已完成' THEN 1 "
+            "WHEN '暂停' THEN 2 WHEN '归档废弃' THEN 3 ELSE 4 END ASC, "
+            "updated_at DESC"
+        ).fetchall()
+    return {"projects": [{"id": r["id"], "name": r["name"]} for r in rows]}
+
+
 @router.get("/{project_id}")
 def get_project(project_id: int):
     with get_db() as conn:
