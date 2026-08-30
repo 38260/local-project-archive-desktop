@@ -317,6 +317,25 @@
           开启后，登录 Windows 会自动在后台启动本程序。
         </div>
       </div>
+      <div class="field">
+        <label>数据维护</label>
+        <div class="setting-row">
+          <div>
+            <span class="setting-title">备份与恢复</span>
+            <span class="setting-desc">导出全部档案为 JSON（含笔记与变更日志）；导入时已存在的路径自动跳过</span>
+          </div>
+          <span class="setting-btns">
+            <button class="btn sm" @click="exportJson" title="导出全部档案为 JSON 备份">
+              <lpa-icon name="download" :size="13"></lpa-icon>导出
+            </button>
+            <label class="btn sm" style="cursor:pointer" title="从备份文件恢复档案">
+              <lpa-icon name="upload" :size="13"></lpa-icon>{{ importingBackup ? "导入中…" : "导入" }}
+              <input type="file" accept=".json,application/json" style="display:none"
+                     @change="importBackup" :disabled="importingBackup">
+            </label>
+          </span>
+        </div>
+      </div>
       <div class="actions">
         <button class="btn primary" @click="showSettings = false">完成</button>
       </div>

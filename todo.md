@@ -139,15 +139,13 @@ dev_deps = [f"{k}@{v}" for k, v in (data.get("devDependencies") or {}).items()]
 除自启动（注册表）与主题（localStorage）外，当前**没有任何通用设置存储**。
 新增设置项前必须先补这一层，否则每个设置都得各写一套存储。
 
-- [ ] 新增 `app/services/settings_store.py`
-  - 读写 `DATA_DIR/settings.json`（随用户数据目录，重装不丢）
-  - 提供 `get(key, default)` / `set(key, value)` / `all()`，带默认值与容错（文件损坏回退默认）
-- [ ] 扩展 `app/routers/settings.py`：新增 `GET/PUT /api/settings`（通用键值读写）
+- [x] 新增 `app/services/settings_store.py`（2026-08-30 已实现：默认值字典 + 容错读取 + 原子写入）
+- [x] 扩展 `app/routers/settings.py`：新增 `GET/PUT /api/settings`（通用键值读写，已验证）
 - [ ] 前端：设置弹窗增加通用开关/输入绑定（复用现有 `.switch` 与 `toggleXxx` 模式）
 
 ### 高优先：数据闭环
 
-1. 🔴 **导入 JSON 备份**：最大缺口——有导出无导入，换机/恢复做不了。新增 `POST /api/import`（按 path 去重：已存在则合并/跳过可选）。入口放设置"维护"区。
+1. 🔴 **导入 JSON 备份** ✅（2026-08-30）：`POST /api/import` 已实现并验证（按路径去重跳过、笔记/变更日志随项目恢复、非法状态兜底为进行中）；设置弹窗已加「数据维护」导出/导入按钮。
 2. 🟠 **备份管理**：显示 `data/backups` 份数；"立即备份"按钮；开关 `backup.enabled` + 保留份数 `backup.keep`（替代硬编码 10）；从指定备份恢复。
 3. 🟠 **数据目录与日志**：设置页"打开数据文件夹"按钮 → `GET /api/settings/open-data-folder` → `os.startfile(DATA_DIR)`；"打开日志文件"按钮。
 
