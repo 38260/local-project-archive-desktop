@@ -4,6 +4,8 @@
   const { createApp } = Vue;
 
   const DRAFT_PREFIX = "lpa-draft-desc-";
+  // 描述预览防抖定时器（非响应式，放组件外即可）
+  let descTimer = null;
 
   // 递归目录树组件
   const TreeNode = {
@@ -103,7 +105,6 @@
         // 更多菜单 / 描述实时预览
         moreOpen: false,
         descLive: "",
-        _descTimer: null,
         // 目录树收起状态（记忆在 localStorage，默认展开）
         treeCollapsed: localStorage.getItem("lpa-tree-collapsed") === "1",
         // 左侧锚点目录（sections 已改为计算属性，空面板自动隐藏）
@@ -481,8 +482,8 @@
       },
       // 描述实时预览（500ms 防抖）
       descLiveDebounce() {
-        clearTimeout(this._descTimer);
-        this._descTimer = setTimeout(async () => {
+        clearTimeout(descTimer);
+        descTimer = setTimeout(async () => {
           try {
             const r = await api("/api/render-md", {
               method: "POST", body: { text: this.p.description || "", mode: "notes" }, silent: true,
