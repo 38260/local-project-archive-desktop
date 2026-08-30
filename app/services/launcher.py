@@ -1,10 +1,10 @@
 """启动入口检测：漏斗式两级扫描（全程只读，绝不执行任何文件）。
 
-① 直接可执行（最权威）：根目录的 .bat/.cmd/.exe/.ps1，以及 dist 一层内的 .exe
-   （PyInstaller onedir 产物 dist/<名>/<名>.exe）。这些是用户自己准备的启动方式，
-   找到即全部推荐，**跳过**智能推断；
-② 智能推断（①为空时兜底）：package.json scripts（按 lockfile 选包管理器）、
-   Python 入口文件（优先项目内虚拟环境的解释器）、Cargo/Go 工程。
+① 直接可执行（较权威）：根目录的 .bat/.cmd/.exe/.ps1、dist 一层内的 .exe。
+   文件名明显是 build/test/clean 等维护脚本时不采信为"权威"结果，避免挤掉更靠谱的推断；
+② 智能推断：Docker compose / Dockerfile → package.json scripts →
+   Python 入口（poetry / pipenv / 项目内 venv 优先于裸 python）→ Cargo/Go；
+   一层子目录（frontend/backend 等常见 monorepo 命名）复用同一套推断，附带 cwd。
 
 返回的条目只是候选建议；执行由路由层在用户明确点击按钮后进行。
 任何子步骤失败都静默降级为空结果，绝不让检测拖垮详情页。
@@ -14,23 +14,31 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
-from app.config import LAUNCH_DIRECT_EXTS, LAUNCH_ENTRY_FILES, LAUNCH_MAX_ITEMS
+from app.config import (
+    LAUNCH_COMPOSE_FILES, LAUNCH_DIRECT_EXTS, LAUNCH_ENTRY_FILES,
+    LAUNCH_MAINTENANCE_HINTS, LAUNCH_MAX_ITEMS, LAUNCH_MONOREPO_DIRS,
+)
 
 logger = logging.getLogger(__name__)
 
-# 常见 dev 脚本优先展示，其余脚本排后
 _PREFERRED_SCRIPTS = ["dev", "start", "serve", "preview"]
-# lockfile → 包管理器（决定 node 类启动命令的前缀）
 _LOCKFILE_PM = [("pnpm-lock.yaml", "pnpm"), ("yarn.lock", "yarn"), ("bun.lockb", "bun")]
-# start/run/dev/启动 开头的入口文件排最前（命名即意图）
 _PRIORITY_PREFIXES = ("start", "run", "dev", "启动")
 
 
 def _entry(name: str, command: str, mode: str, source: str) -> dict:
-    """统一建议条目结构：cwd 为相对项目根的子目录（检测到的都在根上）。"""
     return {"name": name, "command": command, "cwd": "", "mode": mode, "source": source}
+
+
+def _is_maintenance_name(source: str) -> bool:
+    """文件名明显是构建/测试/清理类脚本而非启动脚本时返回 True（漏斗误报缓解）。"""
+    stem = Path(source).stem.lower()
+    return any(stem == h or stem.startswith(f"{h}_") or stem.startswith(f"{h}-")
+               or stem.endswith(f"_{h}") or stem.endswith(f"-{h}")
+               for h in LAUNCH_MAINTENANCE_HINTS)
 
 
 def _scan_direct(root: Path) -> list[dict]:
@@ -44,19 +52,16 @@ def _scan_direct(root: Path) -> list[dict]:
             if ext not in LAUNCH_DIRECT_EXTS:
                 continue
             if ext == ".ps1":
-                # PowerShell 脚本绕过执行策略限制，在终端窗口运行
                 items.append(_entry(
                     Path(it.name).stem,
                     f'powershell -NoProfile -ExecutionPolicy Bypass -File "{it.path}"',
                     "console", it.name))
             else:
-                # bat/cmd/exe 用「直接运行」（双击等效）；名称取文件名去扩展名
                 items.append(_entry(Path(it.name).stem, it.path, "open", it.name))
     except OSError as exc:
         logger.debug("启动入口扫描失败（根目录）%s: %s", root, exc)
         return []
 
-    # dist 一层内的 exe（PyInstaller onedir：dist/<工程名>/<名>.exe）
     dist = root / "dist"
     if dist.is_dir():
         try:
@@ -74,7 +79,6 @@ def _scan_direct(root: Path) -> list[dict]:
         except OSError as exc:
             logger.debug("启动入口扫描失败（dist）%s: %s", dist, exc)
 
-    # 去重（同一路径只留一条）+ 意图命名优先 + 截断
     seen: set[str] = set()
     uniq: list[dict] = []
     for it in items:
@@ -89,7 +93,6 @@ def _scan_direct(root: Path) -> list[dict]:
 
 
 def _find_venv_python(root: Path) -> str | None:
-    """项目内虚拟环境的 python.exe（.venv/venv/env 等任意目录名都认）。"""
     if os.name != "nt":
         return None
     try:
@@ -104,13 +107,33 @@ def _find_venv_python(root: Path) -> str | None:
     return None
 
 
+def _uses_poetry(root: Path) -> bool:
+    pp = root / "pyproject.toml"
+    if not pp.is_file():
+        return False
+    try:
+        return "[tool.poetry]" in pp.read_text(encoding="utf-8-sig", errors="replace")
+    except OSError:
+        return False
+
+
 def _scan_inferred(root: Path) -> list[dict]:
-    """② 智能推断：node scripts → Python 入口 → cargo/go。"""
+    """② 智能推断：Docker → node scripts → Python 入口 → cargo/go。"""
     items: list[dict] = []
+
+    # Docker：compose 一条命令拉起完整环境，优先于单文件推断
+    compose = next((f for f in LAUNCH_COMPOSE_FILES if (root / f).is_file()), None)
+    if compose:
+        items.append(_entry("docker compose up", "docker compose up", "console", compose))
+    elif (root / "Dockerfile").is_file():
+        img = re.sub(r"[^a-z0-9_.-]", "-", root.name.lower()) or "app"
+        items.append(_entry(
+            "docker run", f"docker build -t {img} . && docker run -it --rm {img}",
+            "console", "Dockerfile"))
 
     # Node：package.json scripts（lockfile 决定包管理器）
     pkg = root / "package.json"
-    if pkg.is_file():
+    if pkg.is_file() and len(items) < LAUNCH_MAX_ITEMS:
         try:
             data = json.loads(pkg.read_text(encoding="utf-8-sig", errors="replace"))
             scripts = data.get("scripts") or {}
@@ -122,18 +145,25 @@ def _scan_inferred(root: Path) -> list[dict]:
                 items.append(_entry(
                     f"{s}（{pm}）", f"{pm} run {s}", "console",
                     f"package.json · scripts.{s}"))
+                if len(items) >= LAUNCH_MAX_ITEMS:
+                    break
         except (OSError, ValueError) as exc:
             logger.debug("package.json 解析失败 %s: %s", pkg, exc)
 
-    # Python：入口文件 + 项目内虚拟环境解释器优先
+    # Python：入口文件 + 解释器优先级 poetry > pipenv > 项目内 venv > 裸 python
     if len(items) < LAUNCH_MAX_ITEMS:
-        venv_py = _find_venv_python(root)
-        py_cmd = f'"{venv_py}"' if venv_py else "python"
+        if _uses_poetry(root):
+            py_prefix = "poetry run python"
+        elif (root / "Pipfile").is_file():
+            py_prefix = "pipenv run python"
+        else:
+            venv_py = _find_venv_python(root)
+            py_prefix = f'"{venv_py}"' if venv_py else "python"
         for name in LAUNCH_ENTRY_FILES:
             if (root / name).is_file():
                 args = f"{name} runserver" if name == "manage.py" else name
                 items.append(_entry(
-                    f"启动 {name}", f"{py_cmd} {args}", "console", name))
+                    f"启动 {name}", f"{py_prefix} {args}", "console", name))
                 if len(items) >= LAUNCH_MAX_ITEMS:
                     break
 
@@ -147,16 +177,54 @@ def _scan_inferred(root: Path) -> list[dict]:
     return items[:LAUNCH_MAX_ITEMS]
 
 
+def _scan_monorepo(root: Path) -> list[dict]:
+    """一层子目录探测：前后端分仓项目，命中常见目录名即复用同一套推断。
+
+    条目带 cwd（相对项目根），执行时后端切到该子目录再跑命令。
+    """
+    items: list[dict] = []
+    try:
+        subdirs = {d.name: d.path for d in os.scandir(root) if d.is_dir()}
+    except OSError:
+        return items
+    for name in LAUNCH_MONOREPO_DIRS:
+        hit = next((subdirs[k] for k in subdirs if k.lower() == name), None)
+        if not hit:
+            continue
+        sub_items = _scan_inferred(Path(hit))
+        for it in sub_items:
+            it["cwd"] = os.path.basename(hit)
+            it["name"] = f"{it['name']}（{it['cwd']}/）"
+        items.extend(sub_items)
+        if len(items) >= LAUNCH_MAX_ITEMS:
+            break
+    return items[:LAUNCH_MAX_ITEMS]
+
+
 def detect_launchers(path: str) -> dict:
-    """漏斗检测入口。返回 {kind, items}：kind = direct | inferred | none。"""
+    """漏斗检测入口。返回 {kind, items}：
+    kind = direct（可信的直接可执行）
+         | direct_weak（只找到疑似构建/测试脚本，不确定是否为启动方式）
+         | inferred（构建配置推断，含 monorepo 子目录）
+         | none
+    """
     root = Path(path)
     if not root.is_dir():
         return {"kind": "none", "items": []}
     try:
         direct = _scan_direct(root)
+        strong_direct = [d for d in direct if not _is_maintenance_name(d["source"])]
+        if strong_direct:
+            return {"kind": "direct", "items": strong_direct}
+
+        inferred = _scan_inferred(root)
+        if len(inferred) < LAUNCH_MAX_ITEMS:
+            inferred += _scan_monorepo(root)
+        if inferred:
+            return {"kind": "inferred", "items": inferred[:LAUNCH_MAX_ITEMS]}
         if direct:
-            return {"kind": "direct", "items": direct}
-        return {"kind": "inferred", "items": _scan_inferred(root)}
-    except Exception as exc:  # 任何意外都不影响详情页
+            return {"kind": "direct_weak", "items": direct}
+        return {"kind": "none", "items": []}
+    except Exception as exc:
         logger.warning("启动入口检测异常 %s: %s", path, exc)
         return {"kind": "none", "items": []}

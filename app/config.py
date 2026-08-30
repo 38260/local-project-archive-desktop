@@ -165,3 +165,12 @@ LAUNCH_ENTRY_FILES = ["main.py", "app.py", "run.py", "manage.py", "server.py",
 LAUNCH_MAX_ITEMS = 8
 # 快速启动：自定义启动项每个项目的数量上限
 LAUNCHERS_MAX_PER_PROJECT = 20
+# 快速启动：Docker 编排/镜像文件（compose 一条命令拉起完整环境）
+LAUNCH_COMPOSE_FILES = ["docker-compose.yml", "docker-compose.yaml",
+                        "compose.yml", "compose.yaml"]
+# 快速启动：monorepo 常见子目录名（一层子目录探测前后端分离项目）
+LAUNCH_MONOREPO_DIRS = ["frontend", "client", "web", "backend", "server", "api"]
+# 快速启动：命中这些关键词的可执行文件大概率是构建/测试/清理脚本而非启动脚本
+LAUNCH_MAINTENANCE_HINTS = ("build", "test", "clean", "setup", "install", "deploy",
+                            "uninstall", "pack", "publish", "lint", "format",
+                            "release", "ci")
