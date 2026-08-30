@@ -318,6 +318,17 @@
         </div>
       </div>
       <div class="field">
+        <label>使用偏好</label>
+        <div class="setting-row">
+          <div>
+            <span class="setting-title">打开项目的编辑器</span>
+            <span class="setting-desc">详情页/卡片「VSCode 打开」使用的命令，需在 PATH 中（VS Code 默认 code，Cursor 为 cursor）</span>
+          </div>
+          <input type="text" class="pref-input" v-model.trim="prefs['editor.command']"
+                 @change="savePref('editor.command')" placeholder="code" aria-label="编辑器命令">
+        </div>
+      </div>
+      <div class="field">
         <label>数据维护</label>
         <div class="setting-row">
           <div>

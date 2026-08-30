@@ -405,12 +405,14 @@ def open_project(project_id: int, body: OpenRequest):
             raise HTTPException(502, f"无法打开资源管理器：{exc}")
         return {"ok": True, "target": "explorer"}
 
-    # VSCode：优先 PATH 中的 code 命令
-    code_bin = shutil.which("code")
+    # 编辑器：默认 PATH 中的 code 命令，可在设置中改为 cursor / idea64 等
+    from app.services import settings_store
+    editor_cmd = str(settings_store.get("editor.command") or "").strip() or "code"
+    code_bin = shutil.which(editor_cmd)
     if not code_bin:
         raise HTTPException(
-            400, "未找到 code 命令。请确认已安装 VS Code 并在安装时勾选"
-                 "“添加到 PATH”，或手动将 VS Code 的 bin 目录加入 PATH。")
+            400, f"未找到命令「{editor_cmd}」。请确认对应编辑器已安装并加入 PATH，"
+                 f"或在设置中修改「打开项目的编辑器」（默认 code）。")
     try:
         # CREATE_NO_WINDOW 避免弹出多余的命令行窗口
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)

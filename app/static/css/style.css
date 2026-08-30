@@ -510,6 +510,7 @@ body.modal-open { overflow: hidden; }
   width: 52px; display: inline-block; padding: 1px 6px; margin: 0 2px;
   font: inherit; text-align: center;
 }
+.pref-input { width: 150px; flex: none; padding: 5px 10px; font: inherit; font-size: 13px; }
 .backup-list {
   margin-top: var(--s-2); max-height: 180px; overflow-y: auto;
   border: 1px solid var(--border); border-radius: var(--r-md);
