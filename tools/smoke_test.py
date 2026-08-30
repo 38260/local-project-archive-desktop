@@ -262,9 +262,17 @@ def main():
         st, cm3 = req("GET", f"/api/projects/{p1['id'] + 1}/commits")
         check("非 git 目录 is_repo=False", st == 200 and cm3["is_repo"] is False)
 
-        # ---- 批量重新解析（解析器升级后刷新） ----
+        # ---- 批量重新解析（后台任务 + 进度轮询） ----
         st, ra = req("POST", "/api/projects/rescan-all")
-        check("批量重新解析全部项目", st == 200 and ra["rescanned"] >= 3 and not ra["failed"])
+        prog = {}
+        for _ in range(120):
+            time.sleep(0.5)
+            st, prog = req("GET", "/api/projects/rescan-all/progress")
+            if not prog.get("running", False):
+                break
+        check("批量重新解析全部项目",
+              st == 200 and ra.get("started") and prog.get("ok", 0) >= 3
+              and not prog.get("failed"))
         st, d3 = req("GET", f"/api/projects/{p1['id']}")
         check("重解析保留手动标签并合并新识别",
               "手动标签" in d3["tags"] and "Node.js" in d3["tags"])

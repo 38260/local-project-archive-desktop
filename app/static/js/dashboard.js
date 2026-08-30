@@ -20,6 +20,7 @@
         appPort: "",
         rescanningAll: false,
         rescanProgress: { done: 0, total: 0, ok: 0, failed: [] },
+        toolsOpen: false,
         projects: [],
         stats: { total: 0, active: 0, archived: 0, lost: 0 },
         statuses: [],
@@ -204,7 +205,9 @@
       // 后台任务 + 轮询进度，避免一个长请求卡住界面
       async rescanAll() {
         if (!this.projects.length) { toast("暂无项目可解析", "error"); return; }
-        if (!confirm(`用最新解析器重新解析全部 ${this.projects.length} 个项目？\n\n已有标签会保留，新识别的技术栈会补充进来。`)) return;
+        if (!await confirmDialog(
+          `用最新解析器重新解析全部 ${this.projects.length} 个项目？\n已有标签会保留，新识别的技术栈会补充进来。`,
+          { title: "全部重新解析", okText: "开始解析" })) return;
         this.rescanningAll = true;
         this.rescanProgress = { done: 0, total: this.projects.length, ok: 0, failed: [] };
         try {
@@ -281,7 +284,9 @@
           toast("不是本系统导出的备份文件（缺少 projects 列表）", "error");
           return;
         }
-        if (!confirm(`将导入 ${payload.projects.length} 个项目档案（已存在的路径会自动跳过）。继续吗？`)) return;
+        if (!await confirmDialog(
+          `将导入 ${payload.projects.length} 个项目档案（已存在的路径会自动跳过）。继续吗？`,
+          { title: "导入 JSON 备份", okText: "导入" })) return;
         this.importingBackup = true;
         try {
           const r = await api("/api/import", { method: "POST", body: payload });
@@ -323,7 +328,9 @@
         finally { this.backupSaving = false; }
       },
       async restoreBackup(b) {
-        if (!confirm(`用备份 ${b.name}（${fmtTime(b.mtime)}）覆盖当前档案数据？\n\n恢复前会先自动备份当前数据，误操作可再次恢复。`)) return;
+        if (!await confirmDialog(
+          `用备份 ${b.name}（${fmtTime(b.mtime)}）覆盖当前档案数据？\n恢复前会先自动备份当前数据，误操作可再次恢复。`,
+          { title: "从备份恢复", okText: "恢复" })) return;
         this.backupSaving = true;
         try {
           await api("/api/settings/backups/restore", { method: "POST", body: { name: b.name } });
@@ -334,7 +341,8 @@
         finally { this.backupSaving = false; }
       },
       async deleteBackup(b) {
-        if (!confirm(`删除备份 ${b.name}？删除后不可恢复。`)) return;
+        if (!await confirmDialog(`删除备份 ${b.name}？删除后不可恢复。`,
+          { title: "删除备份", okText: "删除", danger: true })) return;
         try {
           await api("/api/settings/backups", { method: "DELETE", body: { name: b.name } });
           toast("备份已删除", "ok");
@@ -366,7 +374,9 @@
         } catch (e) { this.loadPrefs(); }   // 失败回滚显示
       },
       async clearAll() {
-        if (!confirm("确定要清空全部档案数据吗？此操作不可撤销。\n建议先在「数据维护」里导出 JSON 备份。")) return;
+        if (!await confirmDialog(
+          "确定要清空全部档案数据吗？此操作不可撤销。\n建议先在「数据维护」里导出 JSON 备份。",
+          { title: "清空全部档案", okText: "继续", danger: true })) return;
         const v = prompt('为防止误触，请输入 "CLEAR" 确认清空：');
         if (v !== "CLEAR") {
           if (v !== null) toast("输入不正确，已取消清空", "error");

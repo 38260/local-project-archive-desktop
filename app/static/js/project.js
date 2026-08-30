@@ -360,7 +360,8 @@
         } catch (e) { /* toast 已提示 */ }
       },
       async deleteNote(n) {
-        if (!confirm("确定删除这条笔记吗？删除后不可恢复。")) return;
+        if (!await confirmDialog("确定删除这条笔记吗？删除后不可恢复。",
+          { title: "删除笔记", okText: "删除", danger: true })) return;
         try {
           await api(`/api/projects/${this.projectId}/notes/${n.id}`, { method: "DELETE" });
           toast("笔记已删除", "ok");
@@ -408,7 +409,8 @@
         } catch (e) { /* toast 已提示 */ }
       },
       async deleteLog(c) {
-        if (!confirm(`确定删除变更日志「${c.title || "未命名条目"}」吗？`)) return;
+        if (!await confirmDialog(`确定删除变更日志「${c.title || "未命名条目"}」吗？`,
+          { title: "删除变更日志", okText: "删除", danger: true })) return;
         try {
           await api(`/api/projects/${this.projectId}/changelogs/${c.id}`, { method: "DELETE" });
           toast("变更日志条目已删除", "ok");
@@ -457,7 +459,8 @@
         }
       },
       async deleteShot(s) {
-        if (!confirm("确定删除这张截图吗？")) return;
+        if (!await confirmDialog("确定删除这张截图吗？",
+          { title: "删除截图", okText: "删除", danger: true })) return;
         try {
           await api(`/api/projects/${this.projectId}/screenshots/${encodeURIComponent(s.file)}`,
                     { method: "DELETE" });
@@ -680,7 +683,9 @@
         this.previewShot = this.screenshots[(i + dir + n) % n];
       },
       async removeProject() {
-        if (!confirm(`确定删除「${this.p.name}」的档案记录吗？\n\n仅删除本系统中的索引数据，不会改动原项目文件夹的任何文件。`)) return;
+        if (!await confirmDialog(
+          `确定删除「${this.p.name}」的档案记录吗？\n仅删除本系统中的索引数据，不会改动原项目文件夹的任何文件。`,
+          { title: "删除档案", okText: "删除", danger: true })) return;
         try {
           await api(`/api/projects/${this.projectId}`, { method: "DELETE" });
           this.clearDescDraft();

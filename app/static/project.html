@@ -137,12 +137,8 @@
           <span class="info-v mono">{{ fmtTime(p.fs_modified) }}</span>
         </div>
         <div class="info-tile">
-          <span class="info-k">档案建立</span>
-          <span class="info-v mono">{{ fmtTime(p.created_at) }}</span>
-        </div>
-        <div class="info-tile">
-          <span class="info-k">档案更新</span>
-          <span class="info-v mono">{{ fmtTime(p.updated_at) }}</span>
+          <span class="info-k">档案建立 → 更新</span>
+          <span class="info-v mono">{{ fmtTime(p.created_at) }} → {{ fmtTime(p.updated_at) }}</span>
         </div>
       </div>
       <div class="info-tags">

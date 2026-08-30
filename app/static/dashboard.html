@@ -18,19 +18,30 @@
     <button class="btn" @click="openScan" title="批量扫描导入">
       <lpa-icon name="search" :size="15"></lpa-icon><span class="btn-text">批量扫描导入</span>
     </button>
-    <button class="btn" @click="rescanAll" :disabled="rescanningAll"
-            title="用最新解析器重新解析全部项目（保留已有标签，补充新识别）">
-      <lpa-icon name="refresh" :size="15" :class="{spin: rescanningAll}"></lpa-icon>
-      <span class="btn-text">{{ rescanningAll
-        ? (rescanProgress.total ? `解析中 ${rescanProgress.done}/${rescanProgress.total}` : "解析中…")
-        : "全部重新解析" }}</span>
-    </button>
     <button class="btn primary" @click="openAdd" title="手动录入项目">
       <lpa-icon name="plus" :size="15"></lpa-icon><span class="btn-text">手动录入</span>
     </button>
-    <button class="btn" @click="exportJson" title="导出全部档案为 JSON 备份">
-      <lpa-icon name="download" :size="15"></lpa-icon><span class="btn-text">导出 JSON</span>
-    </button>
+    <span class="more-wrap">
+      <button class="btn" @click.stop="toolsOpen = !toolsOpen" title="更多工具"
+              aria-haspopup="menu" :aria-expanded="toolsOpen ? 'true' : 'false'">
+        <lpa-icon name="more" :size="15"></lpa-icon><span class="btn-text">工具</span>
+      </button>
+      <span class="more-mask" v-if="toolsOpen" @click="toolsOpen = false"
+            style="position:fixed;inset:0;z-index:70"></span>
+      <span class="more-list" v-if="toolsOpen" style="z-index:80" role="menu"
+            @click="toolsOpen = false">
+        <button class="btn" role="menuitem" @click="rescanAll" :disabled="rescanningAll"
+                title="用最新解析器重新解析全部项目（保留已有标签，补充新识别）">
+          <lpa-icon name="refresh" :size="15" :class="{spin: rescanningAll}"></lpa-icon>
+          {{ rescanningAll
+            ? (rescanProgress.total ? `解析中 ${rescanProgress.done}/${rescanProgress.total}` : "解析中…")
+            : "全部重新解析" }}
+        </button>
+        <button class="btn" role="menuitem" @click="exportJson" title="导出全部档案为 JSON 备份">
+          <lpa-icon name="download" :size="15"></lpa-icon>导出 JSON 备份
+        </button>
+      </span>
+    </span>
     <button class="btn icon-only" @click="openSettings" title="设置" aria-label="设置">
       <lpa-icon name="settings" :size="15"></lpa-icon>
     </button>
@@ -70,9 +81,15 @@
 
     <!-- 筛选栏 -->
     <div class="filter-bar">
-      <input type="search" v-model.trim="q" aria-label="搜索项目"
-             placeholder="搜索名称 / 别名 / 路径 / 标签…（按 / 聚焦）"
-             style="flex:1;min-width:200px;max-width:460px">
+      <span class="search-wrap">
+        <input type="search" v-model.trim="q" aria-label="搜索项目"
+               placeholder="搜索名称 / 别名 / 路径 / 标签…">
+        <button type="button" class="search-clear" v-if="q" @click="q = ''"
+                aria-label="清空搜索" title="清空搜索">
+          <lpa-icon name="x" :size="13"></lpa-icon>
+        </button>
+        <kbd class="search-kbd" v-else title="按 / 快速聚焦搜索">/</kbd>
+      </span>
       <lpa-select v-model="statusFilter" :options="statuses" all-label="全部状态"></lpa-select>
       <lpa-select v-model="tagFilter" :options="allTags" all-label="全部标签"></lpa-select>
       <lpa-select v-model="catFilter" :options="allCategories" all-label="全部分类"></lpa-select>
@@ -199,7 +216,12 @@
 
   <footer class="foot-note" v-if="dataPath">
     <lpa-icon name="drive" :size="14"></lpa-icon>
-    档案持久化保存于本机：<span class="mono">{{ dataPath }}</span>，重启服务/电脑不丢失；每次启动自动备份到 data/backups/（保留份数可在设置中调整）
+    档案持久化保存于本机：<span class="mono path-link" @click="copyText(dataPath)"
+      title="点击复制数据路径">{{ dataPath }}</span>
+    <button class="icon-btn" @click="openDataFolder" title="打开数据文件夹" aria-label="打开数据文件夹">
+      <lpa-icon name="folder-open" :size="13"></lpa-icon>
+    </button>
+    ，重启服务/电脑不丢失；每次启动自动备份到 data/backups/（保留份数可在设置中调整）
   </footer>
 
   <!-- 手动录入 -->
