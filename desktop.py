@@ -105,6 +105,40 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
+def activate_existing(logger=None) -> bool:
+    """探测本机已在运行的实例，请求其显示主窗口。
+
+    用于二次启动场景：窗口收进托盘或静默启动时，用户再双击 exe
+    应该直接唤出窗口（应用惯例），而不是提示后让用户自己找。
+    返回是否成功唤出。
+    """
+    import json as _json
+    import urllib.request
+
+    for port in range(8300, 8311):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health",
+                                        timeout=0.6) as resp:
+                data = _json.loads(resp.read().decode())
+            if data.get("app") != "local-project-archive":
+                continue
+        except Exception:
+            continue
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{port}/api/show-window", method="POST",
+                data=b"{}", headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                ok = bool(_json.loads(resp.read().decode()).get("ok"))
+            if ok:
+                if logger:
+                    logger.info("已唤出已有实例窗口（端口 %s）", port)
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def acquire_single_instance(data_dir: Path, logger=None) -> bool:
     """保证只有一个实例在运行。返回 False 表示已有实例。
 
@@ -419,7 +453,12 @@ def main() -> int:
     migrate_legacy_data(DATA_DIR, logger)
 
     if not acquire_single_instance(DATA_DIR, logger):
-        alert("归迹拾光", "程序已经在运行了。")
+        # 已有实例在跑（窗口可能收在托盘/静默隐藏）——直接唤出它的窗口，
+        # 而不是丢一句「已在运行」让用户自己去托盘里翻
+        if activate_existing(logger):
+            return 0
+        alert("归迹拾光", "程序已经在运行了。\n"
+              "若找不到窗口，请查看系统托盘（任务栏右下角，可能收在「^」溢出区里）。")
         return 0
 
     port = args.port or pick_port()
@@ -481,6 +520,9 @@ def main() -> int:
 
     # 任务栏/标题栏图标：开发模式宿主是 python.exe，不设会显示 Jupyter 风格默认图标
     apply_window_icon(logger)
+
+    # 把主窗口挂到服务上：/api/show-window 借此唤出窗口（二次启动/托盘场景）
+    app.state.main_window = window
 
     tray_icon = start_tray(window, server, logger) if tray_enabled else None
 
