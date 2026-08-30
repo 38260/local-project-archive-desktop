@@ -327,6 +327,15 @@
           <input type="text" class="pref-input" v-model.trim="prefs['editor.command']"
                  @change="savePref('editor.command')" placeholder="code" aria-label="编辑器命令">
         </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <span class="setting-title">批量扫描默认深度</span>
+            <span class="setting-desc">打开扫描弹窗时的初始递归层数（1–6），扫描目录会自动记住上次的</span>
+          </div>
+          <input type="number" class="keep-input" min="1" max="6"
+                 v-model.number="prefs['scan.default_depth']"
+                 @change="savePref('scan.default_depth')" aria-label="默认扫描深度">
+        </div>
       </div>
       <div class="field">
         <label>数据维护</label>

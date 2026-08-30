@@ -357,10 +357,13 @@
       },
 
       // ---- 批量扫描 ----
-      openScan() {
+      async openScan() {
         this.showScan = true;
         this.candidates = null;
-        this.scanRoot = "";
+        // 用设置里的默认深度与上次扫描目录，省去每次重填
+        if (!this.prefs || !Object.keys(this.prefs).length) await this.loadPrefs();
+        this.scanDepth = Math.min(6, Math.max(1, Number(this.prefs["scan.default_depth"]) || 3));
+        this.scanRoot = this.prefs["scan.last_root"] || "";
         this.$nextTick(() => this.$refs.scanRootInput && this.$refs.scanRootInput.focus());
       },
       closeScan() { this.showScan = false; this.candidates = null; },
@@ -375,6 +378,10 @@
           data.candidates.forEach(c => { c.checked = !c.imported; });
           this.candidates = data;
           if (!data.candidates.length) toast("未发现候选项目", "ok");
+          // 记住本次扫描目录，下次打开直接用
+          api("/api/settings", {
+            method: "PUT", body: { "scan.last_root": this.scanRoot }, silent: true,
+          }).catch(() => {});
         } catch (e) { /* toast 已提示 */ }
         finally { this.scanning = false; }
       },
