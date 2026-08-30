@@ -849,7 +849,7 @@ body.modal-open { overflow: hidden; }
 .md-body img { max-width: 100%; }
 
 /* ---- 目录树 ---- */
-.tree { font-family: var(--mono); font-size: 14px; line-height: 1.9; user-select: none; }
+.tree { font-family: var(--mono); font-size: 15px; line-height: 1.9; user-select: none; }
 .tree ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px dotted var(--border); }
 .tree > ul { border-left: none; padding-left: 0; }
 .tree .t-row { cursor: default; white-space: nowrap; }
@@ -858,7 +858,7 @@ body.modal-open { overflow: hidden; }
 .tree .t-caret { display: inline-flex; align-items: center; width: 14px; color: var(--muted); }
 .tree .t-name { margin-left: 5px; font-weight: 600; }
 .tree .t-file .t-name { font-weight: 400; color: var(--text); }
-.tree .t-size { color: var(--muted); font-size: 12px; margin-left: var(--s-2); }
+.tree .t-size { color: var(--muted); font-size: 12.5px; margin-left: var(--s-2); }
 .tree .t-err { color: var(--danger); }
 
 /* ---- 骨架屏（P1-6：避免异步面板 pop-in 把整页往下推） ---- */
@@ -889,7 +889,7 @@ body.modal-open { overflow: hidden; }
 /* ---- 详情页三栏布局：左侧目录导航 + 主内容 + 右侧目录树 ---- */
 .detail-layout {
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr) 360px;
+  grid-template-columns: 184px minmax(0, 1fr) 430px;
   gap: 14px;
   align-items: start;
 }
