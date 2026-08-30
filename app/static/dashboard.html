@@ -335,6 +335,20 @@
             </label>
           </span>
         </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <span class="setting-title">数据位置</span>
+            <span class="setting-desc">数据库、备份、截图、设置文件统一存放的目录</span>
+          </div>
+          <span class="setting-btns">
+            <button class="btn sm" @click="openDataFolder" title="在资源管理器中打开数据目录">
+              <lpa-icon name="folder-open" :size="13"></lpa-icon>打开数据文件夹
+            </button>
+            <button class="btn sm" @click="openLog" title="打开应用日志文件">
+              <lpa-icon name="file-text" :size="13"></lpa-icon>查看日志
+            </button>
+          </span>
+        </div>
       </div>
       <div class="field">
         <label>数据库备份</label>

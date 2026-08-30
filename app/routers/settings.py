@@ -115,6 +115,51 @@ def delete_backup(body: BackupNameBody):
 
 
 # ---------------------------------------------------------------------------
+# 数据目录与日志入口
+# ---------------------------------------------------------------------------
+
+def _open_in_explorer(target) -> None:
+    """用系统文件管理器打开文件/目录。"""
+    import os
+    import subprocess
+    import sys
+
+    if sys.platform == "win32":
+        os.startfile(str(target))  # noqa: S606 Windows 资源管理器
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(target)])
+    else:
+        subprocess.Popen(["xdg-open", str(target)])
+
+
+@router.get("/open-data-folder")
+def open_data_folder():
+    """在资源管理器中打开数据目录（数据库/备份/截图/设置都在这）。"""
+    from app.config import DATA_DIR
+
+    try:
+        _open_in_explorer(DATA_DIR)
+    except OSError as exc:
+        raise HTTPException(502, f"无法打开数据目录：{exc}")
+    return {"ok": True, "path": str(DATA_DIR)}
+
+
+@router.get("/open-log")
+def open_log():
+    """打开应用日志文件（桌面模式写入，开发模式可能不存在）。"""
+    from app.config import DATA_DIR
+
+    log_file = DATA_DIR / "app.log"
+    if not log_file.is_file():
+        raise HTTPException(404, "日志文件不存在（开发模式下日志输出到控制台，不落盘）")
+    try:
+        _open_in_explorer(log_file)
+    except OSError as exc:
+        raise HTTPException(502, f"无法打开日志文件：{exc}")
+    return {"ok": True, "path": str(log_file)}
+
+
+# ---------------------------------------------------------------------------
 # 开机自启动（HKCU 注册表）
 # ---------------------------------------------------------------------------
 
