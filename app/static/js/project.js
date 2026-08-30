@@ -99,6 +99,10 @@
         // GitHub 风格贡献热力图
         heat: null,             // 后端 /heatmap 原始数据
         heatWeeks: 53,          // 展示周数，被设置 ui.heatmap_weeks 覆盖
+        // 热力图点击某天 → 当天提交弹窗
+        heatDay: null,          // "YYYY-MM-DD"
+        heatDayCommits: [],
+        heatDayLoading: false,
         // 截图
         screenshots: [],
         previewShot: null,
@@ -321,6 +325,21 @@
             `/api/projects/${this.projectId}/heatmap?weeks=${this.heatWeeks}`, { silent: true });
         } catch (e) {
           this.heat = null;
+        }
+      },
+      // 点击热力图某天：按日期取当天提交并在弹窗展示
+      async showHeatDay(date) {
+        this.heatDay = date;
+        this.heatDayCommits = [];
+        this.heatDayLoading = true;
+        try {
+          const d = await api(
+            `/api/projects/${this.projectId}/commits?limit=200&date=${date}`, { silent: true });
+          this.heatDayCommits = (d.commits || []).slice().reverse();  // 按时间正序展示
+        } catch (e) {
+          this.heatDayCommits = [];
+        } finally {
+          this.heatDayLoading = false;
         }
       },
       // 描述：同步基线（用于脏标记），并尝试恢复上次未保存草稿
@@ -749,6 +768,7 @@
       this._onKey = (e) => {
         if (e.key !== "Escape") return;
         if (this.previewShot) { this.previewShot = null; return; }
+        if (this.heatDay) { this.heatDay = null; return; }
         if (this.moreOpen) { this.moreOpen = false; return; }
         if (this.showEdit) this.showEdit = false;
       };

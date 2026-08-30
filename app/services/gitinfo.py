@@ -103,9 +103,10 @@ def collect_git_info(path: str) -> dict:
     return result
 
 
-def collect_commit_log(path: str, limit: int = 50) -> dict:
+def collect_commit_log(path: str, limit: int = 50, date: str | None = None) -> dict:
     """读取 git 提交记录（时间线可视化用），只读操作。
 
+    date 传 "YYYY-MM-DD" 时只返回当天（提交时区）的提交，供热力图点击查看。
     一次 `git log --numstat` 取回提交与变更规模，避免逐提交算 diff（大仓库慢）。
     返回 {is_repo, total_count, commits: [{hash, short, author, email, date,
     message, stats}], error}；非 git 目录时 is_repo=False。
@@ -130,9 +131,14 @@ def collect_commit_log(path: str, limit: int = 50) -> dict:
         except Exception:
             pass
 
+        # 指定日期时只取当天（00:00–23:59），不受条数上限影响语义
+        date_args = []
+        if date:
+            date_args = [f"--since={date} 00:00:00", f"--until={date} 23:59:59"]
+
         # \x1e 分隔提交，\x1f 分隔字段；%B 为完整提交信息，其后跟 numstat 行
         raw = repo.git.log(
-            f"--max-count={limit}", "--numstat",
+            f"--max-count={limit}", "--numstat", *date_args,
             "--pretty=format:%x1e%H%x1f%an%x1f%ae%x1f%cI%x1f%B")
         for block in raw.split("\x1e"):
             if not block.strip():
