@@ -134,7 +134,11 @@ def create_project(body: ProjectCreate):
             raise HTTPException(409, f"该项目已在档案库中（id={dup['id']}）：{path}")
 
         name = (body.name or "").strip() or basename(path)
-        parsed = parser.parse_project(path)
+        try:
+            parsed = parser.parse_project(path)
+        except OSError as exc:
+            # 无权限等读取异常：不裸 500，友好提示
+            raise HTTPException(502, f"解析失败（目录无权限或 IO 错误）：{exc}")
         # 用户未填标签时，用自动识别的技术栈作为初始标签
         tags = [t.strip() for t in body.tags if t.strip()] or parsed["auto_meta"]["tech_tags"]
         cur = conn.execute(
@@ -246,7 +250,10 @@ def update_project(project_id: int, body: ProjectUpdate):
 
         if new_path:
             # 路径更新后立即重新解析，并清除丢失标记
-            _parse_and_store(conn, project_id, new_path)
+            try:
+                _parse_and_store(conn, project_id, new_path)
+            except OSError as exc:
+                raise HTTPException(502, f"解析失败（目录无权限或 IO 错误）：{exc}")
 
         row = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     return _detail_dict(row)

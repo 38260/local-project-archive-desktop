@@ -62,8 +62,8 @@ else if (Array.isArray(d) && d.length) msg = d[0].msg || msg;
   - `app/routers/projects.py:137` `create_project` 中 `parser.parse_project(path)` 未捕获 `OSError`（对比 `rescan_project` 捕获后返回 502）；
   - `app/routers/projects.py:249` `update_project` 改路径后调用 `_parse_and_store` 同样未捕获。
 - **修复**：两处套 `try/except OSError → HTTPException(502, f"解析失败（目录无权限或 IO 错误）：{exc}")`。
-- [ ] `create_project` 捕获解析异常
-- [ ] `update_project` 的 `_parse_and_store` 捕获解析异常
+- [x] `create_project` 捕获解析异常（2026-08-30 已修复并验证）
+- [x] `update_project` 的 `_parse_and_store` 捕获解析异常（同上）
 
 ### 🟠 B5. Node 项目「依赖版本统计」全部算成"未标注"
 
