@@ -99,25 +99,26 @@
         </span>
       </button>
       <div class="heat-body" v-show="!heatCollapsed">
-        <div class="gh-heat" style="margin-bottom:0">
-          <div class="gh-heat-scroll">
-            <div class="gh-heat-inner">
-              <div class="gh-months" aria-hidden="true">
-                <span v-for="m in heatGrid.monthMarks" :key="'hm' + m.col"
-                      class="gh-month" :style="{ left: (m.col * 14) + 'px' }">{{ m.label }}</span>
+        <!-- 流体布局：格子随面板宽度等比缩放（上限约 19px），月份标签按百分比定位 -->
+        <div class="gh-heat gh-heat--fluid">
+          <div class="gh-heat-inner" :style="{ maxWidth: (heatWeeks * 21 + 30) + 'px' }">
+            <div class="gh-months" aria-hidden="true">
+              <span v-for="m in heatGrid.monthMarks" :key="'hm' + m.col"
+                    class="gh-month" :style="{ left: (m.col / heatWeeks * 100) + '%' }">{{ m.label }}</span>
+            </div>
+            <div class="gh-main">
+              <div class="gh-day-col" aria-hidden="true">
+                <span v-for="d in heatGrid.dayLabels" :key="'hd' + d.row"
+                      class="gh-day-label" :style="{ gridRow: d.row + 1 }">{{ d.l }}</span>
               </div>
-              <div class="gh-main">
-                <div class="gh-day-col" aria-hidden="true">
-                  <span v-for="d in heatGrid.dayLabels" :key="'hd' + d.row"
-                        class="gh-day-label" :style="{ gridRow: d.row + 1 }">{{ d.l }}</span>
-                </div>
-                <div class="gh-grid" role="img"
-                     :aria-label="`全部项目提交热力图，共 ${fmtNum(heatGrid.total)} 次提交`">
-                  <template v-for="(col, ci) in heatGrid.cols" :key="'hc' + ci">
-                    <template v-for="(cell, ri) in col" :key="ci + '-' + ri">
-                      <span v-if="cell" class="hm-cell gh"
-                            :class="['l' + cell.level, { today: cell.today }]"
-                            :title="cell.label"></span>
+              <div class="gh-grid" role="img"
+                   :style="{ aspectRatio: heatWeeks + ' / 7' }"
+                   :aria-label="`全部项目提交热力图，共 ${fmtNum(heatGrid.total)} 次提交`">
+                <template v-for="(col, ci) in heatGrid.cols" :key="'hc' + ci">
+                  <template v-for="(cell, ri) in col" :key="ci + '-' + ri">
+                    <span v-if="cell" class="hm-cell gh"
+                          :class="['l' + cell.level, { today: cell.today }]"
+                          :title="cell.label"></span>
                       <span v-else class="hm-cell gh empty"></span>
                     </template>
                   </template>
@@ -127,7 +128,6 @@
           </div>
         </div>
       </div>
-    </div>
 
     <!-- 筛选栏 -->
     <div class="filter-bar">
