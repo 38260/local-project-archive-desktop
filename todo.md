@@ -90,7 +90,7 @@ dev_deps = [f"{k}@{v}" for k, v in (data.get("devDependencies") or {}).items()]
 已加载最近 {{ commitData.commits.length }} 条，共 {{ fmtNum(commitData.total_count) }} 次提交（后端单次上限 200 条）
 ```
 
-- [ ] 修正文案
+- [x] 修正文案（2026-08-30 已修复）
 
 ### 🟡 B7. 其他小问题清单
 
