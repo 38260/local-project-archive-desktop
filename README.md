@@ -33,7 +33,7 @@ python -m venv .venv
 
 浏览器/桌面窗口访问 <http://127.0.0.1:8300>（端口被占自动顺延，仅本机可访问）。
 
-**打包成 exe**：`.venv/Scripts/python.exe -m PyInstaller build.spec --noconfirm`，产物在 `dist/LocalProjectArchive/`（方案与细节见 `docs/PACKAGING.md`）。
+**打包成 exe**：`.venv/Scripts/python.exe -m PyInstaller build.spec --noconfirm`，产物在 `dist/Tracelight/`（方案与细节见 `docs/PACKAGING.md`）。
 
 ## 目录结构
 

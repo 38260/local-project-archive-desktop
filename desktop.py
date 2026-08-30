@@ -6,7 +6,7 @@
   python desktop.py --port 9000  # 指定端口（默认自动挑选空闲端口）
 
 打包后由 PyInstaller 以本文件为入口，双击 exe 直接打开原生窗口，
-数据写入 %LOCALAPPDATA%\\LocalProjectArchive，不随程序重装而丢失。
+数据写入 %LOCALAPPDATA%\\Tracelight，不随程序重装而丢失。
 """
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def install_excepthook(logger) -> None:
 # --------------------------------------------------------------------------
 # 单实例
 # --------------------------------------------------------------------------
-MUTEX_NAME = "LocalProjectArchive_SingleInstanceMutex"
+MUTEX_NAME = "Tracelight_SingleInstanceMutex"
 ERROR_ALREADY_EXISTS = 183
 
 # 互斥体句柄必须持有到进程结束；一旦被回收，内核会认为实例已退出
@@ -115,12 +115,14 @@ def activate_existing(logger=None) -> bool:
     import json as _json
     import urllib.request
 
+    from app.config import APP_NAME
+
     for port in range(8300, 8311):
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health",
                                         timeout=0.6) as resp:
                 data = _json.loads(resp.read().decode())
-            if data.get("app") != "local-project-archive":
+            if data.get("app") != APP_NAME:
                 continue
         except Exception:
             continue
@@ -208,6 +210,37 @@ def migrate_legacy_data(data_dir: Path, logger) -> None:
         logger.info("已迁移旧档案：%s -> %s", legacy, target)
     except OSError as exc:
         logger.warning("旧档案迁移失败：%s", exc)
+
+
+# 改名前的旧英文名：数据目录随之变化，新版首次运行需一次性迁移
+_LEGACY_APP_TITLE = "LocalProjectArchive"
+
+
+def migrate_renamed_data(data_dir: Path, logger) -> None:
+    """应用英文名由 LocalProjectArchive 改为 Tracelight 后的一次性数据迁移。
+
+    旧版 exe 把数据放在用户目录下以旧名命名的文件夹里；新版首次运行时
+    若自己的数据库尚未生成，则把旧目录整体复制过来。复制而非移动：
+    旧目录保留在原地作保险，迁移失败也能重试。
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    if os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA")
+                    or (Path.home() / "AppData" / "Local"))
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_DATA_HOME")
+                    or (Path.home() / ".local" / "share"))
+    legacy = base / _LEGACY_APP_TITLE
+    if not legacy.is_dir() or (data_dir / "projects.db").exists():
+        return
+    try:
+        shutil.copytree(legacy, data_dir, dirs_exist_ok=True)
+        logger.info("已迁移改名前的数据目录：%s -> %s", legacy, data_dir)
+    except OSError as exc:
+        logger.warning("改名前数据目录迁移失败：%s", exc)
 
 
 # --------------------------------------------------------------------------
@@ -354,7 +387,7 @@ def start_tray(window, server, logger):
         pystray.MenuItem("显示窗口", show_window, default=True),
         pystray.MenuItem("退出", quit_app),
     )
-    icon = pystray.Icon("LocalProjectArchive", image, "归迹拾光", menu)
+    icon = pystray.Icon("Tracelight", image, "归迹拾光", menu)
     threading.Thread(target=icon.run, daemon=True).start()
     logger.info("系统托盘已启用")
     return icon
@@ -400,7 +433,7 @@ def set_app_identity() -> None:
     try:
         import ctypes
         # 裸字符串会与全局 .ico 路径无关联，但必须与打包快捷方式的 AUMID 一致才完全生效
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("GuijiShiguang.LocalProjectArchive")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("GuijiShiguang.Tracelight")
     except Exception:
         pass
 
@@ -468,6 +501,8 @@ def main() -> int:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     logger, log_file = setup_logging(DATA_DIR)
     install_excepthook(logger)
+    # 数据迁移：先迁改名前的用户目录（较新），exe 旁旧 data/ 仅在目标仍为空时兜底
+    migrate_renamed_data(DATA_DIR, logger)
     migrate_legacy_data(DATA_DIR, logger)
 
     if not acquire_single_instance(DATA_DIR, logger):

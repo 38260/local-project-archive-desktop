@@ -49,14 +49,14 @@ pywebview 在 Windows 上用的是系统自带的 **Edge WebView2 运行时**
 ```text
 开发模式（当前）                    桌面模式（目标）
 ┌──────────────┐                  ┌────────────────────────┐
-│  代码仓库     │                  │ LocalProjectArchive\   │  ← onedir 目录
-│  app/ + data/│                  │  ├─ LocalProjectArchive.exe
+│  代码仓库     │                  │ Tracelight\            │  ← onedir 目录
+│  app/ + data/│                  │  ├─ Tracelight.exe
 │  混放         │                  │  ├─ _internal\（依赖+static，只读）
 └──────┬───────┘                  │  └─ portable.txt（可选，便携模式开关）
        │                          └───────────┬────────────┘
        ▼                                      │
   uvicorn :8300                               ▼
-  （固定端口）                      %LOCALAPPDATA%\LocalProjectArchive\
+  （固定端口）                      %LOCALAPPDATA%\Tracelight\
        │                            ├─ projects.db      ← 档案
        ▼                            ├─ backups\         ← 自动备份
   系统浏览器                         ├─ screenshots\     ← 截图
@@ -78,7 +78,7 @@ pywebview 在 Windows 上用的是系统自带的 **Edge WebView2 运行时**
 import os, sys
 from pathlib import Path
 
-APP_TITLE = "LocalProjectArchive"
+APP_TITLE = "Tracelight"
 
 def _is_frozen() -> bool:
     """PyInstaller 冻结后 sys.frozen 为 True，代码实际在 sys._MEIPASS 临时/内部目录。"""
@@ -259,7 +259,7 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [],
     exclude_binaries=True,
-    name="LocalProjectArchive",
+    name="Tracelight",
     icon="assets/app.ico",
     console=False,                            # 不弹黑框
     version="version_info.txt",               # 可选：文件属性里的版本号
@@ -267,7 +267,7 @@ exe = EXE(
 coll = COLLECT(
     exe, a.binaries, a.datas,
     strip=False, upx=False,                   # upx 容易触发杀软，建议关
-    name="LocalProjectArchive",
+    name="Tracelight",
 )
 ```
 
@@ -275,7 +275,7 @@ coll = COLLECT(
 
 ```bash
 pyinstaller build.spec --noconfirm --clean
-# 产物在 dist/LocalProjectArchive/
+# 产物在 dist/Tracelight/
 ```
 
 ### 4.3 onefile 还是 onedir
@@ -302,7 +302,7 @@ PyInstaller 打出来的 exe 是"自解压 + 内存加载"结构，特徴和行�
 - **代码签名**能基本解决，但 OV 证书每年几百到几千元；
 - 免费替代：在 VirusTotal 提交白名单申诉、让用户加信任；
 - 自用/内部分发的话，加 Defender 排除项即可：
-  `Add-MpPreference -ExclusionPath "D:\...\LocalProjectArchive"`
+  `Add-MpPreference -ExclusionPath "D:\...\Tracelight"`
 
 ### 5.2 GitPython 依赖系统 git
 

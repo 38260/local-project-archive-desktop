@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 # 用户在「程序与功能」里看到的名字，同时用作数据目录名
-APP_TITLE = "LocalProjectArchive"
+APP_TITLE = "Tracelight"
 
 
 def _is_frozen() -> bool:
@@ -83,7 +83,7 @@ def pick_port(host: str = HOST, preferred: int = DEFAULT_PORT, tries: int = 50) 
         return s.getsockname()[1]
 
 # 应用标识（导出 JSON 时使用）
-APP_NAME = "local-project-archive"
+APP_NAME = "tracelight"
 APP_VERSION = "1.0.0"
 
 # 项目状态枚举

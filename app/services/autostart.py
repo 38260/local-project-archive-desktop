@@ -15,7 +15,10 @@ import sys
 from pathlib import Path
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-VALUE_NAME = "LocalProjectArchive"
+VALUE_NAME = "Tracelight"
+
+# 改名前用过的注册表值名：读取时自动搬迁，写入时顺手清理
+_LEGACY_VALUE_NAMES = ("LocalProjectArchive",)
 
 
 def exe_command() -> str | None:
@@ -33,7 +36,11 @@ def is_available() -> bool:
 
 
 def get_enabled() -> bool:
-    """是否已注册自启动，且指向的就是当前程序（防止被别的安装覆盖后误判）。"""
+    """是否已注册自启动，且指向的就是当前程序（防止被别的安装覆盖后误判）。
+
+    兼容改名前的旧注册表项：发现旧项指向的就是当前程序时，自动把记录
+    搬到新值名下并删除旧项——应用改名不应让用户重开一次自启动。
+    """
     cmd = exe_command()
     if cmd is None:
         return False
@@ -41,8 +48,21 @@ def get_enabled() -> bool:
 
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
-            value, _ = winreg.QueryValueEx(key, VALUE_NAME)
-            return value == cmd
+            try:
+                value, _ = winreg.QueryValueEx(key, VALUE_NAME)
+                return value == cmd
+            except FileNotFoundError:
+                pass
+            for legacy in _LEGACY_VALUE_NAMES:
+                try:
+                    old, _ = winreg.QueryValueEx(key, legacy)
+                except FileNotFoundError:
+                    continue
+                if old == cmd:
+                    winreg.SetValueEx(key, VALUE_NAME, 0, winreg.REG_SZ, cmd)
+                    winreg.DeleteValue(key, legacy)
+                    return True
+        return False
     except OSError:
         return False
 
@@ -63,6 +83,12 @@ def set_enabled(enabled: bool) -> bool:
                     winreg.DeleteValue(key, VALUE_NAME)
                 except FileNotFoundError:
                     pass  # 本来就没注册，视为成功
+            # 顺手清掉改名前残留的旧值名，避免任务管理器里出现重复条目
+            for legacy in _LEGACY_VALUE_NAMES:
+                try:
+                    winreg.DeleteValue(key, legacy)
+                except FileNotFoundError:
+                    pass
         return True
     except OSError:
         return False
