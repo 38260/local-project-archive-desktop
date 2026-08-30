@@ -161,50 +161,11 @@
         if (langs) b.push({ icon: "layers", label: "语言", val: langs });
         return b;
       },
-      // GitHub 风格贡献热力图：列=周（周日起始），行=周日…周六，未来日期留空对齐
+      // GitHub 风格贡献热力图：网格构建在 common.js（与首页总览共用）
       heatGrid() {
         if (!this.heat || !this.heat.is_repo) return null;
-        const days = this.heat.days || {};
-        const weeks = this.heatWeeks;
-        const now = new Date();
-        const key = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        const todayKey = key(now);
-        // 网格最后一天 = 本周周日；起点 = weeks 周前的周日
-        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - now.getDay()) % 7);
-        const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 7 * weeks + 1);
-        const cols = [];
-        const monthMarks = [];
-        let lastMonth = -1;
-        for (let w = 0; w < weeks; w++) {
-          const col = [];
-          for (let r = 0; r < 7; r++) {
-            const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + r);
-            if (d > end) { col.push(null); continue; }
-            const k = key(d);
-            const n = days[k] || 0;
-            col.push({
-              key: k + "_" + r, date: k, n,
-              level: n === 0 ? 0 : n <= 2 ? 1 : n <= 5 ? 2 : n <= 9 ? 3 : 4,
-              today: k === todayKey,
-              label: `${k}：${n} 次提交`,
-            });
-          }
-          // 月份标签取该列周四（row=4），换月即标记；含未来日期的未满列不标
-          if (!col.includes(null)) {
-            const mid = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + 4);
-            if (mid.getMonth() !== lastMonth) {
-              monthMarks.push({ col: w, label: `${mid.getMonth() + 1}月` });
-              lastMonth = mid.getMonth();
-            }
-          }
-          cols.push(col);
-        }
-        return {
-          cols, monthMarks,
-          total: this.heat.total || 0,
-          start, end,
-          dayLabels: [{ row: 1, l: "一" }, { row: 3, l: "三" }, { row: 5, l: "五" }],
-        };
+        const grid = window.buildHeatGrid(this.heat.days, this.heatWeeks);
+        return { ...grid, total: this.heat.total || 0 };
       },
       // 左侧目录：隐藏空内容面板的锚点
       sections() {

@@ -34,6 +34,10 @@
         quickFilter: null,   // null | "active" | "lost"（统计卡下钻用）
         sortBy: "最近更新",
         sortOptions: SORT_LABELS,
+        // 首页总热力图（全部项目提交聚合）
+        heat: null,
+        heatWeeks: 53,
+        heatCollapsed: localStorage.getItem("lpa-home-heat-collapsed") === "1",
         // 手动录入
         showAdd: false,
         submitting: false,
@@ -73,6 +77,25 @@
       currentThemePref() {
         this.themeTick;   // 建立响应式依赖
         return window.themePref();
+      },
+      // 总热力图网格：days 为 {date: {count, names}}，取 count 出格子，names 进悬浮提示
+      heatGrid() {
+        if (!this.heat) return null;
+        const flat = {};
+        for (const [k, v] of Object.entries(this.heat.days || {})) {
+          flat[k] = v.count;
+        }
+        const grid = window.buildHeatGrid(flat, this.heatWeeks);
+        // 悬浮提示带上当天有提交的项目名
+        for (const col of grid.cols) {
+          for (const cell of col) {
+            if (!cell) continue;
+            const info = (this.heat.days || {})[cell.date];
+            const names = (info && info.names) || [];
+            cell.label = `${cell.date}：${cell.n} 次提交` + (names.length ? `（${names.join("、")}）` : "");
+          }
+        }
+        return { ...grid, total: (this.heat.total || 0), repos: (this.heat.repos || 0) };
       },
       allTags() {
         const set = new Set();
@@ -158,6 +181,8 @@
         } finally {
           this.loading = false;
         }
+        await this.loadPrefs();
+        this.loadHeatmap();
       },
       goto(p) { location.href = "/project/" + p.id; },
       switchTheme() { window.cycleTheme(); this.themeTick++; },
@@ -364,7 +389,22 @@
       async loadPrefs() {
         try {
           this.prefs = await api("/api/settings", { silent: true });
+          const w = Number(this.prefs["ui.heatmap_weeks"]);
+          if (w && w !== this.heatWeeks) {
+            this.heatWeeks = w;
+            this.loadHeatmap();   // 热力图范围变化即时重载
+          }
         } catch (e) { this.prefs = {}; }
+      },
+      // 首页总热力图：全部 git 项目按天提交聚合
+      async loadHeatmap() {
+        try {
+          this.heat = await api(`/api/heatmap?weeks=${this.heatWeeks}`, { silent: true });
+        } catch (e) { this.heat = null; }
+      },
+      toggleHeat() {
+        this.heatCollapsed = !this.heatCollapsed;
+        localStorage.setItem("lpa-home-heat-collapsed", this.heatCollapsed ? "1" : "0");
       },
       async savePref(key) {
         try {

@@ -199,6 +199,50 @@
     return (n == null) ? "-" : Number(n).toLocaleString("zh-CN");
   };
 
+  // ---------- GitHub 风格热力图：网格构建（首页总览与详情页共用） ----------
+  // days: {"YYYY-MM-DD": 次数}；返回 {cols, monthMarks, dayLabels}
+  // 列=周（周日起始），行=周日…周六，未来日期留空对齐
+  window.buildHeatGrid = function (days, weeks) {
+    days = days || {};
+    const now = new Date();
+    const key = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const todayKey = key(now);
+    // 网格最后一天 = 本周周日；起点 = weeks 周前的周日
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - now.getDay()) % 7);
+    const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 7 * weeks + 1);
+    const cols = [];
+    const monthMarks = [];
+    let lastMonth = -1;
+    for (let w = 0; w < weeks; w++) {
+      const col = [];
+      for (let r = 0; r < 7; r++) {
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + r);
+        if (d > end) { col.push(null); continue; }
+        const k = key(d);
+        const n = days[k] || 0;
+        col.push({
+          key: k + "_" + r, date: k, n,
+          level: n === 0 ? 0 : n <= 2 ? 1 : n <= 5 ? 2 : n <= 9 ? 3 : 4,
+          today: k === todayKey,
+          label: `${k}：${n} 次提交`,
+        });
+      }
+      // 月份标签取该列周四（row=4），换月即标记；含未来日期的未满列不标
+      if (!col.includes(null)) {
+        const mid = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + 4);
+        if (mid.getMonth() !== lastMonth) {
+          monthMarks.push({ col: w, label: `${mid.getMonth() + 1}月` });
+          lastMonth = mid.getMonth();
+        }
+      }
+      cols.push(col);
+    }
+    return {
+      cols, monthMarks,
+      dayLabels: [{ row: 1, l: "一" }, { row: 3, l: "三" }, { row: 5, l: "五" }],
+    };
+  };
+
   // ---------- 剪贴板 ----------
   window.copyText = async function (text) {
     try {
