@@ -1076,17 +1076,33 @@ body.modal-open { overflow: hidden; }
 }
 
 /* ---- Git 提交时间线 ---- */
-.commit-stats {
-  display: flex; align-items: flex-end; gap: 14px;
-  padding: var(--s-1) 0 var(--s-3); margin-bottom: 10px;
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
+/* 按月提交柱状图（全量历史聚合）：比逐日网格更直观 */
+.month-chart { margin-bottom: var(--s-4); padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); }
+.month-chart-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--s-2); margin-bottom: var(--s-2); flex-wrap: wrap;
 }
-.stat-block { flex: 1; min-width: 70px; }
-.stat-label { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
-.stat-bar-wrap { background: var(--panel-2); border-radius: 3px; height: 8px; overflow: hidden; }
-.stat-bar { background: var(--accent); height: 100%; border-radius: 3px; min-width: 2px; }
-.stat-num { font-size: 14px; font-weight: 600; margin-top: 3px; }
+.month-bars { display: flex; align-items: stretch; gap: 6px; height: 118px; }
+.mb-col {
+  flex: 1; min-width: 0; height: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.mb-num { font-size: 11px; line-height: 1; color: var(--muted); min-height: 11px; }
+.mb-track {
+  flex: 1; width: 100%; max-width: 34px;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.mb-bar {
+  width: 100%; min-height: 2px; border-radius: 3px 3px 0 0;
+  background: var(--accent); opacity: .72; transition: height .3s ease, opacity .15s;
+}
+.mb-bar.zero { background: var(--border); opacity: .55; }
+.mb-bar.now { opacity: 1; }
+.mb-col:hover .mb-bar { opacity: 1; }
+.mb-label { font-size: 11px; line-height: 1; color: var(--muted); white-space: nowrap; }
+.mb-col.current .mb-label { color: var(--accent); font-weight: 600; }
+/* 暗色下柱体稍提亮，与面板底色保持对比 */
+[data-theme="dark"] .mb-bar { opacity: .82; }
 /* P1-10：按提交类型筛选 */
 .commit-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .tfilter {
@@ -1295,21 +1311,6 @@ body.modal-open { overflow: hidden; }
 /* 有提交的日期可点击查看当天记录 */
 .hm-cell.gh.clickable { cursor: pointer; }
 .hm-cell.gh.clickable:hover { outline: 1.5px solid var(--accent); outline-offset: 1px; }
-
-/* ---- 热力图当天提交弹窗 ---- */
-.heat-day-modal { width: 560px; max-width: 100%; }
-.heat-day-modal h3 .count { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 8px; }
-.heat-day-list { max-height: 55vh; overflow-y: auto; display: grid; gap: 8px; }
-.heat-day-item {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-sm);
-  background: var(--panel-2);
-}
-.hd-hash { flex: none; font-size: 12.5px; color: var(--accent); background: var(--accent-soft);
-  border-radius: 5px; padding: 2px 7px; margin-top: 1px; }
-.hd-body { min-width: 0; flex: 1; }
-.hd-msg { font-size: 13.5px; color: var(--text); overflow-wrap: anywhere; }
-.hd-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
 /* ---- Markdown 工具栏 ---- */
 .md-toolbar {

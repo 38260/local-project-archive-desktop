@@ -96,14 +96,10 @@
         commitLimit: 50,        // 初始加载量，被设置 commits.limit 覆盖
         commitTypeFilter: "",
         expandedCommits: [],
-        // GitHub 风格贡献热力图
-        heat: null,             // 后端 /heatmap 原始数据
-        heatWeeks: 53,          // 展示周数，被设置 ui.heatmap_weeks 覆盖
+        // 按月提交柱状图：后端 /heatmap 固定取一年按天数据，前端聚合到日历月
+        heat: null,
+        monthSpan: 12,          // 柱状图月数（6=半年 | 12=一年），被设置 ui.heatmap_weeks 覆盖
         editorCmd: "code",      // 打开项目的编辑器命令，被设置 editor.command 覆盖
-        // 热力图点击某天 → 当天提交弹窗
-        heatDay: null,          // "YYYY-MM-DD"
-        heatDayCommits: [],
-        heatDayLoading: false,
         // 截图
         screenshots: [],
         previewShot: null,
@@ -166,11 +162,41 @@
         if (langs) b.push({ icon: "layers", label: "语言", val: langs });
         return b;
       },
-      // GitHub 风格贡献热力图：网格构建在 common.js（与首页总览共用）
-      heatGrid() {
-        if (!this.heat || !this.heat.is_repo) return null;
-        const grid = window.buildHeatGrid(this.heat.days, this.heatWeeks);
-        return { ...grid, total: this.heat.total || 0 };
+      // 按月提交柱状图：把 /heatmap 的按天计数聚合到最近 N 个日历月（旧 → 新）
+      // 后端固定返回一年数据，足以覆盖 12 个完整日历月；跨度由设置（半年/一年）决定
+      monthBars() {
+        if (!this.heat || !this.heat.is_repo || !this.heat.days) return [];
+        const days = this.heat.days;
+        const now = new Date();
+        const n = this.monthSpan === 6 ? 6 : 12;
+        // 按月遍历计数：把每天的键归到 YYYY-MM，避免逐月扫全表
+        const byMonth = {};
+        for (const [day, count] of Object.entries(days)) {
+          const key = day.slice(0, 7);
+          byMonth[key] = (byMonth[key] || 0) + count;
+        }
+        const cur = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+        const bars = [];
+        for (let i = n - 1; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+          const count = byMonth[key] || 0;
+          bars.push({
+            key, count,
+            label: d.getMonth() + 1 + "月",
+            tip: `${d.getFullYear()}年${d.getMonth() + 1}月：${count} 次提交`,
+            current: key === cur,
+          });
+        }
+        const max = Math.max(...bars.map(b => b.count), 1);
+        for (const b of bars) b.pct = Math.round((b.count / max) * 100);
+        return bars;
+      },
+      monthTotal() {
+        return this.monthBars.reduce((s, m) => s + m.count, 0);
+      },
+      monthChartLabel() {
+        return `${this.monthSpan === 6 ? "最近半年" : "最近一年"}按月提交柱状图，共 ${this.monthTotal} 次提交`;
       },
       // 左侧目录：隐藏空内容面板的锚点
       sections() {
@@ -248,23 +274,6 @@
           && !!this.commitData
           && this.commitData.commits.length < (this.commitData.total_count || 0);
       },
-      // 按月统计提交数（基于当前加载的记录），简易柱状图数据
-      commitMonths() {
-        if (!this.commitData || !this.commitData.commits.length) return [];
-        const byMonth = {};
-        for (const c of this.commitData.commits) {
-          const key = c.date.slice(0, 7); // YYYY-MM
-          byMonth[key] = (byMonth[key] || 0) + 1;
-        }
-        const keys = Object.keys(byMonth).sort().slice(-6);
-        const max = Math.max(...keys.map(k => byMonth[k]), 1);
-        return keys.map(k => ({
-          key: k,
-          label: Number(k.slice(5, 7)) + "月",
-          count: byMonth[k],
-          pct: Math.round((byMonth[k] / max) * 100),
-        }));
-      },
       // 扩展名占比条（基于 top_extensions）
       extBars() {
         const exts = (this.meta && this.meta.stats && this.meta.stats.top_extensions) || [];
@@ -314,7 +323,8 @@
           const s = await api("/api/settings", { silent: true });
           if (s) {
             if (s["commits.limit"]) this.commitLimit = Number(s["commits.limit"]) || 200;
-            if (s["ui.heatmap_weeks"]) this.heatWeeks = Number(s["ui.heatmap_weeks"]) || 53;
+            // 半年(26 周)=6 个月 / 一年(53 周)=12 个月
+            this.monthSpan = Number(s["ui.heatmap_weeks"]) === 26 ? 6 : 12;
             this.editorCmd = s["editor.command"] || "code";
           }
         } catch (e) { /* 设置读取失败不影响详情页 */ }
@@ -329,30 +339,17 @@
         if (kind === "data") { this.load(); return; }
         this.loadPrefs();
       },
-      // GitHub 风格热力图：独立接口，全量按天聚合（不受提交记录条数上限影响）
+      // 提交活动数据：固定取一年按天聚合（足以覆盖 12 个完整日历月），
+      // 半年/一年视图由前端从同一份数据聚合，切换跨度不再重新请求
       async loadHeatmap() {
         try {
           this.heat = await api(
-            `/api/projects/${this.projectId}/heatmap?weeks=${this.heatWeeks}`, { silent: true });
+            `/api/projects/${this.projectId}/heatmap?weeks=53`, { silent: true });
         } catch (e) {
           this.heat = null;
         }
       },
       // 点击热力图某天：按日期取当天提交并在弹窗展示
-      async showHeatDay(date) {
-        this.heatDay = date;
-        this.heatDayCommits = [];
-        this.heatDayLoading = true;
-        try {
-          const d = await api(
-            `/api/projects/${this.projectId}/commits?limit=200&date=${date}`, { silent: true });
-          this.heatDayCommits = (d.commits || []).slice().reverse();  // 按时间正序展示
-        } catch (e) {
-          this.heatDayCommits = [];
-        } finally {
-          this.heatDayLoading = false;
-        }
-      },
       // 描述：同步基线（用于脏标记），并尝试恢复上次未保存草稿
       syncDesc() {
         this.descBaseline = (this.p && this.p.description) || "";
@@ -775,12 +772,11 @@
         }
       };
       window.addEventListener("beforeunload", this._onBeforeUnload);
-      // Esc 依次关闭：设置弹窗 → 提交日弹窗 → 灯箱 → 更多菜单 → 编辑弹窗
+      // Esc 依次关闭：设置弹窗 → 截图灯箱 → 更多菜单 → 编辑弹窗
       this._onKey = (e) => {
         if (e.key !== "Escape") return;
         if (this.$refs.settings && this.$refs.settings.visible) { this.$refs.settings.close(); return; }
         if (this.previewShot) { this.previewShot = null; return; }
-        if (this.heatDay) { this.heatDay = null; return; }
         if (this.moreOpen) { this.moreOpen = false; return; }
         if (this.showEdit) this.showEdit = false;
       };
