@@ -501,6 +501,8 @@
       },
       // ---- 导出 HTML 档案 ----
       exportHtml() {
+        // location.href 触发下载不会有页面反馈，先 toast 一声避免误以为没反应
+        toast("正在生成导出文件…", "ok");
         location.href = `/api/projects/${this.projectId}/export-html`;
       },
       // ---- Markdown 工具栏：在光标处包裹/插入 ----
