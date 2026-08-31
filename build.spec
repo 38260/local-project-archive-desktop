@@ -79,6 +79,7 @@ exe = EXE(
     name="Tracelight",
     icon="assets/app.ico",
     console=False,          # 不弹控制台黑框
+    version="installer/version_info.txt",   # exe 属性里的名称/版本/版权
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
