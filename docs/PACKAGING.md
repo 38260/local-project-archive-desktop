@@ -380,3 +380,42 @@ PyInstaller 打出来的 exe 是"自解压 + 内存加载"结构，特徴和行�
 - [ ] 程序异常时有日志文件可查（`%LOCALAPPDATA%\...\app.log`）
 - [ ] 卸载后用户数据保留（或明确提示会删除，二者选一且写进卸载向导）
 - [ ] 控制面板「程序和功能」里能看到名称、版本、发布者
+
+---
+
+## 8. 安装包落地（Inno Setup，已实现）
+
+第 4 步的交付形态已落地为三个文件：
+
+| 文件 | 作用 |
+|---|---|
+| `installer/tracelight.iss` | Inno Setup 安装脚本（UTF-8 BOM 必需） |
+| `installer/version_info.txt` | PyInstaller 版本信息：exe 属性里的名称/版本/版权 |
+| `tools/build_installer.bat` | 一键构建：PyInstaller → ISCC（**必须纯 ASCII**，cmd 用系统代码页解析 bat） |
+
+一键出包：
+
+```bat
+tools\build_installer.bat
+rem 产物：dist\Tracelight\（目录版）+ dist\installer\Tracelight-Setup-1.1.0.exe
+```
+
+安装脚本设计要点：
+
+- **per-user 安装**（`PrivilegesRequired=lowest`）：不弹 UAC，装到
+  `%LOCALAPPDATA%\Programs\Tracelight`；数据在 `%LOCALAPPDATA%\Tracelight`，与安装目录分离；
+- 开始菜单快捷方式必有，桌面快捷方式可选（默认不建）；
+- 安装/卸载前自动 `taskkill Tracelight.exe`，避免文件占用；
+- 卸载**默认保留用户数据**，卸载向导末尾可选「同时删除」；
+- 固定 `AppId` GUID：覆盖安装靠它识别同一应用，升级不丢配置。
+
+踩过的坑（都已处理）：
+
+1. `.iss` 含中文必须存成 **UTF-8 with BOM**，否则 ISCC 报 illegal character；
+2. `[Code]` 段是 Pascal 语法，注释用 `//`（`;` 只用于其他段）；
+3. `PrepareToInstall` 是 **function**（返回 String），写成 procedure 编译不过；
+4. `EstimatedSize` 不是 Inno 指令（那是 MSI 的），别加；
+5. bat 里写中文注释会在 GBK 代码页下乱码炸行，保持纯 ASCII。
+
+分发提示：无代码签名时首跑会触发 SmartScreen「未知发布者」警告，属预期；
+自用加 Defender 排除项，对外分发考虑 OV 代码签名（见 §5.1）。

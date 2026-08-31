@@ -1,0 +1,34 @@
+# UTF-8
+#
+# PyInstaller Windows 版本信息文件：让 exe 的「属性」里显示名称/版本/版权，
+# 资源管理器与任务管理器里不再是个"裸"exe。用法：build.spec 的 EXE(version=...)
+#
+# 生成/修改后需重新 pyinstaller 才生效。
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 1, 0, 0),
+    prodvers=(1, 1, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+    ),
+  kids=[
+    StringFileInfo(
+      [
+      StringTable(
+        u'080404B0',
+        [StringStruct(u'CompanyName', u'Tracelight'),
+        StringStruct(u'FileDescription', u'归迹拾光 · 本地项目档案管理系统'),
+        StringStruct(u'FileVersion', u'1.1.0.0'),
+        StringStruct(u'InternalName', u'Tracelight'),
+        StringStruct(u'LegalCopyright', u'Copyright (C) 2026 Tracelight'),
+        StringStruct(u'OriginalFilename', u'Tracelight.exe'),
+        StringStruct(u'ProductName', u'Tracelight 归迹拾光'),
+        StringStruct(u'ProductVersion', u'1.1.0.0')])
+      ]),
+    VarFileInfo([VarStruct(u'Translation', [2052, 1200])])
+  ]
+)
