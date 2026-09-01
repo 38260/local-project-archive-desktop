@@ -160,6 +160,42 @@ def heatmap_all(weeks: int = Query(53, ge=8, le=104)):
             "project_count": len(rows)}
 
 
+@app.get("/api/day-commits")
+def day_commits(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")):
+    """全部项目在指定日期的提交明细（首页热力图点击某天查看）。
+
+    并行收集各仓库当天提交，按项目分组返回；项目带 id/name 供跳转详情页。
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.services import gitinfo
+
+    with get_db() as conn:
+        rows = [dict(r) for r in
+                conn.execute("SELECT id, path, name FROM projects ORDER BY id").fetchall()]
+
+    def collect(row: dict):
+        try:
+            res = gitinfo.collect_commit_log(row["path"], limit=200, date=date)
+        except Exception:
+            res = {"is_repo": False, "commits": []}
+        return row, res
+
+    groups = []
+    total = 0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for row, res in pool.map(collect, rows):
+            commits = res.get("commits") or []
+            if not commits:
+                continue
+            total += len(commits)
+            groups.append({
+                "id": row["id"], "name": row["name"],
+                "count": len(commits), "commits": commits,
+            })
+    return {"date": date, "total": total, "projects": groups}
+
+
 @app.get("/api/export")
 def export_all():
     """导出全部项目档案为 JSON 备份（含自定义笔记与变更日志）。"""

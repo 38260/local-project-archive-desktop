@@ -38,6 +38,10 @@
         heat: null,
         heatWeeks: 53,
         heatCollapsed: localStorage.getItem("lpa-home-heat-collapsed") === "1",
+        // 当日提交弹窗（点击热力图某天）
+        showDay: false,
+        dayLoading: false,
+        dayData: null,
         // 打开项目的编辑器（设置联动：卡片按钮图标/文字跟随）
         editorCmd: "code",
         // 手动录入
@@ -307,6 +311,18 @@
         this.heatCollapsed = !this.heatCollapsed;
         localStorage.setItem("lpa-home-heat-collapsed", this.heatCollapsed ? "1" : "0");
       },
+      // 点击热力图某天：弹窗展示该日全部项目的提交明细
+      openDayDetail(cell) {
+        if (!cell || !cell.n) return;   // 无提交的日子不可点
+        this.showDay = true;
+        this.dayData = null;
+        this.dayLoading = true;
+        api(`/api/day-commits?date=${cell.date}`, { silent: true })
+          .then(d => { this.dayData = d; })
+          .catch(() => { this.showDay = false; /* toast 已提示 */ })
+          .finally(() => { this.dayLoading = false; });
+      },
+      closeDay() { this.showDay = false; this.dayData = null; },
       // ---- 设置（共享弹窗，见 js/settings.js） ----
       openSettings() { this.$refs.settings.open(); },
       // 设置变更联动：prefs=刷新编辑器按钮/主题/热力图范围等联动状态；
@@ -437,8 +453,8 @@
             this.$refs.settings.close();
             return;
           }
-          if (this.showAdd || this.showScan) {
-            this.showAdd = false; this.showScan = false;
+          if (this.showAdd || this.showScan || this.showDay) {
+            this.showAdd = false; this.showScan = false; this.showDay = false;
             return;
           }
           if (typing && document.activeElement.type === "search") {
