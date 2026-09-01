@@ -33,7 +33,7 @@ python -m venv .venv
 
 浏览器/桌面窗口访问 <http://127.0.0.1:8300>（端口被占自动顺延，仅本机可访问）。
 
-**打包成 exe**：`.venv/Scripts/python.exe -m PyInstaller build.spec --noconfirm`，产物在 `dist/Tracelight/`（方案与细节见 `docs/PACKAGING.md`）。
+**打包成 exe**：`.venv/Scripts/python.exe -m PyInstaller build.spec --noconfirm`，产物在 `dist/Tracelight/`；运行 `tools\build_installer.bat` 可一键出 Inno Setup 安装包 `dist/installer/Tracelight-Setup-<版本>.exe`（per-user 免管理员安装、卸载默认保留档案数据；方案与细节见 `docs/PACKAGING.md`）。
 
 ## 目录结构
 
@@ -42,6 +42,7 @@ local-project-archive-desktop/
 ├── run.py                  # 浏览器模式入口
 ├── desktop.py              # 桌面模式入口：pywebview 窗口 + 托盘 + 单实例 + 窗口记忆
 ├── build.spec              # PyInstaller 打包配置
+├── installer/              # Inno Setup 安装脚本 + exe 版本信息
 ├── requirements.txt        # 后端依赖
 ├── app/
 │   ├── main.py             # FastAPI 应用：核心 API + 静态页面挂载
@@ -70,7 +71,9 @@ local-project-archive-desktop/
 │   ├── backups/            #   启动自动备份（保留份数可在设置中调整）
 │   ├── screenshots/        #   项目截图
 │   └── settings.json       #   用户设置
-└── tools/smoke_test.py     # 全流程冒烟测试（自动造数据、自动清理）
+└── tools/
+    ├── build_installer.bat # 一键构建安装包（PyInstaller → Inno Setup）
+    └── smoke_test.py       # 全流程冒烟测试（自动造数据、自动清理）
 ```
 
 ## 功能
@@ -101,14 +104,16 @@ local-project-archive-desktop/
 
 - 原生窗口 + **系统托盘**：关闭可收进托盘，双击托盘图标唤出；**二次启动直接弹回已有窗口**，不会「提示在运行却找不到」。
 - **静默启动**：配合开机自启动，登录后只在托盘待命。
+- **升级自愈**：安装版升级后，二次启动/开机自启动自动指向新版 exe（版本握手，不会唤起旧版窗口或旧快捷方式）。
 - **窗口记忆**：记住大小与位置，下次启动还原。
 - **任务栏/托盘**：应用独立图标与身份（开发模式同样生效）。
 - **导出下载**：走系统保存对话框；「浏览…」走原生文件夹选择对话框。
 
 ### 快速启动（详情页「启动」面板）
 
-- **智能检测启动入口**：漏斗式两级——优先项目内可执行文件（根目录与 dist 的 .bat/.cmd/.exe/.ps1，双击等效直接运行）；一个没有才按构建配置推断（package.json scripts 按 lockfile 选 pnpm/yarn/bun/npm、Python 入口优先用项目内 .venv 解释器、manage.py 特判 runserver、cargo/go）。
-- **一键执行**：新开终端窗口运行（日志可见、Ctrl+C 可停），点击前弹确认框展示完整命令（可关）；自定义启动项支持增删改与子目录（monorepo 分仓）。
+- **顶栏一键启动**：详情页顶栏直接一键执行主启动项（防连点，带模式小图标），启动面板内有完整入口。
+- **智能检测启动入口（三级漏斗）**：① 可信直接可执行——根目录与 dist 的 .bat/.cmd/.exe/.ps1，双击等效直接运行（build/test/bump 等维护脚本自动降级）；② 构建配置推断——Docker compose / Dockerfile → package.json scripts（按 lockfile 选 pnpm/yarn/bun/npm）→ Python 入口（项目内 .venv / poetry / pipenv 优先，manage.py 特判 runserver）→ cargo/go；前两级都没有才把疑似脚本列为弱候选（direct_weak，界面明确提示不确定）。一层子目录的 monorepo（frontend/backend 等常见命名）复用同一套检测并附带子目录 cwd。
+- **一键执行**：新开终端窗口运行（日志可见、Ctrl+C 可停），点击前弹确认框展示完整命令（可关）；自定义启动项支持增删改与子目录（monorepo 分仓），自动检测结果与自定义项去重展示。
 - **启动说明**：Markdown 记录「先起后端再起前端」这类步骤，与启动按钮同面板展示。
 
 ### 数据安全
