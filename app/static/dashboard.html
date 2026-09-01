@@ -123,11 +123,12 @@
                 <template v-for="(col, ci) in heatGrid.cols" :key="'hc' + ci">
                   <template v-for="(cell, ri) in col" :key="ci + '-' + ri">
                     <span v-if="cell" class="hm-cell gh"
-                          :class="['l' + cell.level, { today: cell.today }]"
-                          :title="cell.label"></span>
+                          :class="['l' + cell.level, { today: cell.today, clickable: cell.n }]"
+                          :title="cell.n ? cell.label + '，点击查看当天提交' : cell.label"
+                          @click="openDayDetail(cell)"></span>
                       <span v-else class="hm-cell gh empty"></span>
-                    </template>
                   </template>
+                </template>
                 </div>
               </div>
             </div>
@@ -380,6 +381,51 @@
           </button>
         </div>
       </template>
+    </div>
+  </div>
+
+  <!-- 当日提交明细（点击开发活动热力图某天） -->
+  <div class="modal-mask" v-if="showDay" @click.self="closeDay">
+    <div class="modal day-modal" v-modal role="dialog" aria-modal="true" aria-labelledby="day-title">
+      <h3 id="day-title">
+        <lpa-icon name="commit" :size="16"></lpa-icon>
+        {{ dayLoading && !dayData ? "加载中…" : (dayData ? dayData.date + " 提交明细" : "提交明细") }}
+      </h3>
+      <div class="day-body">
+        <div class="skel-stack" v-if="dayLoading">
+          <span class="skel" style="width:60%;height:22px"></span>
+          <span class="skel" v-for="i in 4" :key="i" style="width:100%;height:26px"></span>
+        </div>
+        <template v-else-if="dayData">
+          <p class="day-summary">
+            共 <b>{{ fmtNum(dayData.total) }}</b> 次提交，来自
+            {{ dayData.projects.length }} 个项目
+          </p>
+          <div v-if="!dayData.projects.length" class="day-empty">这一天没有提交记录</div>
+          <div class="day-group" v-for="g in dayData.projects" :key="g.id">
+            <div class="day-group-head">
+              <a class="day-group-name" :href="'/project/' + g.id"
+                 :title="'打开项目「' + g.name + '」详情页'">{{ g.name }}</a>
+              <span class="day-group-count">{{ g.count }} 次提交</span>
+            </div>
+            <ul class="commit-timeline day-timeline">
+              <li v-for="c in g.commits" :key="c.hash">
+                <div class="ct-row">
+                  <span class="ct-dot"></span>
+                  <span class="ct-hash">{{ c.short }}</span>
+                  <span class="ct-type" :class="'ct-' + (commitType(c.message) || 'plain')"
+                        v-if="commitType(c.message)">{{ commitType(c.message) }}</span>
+                  <span class="ct-msg" :title="c.message">{{ commitMsgText(c.message) }}</span>
+                  <span class="ct-meta">
+                    <span class="ct-user-dot" :style="{ background: userColor(c.author) }"></span>
+                    {{ c.author }} · {{ fmtTime(c.date) }}
+                  </span>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </template>
+      </div>
     </div>
   </div>
 

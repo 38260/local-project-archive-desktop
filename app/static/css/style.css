@@ -565,6 +565,25 @@ body.modal-open { overflow: hidden; }
 }
 .danger-zone label { color: var(--danger) !important; }
 .modal.wide { width: 840px; }
+/* 当日提交明细弹窗（首页热力图点击某天） */
+.modal.day-modal { width: 720px; }
+.day-body { max-height: 62vh; overflow-y: auto; }
+.day-summary { margin: 0 0 var(--s-3); font-size: 13px; color: var(--muted); }
+.day-summary b { color: var(--text); }
+.day-empty { padding: var(--s-6) 0; text-align: center; color: var(--muted); font-size: 14px; }
+.day-group { margin-bottom: var(--s-4); }
+.day-group:last-child { margin-bottom: 0; }
+.day-group-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2);
+  padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.day-group-name { font-size: 14px; font-weight: 700; color: var(--text); text-decoration: none; }
+.day-group-name:hover { color: var(--accent); text-decoration: underline; }
+.day-group-count { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.day-timeline .ct-row { border-radius: var(--r-sm); }
+/* 首页热力图：有提交的格子可点击查看当日明细 */
+.hm-cell.gh.clickable { cursor: pointer; }
+.hm-cell.gh.clickable:hover { outline: 1.5px solid var(--accent); outline-offset: 1px; }
 .confirm-modal { width: 440px; }
 .confirm-msg { white-space: pre-line; color: var(--text); font-size: 14px; line-height: 1.7; margin-bottom: var(--s-2); }
 .btn.danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
