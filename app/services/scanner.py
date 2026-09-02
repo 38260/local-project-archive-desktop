@@ -32,8 +32,12 @@ def _detect_markers(dir_path: str) -> list[str]:
     return found
 
 
-def scan_root(root: str, max_depth: int = 3) -> dict:
-    """扫描根目录，返回候选项目列表与统计。"""
+def scan_root(root: str, max_depth: int = 3, progress: dict | None = None) -> dict:
+    """扫描根目录，返回候选项目列表与统计。
+
+    progress 传 dict（如后台任务的全局状态对象）时，每访问一个目录就把
+    visited 计数同步进去，供进度接口实时读取。
+    """
     candidates = []
     visited = {"count": 0}
     truncated = {"flag": False}
@@ -43,6 +47,8 @@ def scan_root(root: str, max_depth: int = 3) -> dict:
             truncated["flag"] = True
             return
         visited["count"] += 1
+        if progress is not None:
+            progress["scanned_dirs"] = visited["count"]
 
         markers = _detect_markers(dir_path)
         if markers:

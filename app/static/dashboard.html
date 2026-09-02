@@ -345,6 +345,9 @@
         <label for="scan-depth">扫描深度：{{ scanDepth }} 层</label>
         <input type="range" id="scan-depth" min="1" max="6" v-model.number="scanDepth" style="width:100%">
       </div>
+      <div class="hint" v-if="scanning && scanProgress">
+        正在扫描 <code>{{ scanProgress.root }}</code>：已遍历 {{ scanProgress.scanned_dirs }} 个目录…
+      </div>
       <div class="actions" v-if="!candidates">
         <button class="btn" @click="closeScan">取消</button>
         <button class="btn primary" @click="doScan" :disabled="scanning || !scanRoot">
@@ -377,7 +380,7 @@
         <div class="actions">
           <button class="btn" @click="candidates = null">← 重新扫描</button>
           <button class="btn primary" @click="doImport" :disabled="importing || checkedCount === 0">
-            {{ importing ? "导入中…" : `导入选中项目（${checkedCount}）` }}
+            {{ importing ? `导入中…（${(importProgress && importProgress.done) || 0}/${(importProgress && importProgress.total) || 0}）` : `导入选中项目（${checkedCount}）` }}
           </button>
         </div>
       </template>
