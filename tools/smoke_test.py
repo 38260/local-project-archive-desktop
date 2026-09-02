@@ -55,6 +55,18 @@ def req(method: str, path: str, body=None, want_status: int = 200):
             return e.code, {"detail": text}
 
 
+def wait_job(progress_path: str, timeout_s: float = 60.0) -> dict:
+    """轮询后台任务进度接口直到结束，返回最终进度快照。"""
+    deadline = time.time() + timeout_s
+    prog = {}
+    while time.time() < deadline:
+        time.sleep(0.3)
+        _, prog = req("GET", progress_path)
+        if not prog.get("running", False):
+            return prog
+    return prog
+
+
 def multipart_body(fields, files):
     """构造最简 multipart/form-data 请求体（标准库实现）。"""
     boundary = "----lpaboundary123"
@@ -246,16 +258,21 @@ def main():
               git_info.get("branches") and git_info.get("contributors")
               and git_info.get("first_commit_date"))
 
-        # ---- 批量扫描与导入 ----
-        st, scan = req("POST", "/api/scan", {"root": _temp_root, "max_depth": 2})
-        paths = [c["path"] for c in scan["candidates"]]
+        # ---- 批量扫描与导入（后台任务 + 进度轮询） ----
+        st, started = req("POST", "/api/scan", {"root": _temp_root, "max_depth": 2})
+        check("扫描任务已启动", st == 200 and started.get("started") is True)
+        scan_prog = wait_job("/api/scan/progress")
+        paths = [c["path"] for c in scan_prog.get("candidates", [])]
         check("扫描发现 3 个候选", len(paths) == 3, f"实际 {len(paths)}: {paths}")
         check("扫描不深入 node_modules", not any("node_modules" in p for p in paths))
-        st, imp = req("POST", "/api/scan/import",
-                      {"paths": [py, cpp], "category": "测试"})
-        check("批量导入 2 个", st == 200 and imp["imported"] == 2 and imp["skipped"] == 0)
+        st, started = req("POST", "/api/scan/import",
+                          {"paths": [py, cpp], "category": "测试"})
+        check("导入任务已启动", st == 200 and started.get("started") is True)
+        imp = wait_job("/api/scan/import/progress")
+        check("批量导入 2 个", imp["imported"] == 2 and imp["skipped"] == 0)
         _created_ids.extend(imp.get("created_ids") or [])
-        st, imp2 = req("POST", "/api/scan/import", {"paths": [py, cpp]})
+        req("POST", "/api/scan/import", {"paths": [py, cpp]})
+        imp2 = wait_job("/api/scan/import/progress")
         check("重复导入被跳过", imp2["skipped"] == 2 and imp2["imported"] == 0)
 
         # 非 git 目录的提交记录提示
