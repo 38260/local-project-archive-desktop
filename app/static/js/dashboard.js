@@ -55,6 +55,8 @@
         scanRoot: "",
         scanDepth: 3,
         candidates: null,
+        scanProgress: null,     // 扫描后台任务进度快照（轮询 /api/scan/progress）
+        importProgress: null,   // 导入后台任务进度快照（轮询 /api/scan/import/progress）
         importForm: { category: "" },
         // 通用设置键值（来自 /api/settings；设置弹窗本体在共享组件 js/settings.js）
         prefs: {},
@@ -388,18 +390,38 @@
       async doScan() {
         if (!this.scanRoot) { toast("请填写扫描根目录", "error"); return; }
         this.scanning = true;
+        this.scanProgress = null;
         try {
-          const data = await api("/api/scan", {
+          const r = await api("/api/scan", {
             method: "POST",
             body: { root: this.scanRoot, max_depth: this.scanDepth },
           });
-          data.candidates.forEach(c => { c.checked = !c.imported; });
-          this.candidates = data;
-          if (!data.candidates.length) toast("未发现候选项目", "ok");
+          if (r.started === false) {
+            toast(r.reason || "已有扫描任务在进行中", "error");
+            this.scanning = false;
+            return;
+          }
           // 记住本次扫描目录，下次打开直接用
           api("/api/settings", {
             method: "PUT", body: { "scan.last_root": this.scanRoot }, silent: true,
           }).catch(() => {});
+          this.pollScan();
+        } catch (e) { this.scanning = false; }
+      },
+      // 扫描是后台任务：轮询进度接口，期间展示已遍历目录数
+      async pollScan() {
+        try {
+          const p = await api("/api/scan/progress", { silent: true });
+          this.scanProgress = p;
+          if (p.running) {
+            setTimeout(() => this.pollScan(), 500);
+            return;
+          }
+          if (p.error) { toast(p.error, "error"); return; }
+          p.candidates.forEach(c => { c.checked = !c.imported; });
+          this.candidates = { root: p.root, candidates: p.candidates,
+                              scanned_dirs: p.scanned_dirs, truncated: p.truncated };
+          if (!p.candidates.length) toast("未发现候选项目", "ok");
         } catch (e) { /* toast 已提示 */ }
         finally { this.scanning = false; }
       },
@@ -407,14 +429,32 @@
         const paths = this.candidates.candidates.filter(c => c.checked).map(c => c.path);
         if (!paths.length) return;
         this.importing = true;
+        this.importProgress = null;
         try {
           const r = await api("/api/scan/import", {
             method: "POST",
             body: { paths, category: this.importForm.category, status: "进行中", tags: [] },
           });
-          let msg = `导入 ${r.imported} 个项目，跳过 ${r.skipped} 个已存在`;
-          if (r.failed.length) msg += `，失败 ${r.failed.length} 个：${r.failed[0].path}（${r.failed[0].reason}）`;
-          toast(msg, r.failed.length ? "error" : "ok");
+          if (r.started === false) {
+            toast(r.reason || "已有导入任务在进行中", "error");
+            this.importing = false;
+            return;
+          }
+          this.pollImport();
+        } catch (e) { this.importing = false; }
+      },
+      // 导入是后台任务：解析 4 路并发，轮询展示完成数
+      async pollImport() {
+        try {
+          const p = await api("/api/scan/import/progress", { silent: true });
+          this.importProgress = p;
+          if (p.running) {
+            setTimeout(() => this.pollImport(), 500);
+            return;
+          }
+          let msg = `导入 ${p.imported} 个项目，跳过 ${p.skipped} 个已存在`;
+          if (p.failed.length) msg += `，失败 ${p.failed.length} 个：${p.failed[0].path}（${p.failed[0].reason}）`;
+          toast(msg, p.failed.length ? "error" : "ok");
           this.closeScan();
           this.load();
         } catch (e) { /* toast 已提示 */ }
