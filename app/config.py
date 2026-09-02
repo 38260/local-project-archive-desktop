@@ -98,6 +98,8 @@ JUNK_DIRS = {
     ".ruff_cache", "dist", "build", "target", "out", ".next", ".nuxt",
     ".cache", "site-packages", ".eggs", "*.egg-info", ".gradle", "bin_debug",
     ".terraform", ".serverless", "coverage", ".turbo", ".parcel-cache",
+    ".pnpm-store", ".dart_tool", "vendor", "pods", "carthage",
+    "bower_components", "deriveddata",
 }
 
 # 批量扫描时识别项目的标记文件/目录
