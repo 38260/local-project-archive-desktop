@@ -1,20 +1,42 @@
-"""Git 信息读取服务：基于 GitPython，只读操作，绝不写入用户仓库。
+"""Git 信息读取服务：GitPython 定位仓库 + 带超时的 git 子进程，只读操作。
 
-任何异常都被捕获并降级为 is_repo=False 或带 error 的部分结果，保证无 git
-环境 / 非 git 目录 / 损坏仓库都不会影响服务运行。
+绝不写入用户仓库。任何异常都被捕获并降级为 is_repo=False 或带 error 的
+部分结果，保证无 git 环境 / 非 git 目录 / 损坏仓库 / 网络盘挂死都不会影响
+服务运行。
 """
 import logging
+import os
 import re
+import subprocess
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 try:
     from git import InvalidGitRepositoryError, NoSuchPathError, Repo
-    from git.exc import GitCommandError
     _GITPY_AVAILABLE = True
 except ImportError:  # GitPython 未安装时优雅降级
     _GITPY_AVAILABLE = False
+
+# 单条 git 命令超时（秒）：网络盘 / 异常仓库不再挂住解析
+_GIT_TIMEOUT = 15
+
+
+def _run_git(args: list[str], cwd: str, timeout: int = _GIT_TIMEOUT) -> str | None:
+    """以子进程执行只读 git 命令，返回 stdout；失败或超时返回 None。
+
+    不走 GitPython 的 repo.git 调用：其 kill_after_timeout 在 Windows 上
+    不受支持（直接抛错），而 subprocess 自带的 timeout 在 Windows 下同样
+    能强制结束进程。
+    """
+    extra = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+    try:
+        r = subprocess.run(["git", *args], cwd=cwd, capture_output=True,
+                           stdin=subprocess.DEVNULL, text=True, encoding="utf-8",
+                           errors="replace", timeout=timeout, **extra)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return r.stdout if r.returncode == 0 else None
 
 # numstat 行：新增行数 \t 删除行数 \t 文件路径（二进制文件为 -）
 _NUMSTAT_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.+)$")
@@ -62,24 +84,27 @@ def collect_git_info(path: str) -> dict:
             if (commit.message or "").strip() else "",
         }
 
-        # 提交总数：走 git 命令比遍历对象快得多
-        try:
-            result["commit_count"] = int(repo.git.rev_list("--count", "HEAD").strip())
-        except Exception:
-            pass
+        # 提交总数：走 git 命令比遍历对象快得多；超时/失败降级为不计
+        raw = _run_git(["rev-list", "--count", "HEAD"], path)
+        if raw:
+            try:
+                result["commit_count"] = int(raw.strip())
+            except ValueError:
+                pass
 
         # 首次提交时间 = 根提交中最早的时间（即项目真正开始的日子）
-        try:
-            roots = repo.git.rev_list("--max-parents=0", "HEAD").split()
-            dates = [repo.commit(h).committed_datetime for h in roots]
-            if dates:
-                result["first_commit_date"] = min(dates).isoformat()
-        except Exception:
-            pass
+        raw = _run_git(["rev-list", "--max-parents=0", "HEAD"], path)
+        if raw:
+            try:
+                dates = [repo.commit(h).committed_datetime for h in raw.split()]
+                if dates:
+                    result["first_commit_date"] = min(dates).isoformat()
+            except Exception:
+                pass
 
         # 贡献者统计（按提交数取前 5）
-        try:
-            raw = repo.git.shortlog("-s", "HEAD")
+        raw = _run_git(["shortlog", "-s", "HEAD"], path)
+        if raw:
             contribs = []
             for line in raw.splitlines():
                 parts = line.strip().split("\t", 1)
@@ -87,8 +112,6 @@ def collect_git_info(path: str) -> dict:
                     contribs.append({"name": parts[1].strip(),
                                      "commits": int(parts[0])})
             result["contributors"] = sorted(contribs, key=lambda c: -c["commits"])[:5]
-        except Exception:
-            pass
 
         # 第一个远端地址（通常为 origin）
         try:
@@ -125,21 +148,27 @@ def collect_commit_log(path: str, limit: int = 50, date: str | None = None) -> d
         return result
 
     result["is_repo"] = True
-    try:
+    raw = _run_git(["rev-list", "--count", "HEAD"], path)
+    if raw:
         try:
-            result["total_count"] = int(repo.git.rev_list("--count", "HEAD").strip())
-        except Exception:
+            result["total_count"] = int(raw.strip())
+        except ValueError:
             pass
 
-        # 指定日期时只取当天（00:00–23:59），不受条数上限影响语义
-        date_args = []
-        if date:
-            date_args = [f"--since={date} 00:00:00", f"--until={date} 23:59:59"]
+    # 指定日期时只取当天（00:00–23:59），不受条数上限影响语义
+    date_args = []
+    if date:
+        date_args = [f"--since={date} 00:00:00", f"--until={date} 23:59:59"]
 
-        # \x1e 分隔提交，\x1f 分隔字段；%B 为完整提交信息，其后跟 numstat 行
-        raw = repo.git.log(
-            f"--max-count={limit}", "--numstat", *date_args,
-            "--pretty=format:%x1e%H%x1f%an%x1f%ae%x1f%cI%x1f%B")
+    # \x1e 分隔提交，\x1f 分隔字段；%B 为完整提交信息，其后跟 numstat 行
+    raw = _run_git(["log", f"--max-count={limit}", "--numstat", *date_args,
+                    "--pretty=format:%x1e%H%x1f%an%x1f%ae%x1f%cI%x1f%B"], path)
+    if raw is None:
+        # rev-list --count 同样失败多半是空仓库（尚无任何提交），否则按超时/异常降级
+        result["error"] = ("仓库还没有任何提交" if result["total_count"] is None
+                           else "提交记录读取失败（git 命令超时或异常）")
+        return result
+    try:
         for block in raw.split("\x1e"):
             if not block.strip():
                 continue
@@ -176,20 +205,17 @@ def collect_commit_log(path: str, limit: int = 50, date: str | None = None) -> d
                           "deletions": deletions} if files else None,
             }
             result["commits"].append(entry)
-    except GitCommandError:
-        # 空仓库（尚无任何提交）时 git log 直接失败
-        result["error"] = "仓库还没有任何提交"
     except Exception as exc:
-        result["error"] = f"提交记录读取失败：{exc}"
+        result["error"] = f"提交记录解析失败：{exc}"
     return result
 
 
 def collect_heatmap(path: str, weeks: int = 53) -> dict:
     """按天聚合最近 N 周的全部提交次数（GitHub 风格贡献热力图数据源）。
 
-    与 collect_commit_log 的 200 条上限无关：这里只遍历提交对象取日期，
-    不展开 diff，一年数千次提交也在毫秒级。author 日期可能早于 since 的
-    少量越界提交由前端按范围过滤。
+    与 collect_commit_log 的 200 条上限无关：这里只取提交日期不展开 diff，
+    一年数千次提交也在毫秒级。author 日期可能早于 since 的少量越界提交
+    由前端按范围过滤。
     """
     from datetime import date, timedelta
 
@@ -214,8 +240,19 @@ def collect_heatmap(path: str, weeks: int = 53) -> dict:
         end = today + timedelta(days=(6 - today.weekday()) % 7 if today.weekday() != 6 else 0)
         start = end - timedelta(days=7 * weeks - 1)
         days: dict = {}
-        for c in repo.iter_commits():
-            d = c.committed_datetime.date()
+        # %cI = committer 日期（严格 ISO），与原 iter_commits 的 committed_datetime 等价
+        raw = _run_git(["log", "--pretty=format:%cI"], path)
+        if raw is None:
+            result["error"] = "提交历史读取失败（仓库为空或 git 命令超时）"
+            return result
+        for line in raw.splitlines():
+            line = line.strip()
+            if len(line) < 10:
+                continue
+            try:
+                d = date.fromisoformat(line[:10])
+            except ValueError:
+                continue
             if d > end:
                 continue
             key = d.isoformat()
