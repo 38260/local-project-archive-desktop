@@ -214,8 +214,10 @@ def collect_heatmap(path: str, weeks: int = 53) -> dict:
     """按天聚合最近 N 周的全部提交次数（GitHub 风格贡献热力图数据源）。
 
     与 collect_commit_log 的 200 条上限无关：这里只取提交日期不展开 diff，
-    一年数千次提交也在毫秒级。author 日期可能早于 since 的少量越界提交
-    由前端按范围过滤。
+    一年数千次提交也在毫秒级。--since 限定到网格起点（约 weeks 周），
+    超大仓库不再全历史遍历；前端按月柱状图最多聚合 12 个日历月，网格
+    起点比它更早几天，覆盖足够。author 日期早于 since 的少量越界提交
+    仍由前端按范围过滤。
     """
     from datetime import date, timedelta
 
@@ -240,8 +242,8 @@ def collect_heatmap(path: str, weeks: int = 53) -> dict:
         end = today + timedelta(days=(6 - today.weekday()) % 7 if today.weekday() != 6 else 0)
         start = end - timedelta(days=7 * weeks - 1)
         days: dict = {}
-        # %cI = committer 日期（严格 ISO），与原 iter_commits 的 committed_datetime 等价
-        raw = _run_git(["log", "--pretty=format:%cI"], path)
+        # %cI = committer 日期（严格 ISO）；--since 限定到网格起点，避免全历史遍历
+        raw = _run_git(["log", "--pretty=format:%cI", f"--since={start.isoformat()}"], path)
         if raw is None:
             result["error"] = "提交历史读取失败（仓库为空或 git 命令超时）"
             return result
