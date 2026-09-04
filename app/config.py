@@ -84,7 +84,7 @@ def pick_port(host: str = HOST, preferred: int = DEFAULT_PORT, tries: int = 50) 
 
 # 应用标识（导出 JSON 时使用）
 APP_NAME = "tracelight"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 
 # 项目状态枚举（归档=收尾留档可展示；废弃=不再维护，默认隐藏）
 STATUS_VALUES = ["进行中", "已完成", "暂停", "归档", "废弃"]

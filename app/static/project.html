@@ -70,6 +70,9 @@
         <button class="btn" @click="copyText(p.path)">
           <lpa-icon name="copy" :size="15"></lpa-icon>复制路径
         </button>
+        <button class="btn" @click="openEdit">
+          <lpa-icon name="pencil" :size="15"></lpa-icon>编辑档案
+        </button>
         <span class="more-wrap">
           <button class="btn" @click.stop="moreOpen = !moreOpen" aria-haspopup="menu" :aria-expanded="moreOpen ? 'true' : 'false'">
             <lpa-icon name="more" :size="15"></lpa-icon>更多
@@ -79,9 +82,6 @@
           <span class="more-list" v-if="moreOpen" style="z-index:80" role="menu" @click="moreOpen = false">
             <button class="btn" role="menuitem" @click="rescan" :disabled="rescanning">
               <lpa-icon name="refresh" :size="15" :class="{spin: rescanning}"></lpa-icon>{{ rescanning ? "解析中…" : "重新解析" }}
-            </button>
-            <button class="btn" role="menuitem" @click="openEdit">
-              <lpa-icon name="pencil" :size="15"></lpa-icon>编辑档案
             </button>
             <button class="btn" role="menuitem" @click="togglePin">
               <lpa-icon name="pin" :size="15"></lpa-icon>{{ p.pinned ? "取消置顶" : "置顶" }}
