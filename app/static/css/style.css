@@ -939,10 +939,11 @@ body.modal-open { overflow: hidden; }
 .toast.ok { border-left-color: var(--ok); }
 @keyframes slide-in { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 
-/* ---- 详情页三栏布局：左侧目录导航 + 主内容 + 右侧目录树 ---- */
+/* ---- 详情页三栏布局：左侧目录导航 + 主内容 + 右侧目录树 ----
+   三列宽恒定（220 / 自适应 / 430），收起目录树也不改列宽，见下方 tree-collapsed 规则 */
 .detail-layout {
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr) 430px;
+  grid-template-columns: 220px minmax(0, 1fr) 430px;
   gap: 14px;
   align-items: start;
 }
@@ -950,11 +951,11 @@ body.modal-open { overflow: hidden; }
 .detail-main section.panel { scroll-margin-top: calc(var(--topbar-h) + 12px); }
 .toc-nav { position: sticky; top: var(--topbar-h); display: flex; flex-direction: column; gap: 1px; }
 .toc-nav .toc-title {
-  font-size: 15px; font-weight: 800; color: var(--muted);
+  font-size: 16px; font-weight: 800; color: var(--muted);
   padding: 0 var(--s-3) var(--s-2);
 }
 .toc-nav a {
-  padding: 7px var(--s-3); font-size: 15px;
+  padding: 8px var(--s-3); font-size: 16px;
   color: var(--muted);
   border-left: 2px solid var(--border);
   cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -971,9 +972,9 @@ body.modal-open { overflow: hidden; }
 .toc-group { margin-bottom: 2px; }
 .toc-group-head {
   display: flex; align-items: center; gap: 7px;
-  width: 100%; padding: 7px var(--s-3);
+  width: 100%; padding: 8px 12px;
   background: none; border: none; cursor: pointer;
-  font: inherit; font-size: 15px; font-weight: 700; color: var(--text);
+  font: inherit; font-size: 16px; font-weight: 700; color: var(--text);
   text-align: left; border-radius: var(--r-sm);
   transition: background .15s;
 }
@@ -989,8 +990,8 @@ body.modal-open { overflow: hidden; }
   width: 2px; border-radius: 1px; background: var(--border);
 }
 .toc-group-body a {
-  display: block; border-left: none; font-size: 15.5px;
-  padding: 6px 8px; border-radius: var(--r-sm);
+  display: block; border-left: none; font-size: 16px;
+  padding: 7px 10px; border-radius: var(--r-sm);
 }
 .toc-group-body a.on {
   border-left: none;
