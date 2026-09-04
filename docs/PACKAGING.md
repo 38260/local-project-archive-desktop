@@ -397,7 +397,7 @@ PyInstaller 打出来的 exe 是"自解压 + 内存加载"结构，特徴和行�
 
 ```bat
 tools\build_installer.bat
-rem 产物：dist\Tracelight\（目录版）+ dist\installer\Tracelight-Setup-1.1.0.exe
+rem 产物：dist\Tracelight\（目录版）+ dist\installer\Tracelight-Setup-1.2.0.exe
 ```
 
 安装脚本设计要点：
