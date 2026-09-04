@@ -450,8 +450,10 @@ def collect_stats(path: str) -> dict:
 
 def build_tree(path: str, max_depth: int = TREE_MAX_DEPTH,
                max_nodes: int = TREE_MAX_NODES) -> dict:
-    """构建只读目录树（深度与节点数受限，跳过依赖/构建目录）。
+    """构建只读目录树（如实逐层列出，跳过依赖/构建目录；仅极端超大项目截断）。
 
+    深度仅保留护栏上限（默认 64），节点数预算默认 2 万——正常项目可以展开到底，
+    不会像旧版那样在 3 层就静默丢内容。超出预算时 truncated=True 由前端如实提示。
     每个节点附带 rel（相对项目根的路径），供前端点击复制。
     """
     counter = {"nodes": 0}

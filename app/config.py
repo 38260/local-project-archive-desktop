@@ -151,8 +151,11 @@ NODE_FRAMEWORKS = {
 
 # 解析与目录树的规模上限，防止超大目录拖垮服务
 STATS_MAX_FILES = 20000      # 文件统计最多遍历文件数
-TREE_MAX_DEPTH = 3           # 目录树最大深度
-TREE_MAX_NODES = 500         # 目录树最多节点数
+# 目录树只读预览：深度保留为兜底护栏（正常项目路径层级远达不到），
+# 节点预算放大到 2 万——一般项目可「如实」逐层展示到底，只有极端超大项目才会截断并如实标注。
+# node_modules/.git/.venv/dist 等依赖/构建/隐藏目录仍按 JUNK_DIRS 跳过，避免目录爆炸。
+TREE_MAX_DEPTH = 64          # 目录树最大深度（护栏值）
+TREE_MAX_NODES = 20000       # 目录树最多节点数（超出截断并在前端如实提示）
 SCAN_MAX_DIRS = 20000        # 扫描最多访问目录数
 SCAN_MAX_CANDIDATES = 300    # 扫描最多返回候选项目数
 DEPS_MAX_ITEMS = 60          # 依赖清单最多记录条数

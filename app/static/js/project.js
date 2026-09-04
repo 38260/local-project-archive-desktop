@@ -12,11 +12,10 @@
     name: "tree-node",
     props: {
       node: { type: Object, required: true },
-      depth: { type: Number, default: 0 },
     },
     data() {
-      // 前两层默认展开，更深层默认折叠
-      return { open: this.depth < 2 };
+      // 目录一律默认收起；展开状态记在 node.open 上，父目录收起再展开也能恢复
+      return { open: !!(this.node && this.node.open) };
     },
     computed: {
       isDir() { return this.node.type === "dir"; },
@@ -30,7 +29,7 @@
     template: `
       <li class="t-row" :class="{ 't-file': !isDir, clickable: !isDir }">
         <template v-if="isDir">
-          <span class="t-dir" @click="open = !open">
+          <span class="t-dir" @click="open = !open; node.open = open">
             <span class="t-caret">
               <svg class="licon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="open ? 'm6 9 6 6 6-6' : 'm9 18 6-6-6-6'"/></svg>
             </span>
@@ -38,8 +37,8 @@
             <span class="t-name">{{ node.name }}</span>
           </span>
           <span class="t-err" v-if="node.error">（{{ node.error }}）</span>
-          <ul v-show="open">
-            <tree-node v-for="c in node.children" :key="c.name" :node="c" :depth="depth + 1"></tree-node>
+          <ul v-if="open">
+            <tree-node v-for="c in node.children" :key="c.name" :node="c"></tree-node>
           </ul>
         </template>
         <template v-else>

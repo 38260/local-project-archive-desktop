@@ -721,7 +721,7 @@
                 <lpa-icon name="folder-open" :size="14"></lpa-icon>
                 <span class="t-name" style="font-weight:600">{{ p.name }}</span>
                 <ul>
-                  <tree-node v-for="c in tree.children" :key="c.name" :node="c" :depth="1"></tree-node>
+                  <tree-node v-for="c in tree.children" :key="c.name" :node="c"></tree-node>
                 </ul>
               </li>
             </ul>
@@ -733,7 +733,7 @@
           <div class="section-note" v-else>目录树不可用（路径丢失或读取失败）</div>
         </div>
         <div class="section-note" v-if="tree && tree.truncated && !treeCollapsed" style="margin-top:8px">
-          内容较多，仅展示前几层（已跳过 node_modules、.git 等依赖与构建目录）。
+          目录较大，已省略部分条目；node_modules、.git、.venv 等依赖与构建目录始终不列出。
         </div>
       </section>
     </aside>
