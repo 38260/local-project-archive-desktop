@@ -1289,6 +1289,9 @@ body.modal-open { overflow: hidden; }
 }
 .more-list .btn { border: none; background: none; justify-content: flex-start; border-radius: 6px; }
 .more-list .btn:hover { background: var(--accent-soft); box-shadow: none; }
+/* 下拉关闭遮罩：盖住页面内容，但必须低于顶栏(z-index:50)与下拉本身——
+   否则透明遮罩会吞掉菜单里按钮的点击（实测：工具菜单两个按钮点了没反应） */
+.more-mask { position: fixed; inset: 0; z-index: 40; background: transparent; }
 
 /* ---- 空面板紧凑条 ---- */
 .panel-compact-bar { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }

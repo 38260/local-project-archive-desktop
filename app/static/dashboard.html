@@ -436,9 +436,9 @@
   <lpa-settings-dialog ref="settings" :statuses="statuses" @changed="onSettingsChanged"></lpa-settings-dialog>
 
   <!-- 工具菜单关闭遮罩：必须挂在 topbar 之外——topbar 的 backdrop-filter 会把
-       position:fixed 后代的包含块劫持为顶栏自身，导致遮罩盖不住页面其余部分 -->
-  <span class="more-mask" v-if="toolsOpen" @click="toolsOpen = false"
-        style="position:fixed;inset:0;z-index:70"></span>
+       position:fixed 后代的包含块劫持为顶栏自身，导致遮罩盖不住页面其余部分。
+       z-index 见 .more-mask（40），低于顶栏 50，避免吞掉下拉里按钮的点击 -->
+  <span class="more-mask" v-if="toolsOpen" @click="toolsOpen = false"></span>
 </div>
 
 <script src="/static/js/vendor/vue.global.prod.js"></script>
