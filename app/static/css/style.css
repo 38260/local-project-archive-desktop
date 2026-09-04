@@ -999,12 +999,23 @@ body.modal-open { overflow: hidden; }
 .detail-side { position: sticky; top: var(--topbar-h); }
 .tree-panel { max-height: calc(100vh - 72px); display: flex; flex-direction: column; }
 .tree-panel .tree-scroll { overflow-y: auto; min-height: 60px; }
-/* 树收起时：侧栏收窄为标题条（保留「展开目录树」按钮，随时可恢复） */
-.detail-layout.tree-collapsed { grid-template-columns: 184px minmax(0, 1fr) auto; }
-.tree-panel.tree-collapsed { padding: var(--s-3) 14px; }
+/* 树收起时：第三栏宽度保持不变（三栏 grid 恒定），只隐藏树体并把标题行
+   收成右上角的小胶囊条——避免收起/展开把中间内容区挤宽挤窄（版面跳动） */
+.detail-layout.tree-collapsed .tree-panel {
+  background: transparent; border: none; box-shadow: none;
+  padding: 0; max-height: none;
+}
+.detail-layout.tree-collapsed .tree-panel > h2 {
+  width: max-content; max-width: 100%; margin: 0 0 0 auto;
+  align-items: center; gap: 8px;
+  padding: 7px 8px 7px 16px; border-left: none; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow);
+  font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.detail-layout.tree-collapsed .tree-panel > h2 .right { font-size: 12px; }
 @media (max-width: 1024px) {
   .detail-layout, .detail-layout.tree-collapsed { grid-template-columns: 1fr; }
-  .tree-panel.tree-collapsed { padding: 14px 18px; }
+  .detail-layout.tree-collapsed .tree-panel > h2 { margin-left: 0; }
   .detail-side { position: static; }
   .tree-panel { max-height: 420px; }
   /* P1-5：窄屏不隐藏目录，改为顶部横向滚动 chip 条 */
