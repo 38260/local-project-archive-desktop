@@ -469,7 +469,7 @@ def get_readme(project_id: int):
 
 @router.get("/{project_id}/tree")
 def get_tree(project_id: int):
-    """项目目录树只读预览（深度/节点受限，跳过 node_modules 等）。"""
+    """项目目录树只读预览（逐层如实列出，跳过 node_modules 等依赖/构建目录）。"""
     with get_db() as conn:
         row = _get_row_or_404(conn, project_id)
     if not os.path.isdir(row["path"]):
