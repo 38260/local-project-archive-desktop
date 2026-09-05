@@ -188,10 +188,12 @@
               <h3 :title="p.name">
                 <a :href="'/project/' + p.id" @click.stop>{{ p.name }}</a>
               </h3>
-              <span class="alias-chip" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
               <span class="spacer"></span>
               <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
               <span :class="statusBadgeClass(p.status)">{{ p.status }}</span>
+            </div>
+            <div class="alias-row" v-if="p.alias">
+              <span class="alias-chip" :title="'别名：' + p.alias">{{ p.alias }}</span>
             </div>
             <div class="path-row" :title="p.path">
               <span class="path">{{ shortPath(p.path) }}</span>
