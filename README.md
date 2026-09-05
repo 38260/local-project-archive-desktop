@@ -2,6 +2,15 @@
 
 管理本机散落开发项目的**本地索引库**：记录项目路径、技术栈、笔记与踩坑记录，自动解析 git 信息、构建配置、README 与目录树。B/S 架构内核 + 原生桌面窗口，仅监听 `127.0.0.1`，**所有数据只存在本机，不上传任何云端**；对原项目目录**只读取、绝不写入**。
 
+## 下载安装
+
+不想配 Python 环境的话，直接从 [GitHub Releases](https://github.com/38260/local-project-archive-desktop/releases/latest) 下载：
+
+- **安装版** `Tracelight-Setup-*.exe`（推荐）：per-user 免管理员安装，卸载默认保留档案数据，支持开机自启动；
+- **便携版** `Tracelight-portable-*.zip`：解压后运行 `Tracelight\Tracelight.exe` 即用，无需安装。
+
+两者内容一致，数据均保存在本机 `%LOCALAPPDATA%\Tracelight`，不出本机。
+
 ## 技术栈
 
 | 层 | 选型 |
