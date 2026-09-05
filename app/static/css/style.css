@@ -483,9 +483,13 @@ input[type="search"] { width: 320px; }
 .card.is-archived { opacity: .62; }
 .card.is-archived:hover { opacity: 1; }
 .card .title-row { display: flex; align-items: center; gap: var(--s-2); margin-bottom: 6px; }
-.card .title-row h3 { margin: 0; font-size: 18px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* min-width:0 让长名称能真正收缩出省略号，而不是把右侧徽章顶出卡片被 overflow 裁掉 */
+.card .title-row h3 { margin: 0; font-size: 18px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
 .card .title-row h3 a { color: inherit; text-decoration: none; }
 .card .title-row h3:hover { color: var(--accent); }
+/* 别名独占一行：与徽章争位会让主信息（项目名）被挤没 */
+.card .alias-row { display: flex; align-items: center; gap: var(--s-2); margin: 0 0 6px; }
+.card .alias-row .alias-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .card .path-row {
   display: flex; align-items: center; gap: 6px;
   font-family: var(--mono); font-size: 13px; color: var(--muted);
