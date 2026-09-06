@@ -10,7 +10,7 @@
 <body>
 <div id="app" v-cloak>
   <header class="topbar">
-    <a class="btn" href="/" title="返回首页">
+    <a class="btn" href="/" title="返回首页" @click.prevent="leaveConfirm('/')">
       <lpa-icon name="arrow-left" :size="15"></lpa-icon><span class="btn-text">返回首页</span>
     </a>
     <button class="btn icon-only" v-if="prevProject" @click="gotoSibling(prevProject)"
