@@ -6,6 +6,7 @@
 """
 import json
 import logging
+import webbrowser
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import APP_NAME, APP_VERSION, DATA_DIR, STATIC_DIR, STATUS_VALUES, DB_PATH
 from app.db import get_db, init_db
-from app.models import RenderRequest
+from app.models import OpenUrlRequest, RenderRequest
 from app.routers import projects, scanner, settings
 from app.services.render import render_markdown
 
@@ -346,6 +347,20 @@ def import_backup(payload: dict):
 def render_md(body: RenderRequest):
     """Markdown 渲染预览（编辑器实时预览用）。"""
     return {"html": render_markdown(body.text, mode=body.mode)}
+
+
+@app.post("/api/open-url")
+def open_url(body: OpenUrlRequest):
+    """把外部链接交给系统默认浏览器打开（仅 http/https）。
+
+    用途：README / 笔记里出现的 https 链接点击后，在 pywebview(WebView2) 中若直接
+    导航会把整个 SPA 带走（白屏且无返回入口），这里改为系统浏览器打开，窗口不受影响。
+    """
+    try:
+        webbrowser.open(body.url, new=2)
+        return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(500, f"打开外部浏览器失败：{exc}")
 
 
 # ---------------------------------------------------------------------------
