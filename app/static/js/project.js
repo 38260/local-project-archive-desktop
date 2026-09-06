@@ -507,7 +507,24 @@
           this.siblings = data.projects || [];
         } catch (e) { this.siblings = []; }
       },
-      gotoSibling(target) { if (target) location.href = "/project/" + target.id; },
+      gotoSibling(target) { if (target) this.leaveConfirm("/project/" + target.id); },
+      // 离开详情页的统一出口：有未保存草稿时先应用内确认，再跳转。
+      // 不用原生 beforeunload——打包为 pywebview(WebView2) 后该原生确认框可能被宿主窗口
+      // 盖住/失焦而不可见，用户点「返回首页」毫无反应，表现为「打开后退不出来」。
+      // 描述草稿本身会落 localStorage（下次进入自动恢复），笔记/日志草稿离开即丢，
+      // 提示文案如实区分，让用户自己决定。
+      leaveConfirm(url) {
+        const hasUnsaved = this.descDirty
+          || (this.noteDraft != null && String(this.noteDraft).trim())
+          || (this.logDraft != null && String(this.logDraft).trim());
+        if (!hasUnsaved) { location.href = url; return; }
+        confirmDialog(
+          "当前页面有未保存的内容（描述、笔记或变更日志）。\n\n"
+          + "描述草稿会自动保留，下次打开本项目可继续编辑；"
+          + "尚未保存的笔记 / 日志离开后将丢失。",
+          { title: "离开详情页", okText: "仍然离开" })
+          .then(ok => { if (ok) location.href = url; });
+      },
       switchTheme() { window.cycleTheme(); this.themeTick++; },
       // ---- 开发笔记 ----
       async loadNotes() {
@@ -887,14 +904,8 @@
     mounted() {
       this.load();
       window.addEventListener("scroll", this.onScroll, { passive: true });
-      // 有未保存内容时拦截刷新/关闭；草稿已落 localStorage，误关也能恢复
-      this._onBeforeUnload = (e) => {
-        if (this.descDirty || this.noteDraft || this.logDraft) {
-          e.preventDefault();
-          e.returnValue = "";
-        }
-      };
-      window.addEventListener("beforeunload", this._onBeforeUnload);
+      // 有未保存内容时的离开确认改用应用内弹窗（leaveConfirm），见 gotoSibling/返回首页：
+      // 原生 beforeunload 在 pywebview(WebView2) 桌面壳里确认框可能不可见，导致「退不出来」。
       // Esc 依次关闭：设置弹窗 → 截图灯箱 → 更多菜单 → 编辑弹窗
       this._onKey = (e) => {
         if (e.key !== "Escape") return;
@@ -908,7 +919,6 @@
     },
     beforeUnmount() {
       window.removeEventListener("scroll", this.onScroll);
-      window.removeEventListener("beforeunload", this._onBeforeUnload);
       document.removeEventListener("keydown", this._onKey);
     },
   });
