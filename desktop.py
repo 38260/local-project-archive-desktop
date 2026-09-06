@@ -397,7 +397,11 @@ def _setting_true(key: str) -> bool:
 
 
 def start_tray(window, server, logger):
-    """系统托盘：显示窗口 / 退出。在独立线程跑图标消息循环。"""
+    """系统托盘：显示窗口 / 桌面设置开关（自启动、托盘、静默启动等）/ 退出。
+
+    勾选状态实时读取设置与注册表（pystray 每次弹出菜单时重新求值 callable），
+    点选后 update_menu() 立即刷新勾选。在独立线程跑图标消息循环。
+    """
     try:
         import pystray
         from PIL import Image
@@ -406,6 +410,7 @@ def start_tray(window, server, logger):
         return None
 
     from app.config import BASE_DIR
+    from app.services import autostart, settings_store
 
     icon_file = BASE_DIR / "assets" / "app.ico"
     try:
@@ -419,6 +424,39 @@ def start_tray(window, server, logger):
             window.show()
         except Exception as exc:
             logger.warning("托盘唤起窗口失败：%s", exc)
+
+    def open_settings(icon, item):
+        """唤出窗口并直接打开设置弹窗（前端在首页暴露 LPA_OPEN_SETTINGS）。"""
+        show_window(icon, item)
+        try:
+            window.evaluate_js(
+                "window.LPA_OPEN_SETTINGS ? window.LPA_OPEN_SETTINGS() "
+                ": (location.href = '/')")
+        except Exception as exc:
+            logger.debug("托盘打开设置失败：%s", exc)
+
+    def notify(icon, msg: str):
+        try:
+            icon.notify(msg, WINDOW_TITLE)
+        except Exception:
+            pass
+
+    def toggle_setting(key: str, label: str):
+        """生成布尔设置的勾选切换动作：写设置 → 刷新菜单 → 气泡反馈。"""
+        def action(icon, item):
+            value = not bool(settings_store.get(key))
+            settings_store.set(key, value)
+            icon.update_menu()
+            notify(icon, f"已{'开启' if value else '关闭'}{label}")
+        return action
+
+    def toggle_autostart(icon, item):
+        target = not autostart.get_enabled()
+        if autostart.set_enabled(target):
+            icon.update_menu()
+            notify(icon, f"已{'开启' if target else '关闭'}开机自启动")
+        else:
+            notify(icon, "开机自启动设置失败，详情见日志")
 
     def quit_app(icon, item):
         _EXITING["flag"] = True
@@ -434,6 +472,21 @@ def start_tray(window, server, logger):
 
     menu = pystray.Menu(
         pystray.MenuItem("显示窗口", show_window, default=True),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("开机自启动", toggle_autostart,
+                         checked=lambda item: autostart.get_enabled(),
+                         visible=lambda item: autostart.is_available()),
+        pystray.MenuItem("关闭时最小化到托盘",
+                         toggle_setting("tray.close_to_tray", "「关闭时最小化到托盘」"),
+                         checked=lambda item: bool(settings_store.get("tray.close_to_tray"))),
+        pystray.MenuItem("启动时静默（不弹窗口）",
+                         toggle_setting("app.start_minimized", "「启动时静默」"),
+                         checked=lambda item: bool(settings_store.get("app.start_minimized"))),
+        pystray.MenuItem("启动时自动检查项目路径",
+                         toggle_setting("scan.refresh_on_start", "「启动时自动检查项目路径」"),
+                         checked=lambda item: bool(settings_store.get("scan.refresh_on_start"))),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("打开设置", open_settings),
         pystray.MenuItem("退出", quit_app),
     )
     icon = pystray.Icon("Tracelight", image, "归迹拾光", menu)

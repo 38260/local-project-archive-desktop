@@ -379,7 +379,7 @@
               <div class="setting-row" style="margin-top:10px">
                 <div>
                   <span class="setting-title">关闭时最小化到系统托盘</span>
-                  <span class="setting-desc">点关闭按钮不退出程序，收进托盘；右键托盘图标可选「显示窗口」或「退出」（仅桌面窗口模式生效）</span>
+                  <span class="setting-desc">点关闭按钮不退出程序，收进托盘；右键托盘图标可直接开关自启动、托盘、静默启动等设置（仅桌面窗口模式生效）</span>
                 </div>
                 <label class="switch">
                   <input type="checkbox" v-model="prefs['tray.close_to_tray']"

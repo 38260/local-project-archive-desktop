@@ -514,5 +514,8 @@
   app.component("lpa-icon", window.LpaIcon);
   app.component("lpa-settings-dialog", window.LpaSettingsDialog);
   app.directive("modal", window.LpaModal);
-  app.mount("#app");
+  const root = app.mount("#app");
+  // 桌面托盘「打开设置」的入口（desktop.py 通过 evaluate_js 调用；
+  // 项目详情页没有此方法，托盘侧会回退为跳回首页）
+  window.LPA_OPEN_SETTINGS = () => root.openSettings();
 })();
