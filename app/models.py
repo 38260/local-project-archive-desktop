@@ -1,4 +1,5 @@
 """Pydantic 请求模型定义。"""
+import re
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -117,3 +118,21 @@ class LaunchRequest(BaseModel):
     command: Optional[str] = Field(None, max_length=500)
     mode: Optional[Literal["console", "open"]] = None
     cwd: Optional[str] = Field("", max_length=260)
+
+
+# 仅允许 http/https：README 等 Markdown 里的外部链接用系统默认浏览器打开，
+# 绝不放进 pywebview 窗口内导航（否则整个 SPA 被带走、白屏且无返回入口）
+_HTTP_URL_RE = re.compile(r"^https?://", re.I)
+
+
+class OpenUrlRequest(BaseModel):
+    """用系统默认浏览器打开外部链接（仅 http/https）。"""
+    url: str = Field(..., max_length=2048)
+
+    @field_validator("url")
+    @classmethod
+    def _only_http(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not _HTTP_URL_RE.match(v):
+            raise ValueError("仅支持 http/https 链接")
+        return v

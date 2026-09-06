@@ -129,6 +129,9 @@
           try { return JSON.parse(localStorage.getItem("lpa-toc-collapsed") || "[]"); }
           catch (e) { return []; }
         })(),
+        // 应用内文档查看器（README/笔记里的相对链接不再整页跳转，改在这里打开）
+        docView: null,        // null=关闭；打开时为 {kind,name,rel,relDir,html,text,url,error?}
+        docLoading: false,
       };
     },
     computed: {
@@ -325,6 +328,92 @@
       // 复制 README 原文（Markdown 源码）；正文本身可自由拖选复制
       async copyReadme() {
         if (this.readme && this.readme.raw) await this.copyText(this.readme.raw);
+      },
+      // ---- 引用文档：Markdown 里的链接统一在应用内处理，杜绝整页跳走白屏 ----
+      // 事件委托捕获阶段拦截：只处理 Markdown 渲染区（.md-body）里的 <a>，
+      // 其余站内链接（返回首页/上一项目/页面目录等）不受影响。
+      onMdLinkClick(e) {
+        const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+        if (!a) return;
+        // 只接管 Markdown 内容里的链接（README/描述预览/笔记/日志/启动说明/文档查看器）
+        const mdBox = a.closest(".md-body");
+        if (!mdBox) return;
+        const href = (a.getAttribute("href") || "").trim();
+        if (!href || href.startsWith("#")) return;          // 页内锚点
+        // 外部 http(s) 链接：交给系统默认浏览器，绝不把 WebView 窗口导航走
+        if (/^(https?:)?\/\//i.test(href) || /^https?:/i.test(href)) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.openExternal(href);
+          return;
+        }
+        // 应用内其它真实页面路径：照常跳转（如 README 里链接到另一项目详情）
+        if (/^\/project\/\d+\/?$/.test(href) || href === "/") return;
+        // 站内资源/接口（图片静态资源、导出等）让浏览器默认行为处理，不做项目文件解析
+        if (/^\/(static|media|api)\//.test(href)) return;
+        // 其余一律视为「本项目内的相对路径引用」：应用内查看器打开
+        // （基准目录取自 Markdown 容器上的 data-relbase；查看器内嵌文档用它定位）
+        e.preventDefault();
+        e.stopPropagation();
+        this.openReferencedFile(href, mdBox.dataset.relbase || "");
+      },
+      // 打开引用文件。baseDir：当前 Markdown 所在目录（页面 README/描述/笔记=项目根"",
+      // 查看器内嵌文档=该文档的 relDir），相对链接依此解析。
+      openReferencedFile(rawHref, baseDir) {
+        baseDir = (baseDir || "").replace(/\/+$/, "");
+        const rel = this.normalizeRel(
+          baseDir ? baseDir + "/" + rawHref : rawHref);
+        if (!rel) { toast("链接路径越出了项目范围，无法打开", "error"); return; }
+        this.openDoc(rel);
+      },
+      // 规范化相对路径：去 ./ 前导、合并 ../，得到项目内相对路径
+      normalizeRel(raw) {
+        let s = String(raw || "").replace(/\\/g, "/").trim();
+        if (/^[a-zA-Z]+:/i.test(s) || s.startsWith("//")) return "";  // 协议/盘符拒绝
+        // markdown 作者可能写 URL 编码（%20 等），先解码再处理
+        try { s = decodeURIComponent(s); } catch (e) { /* 原样使用 */ }
+        // 去掉 #锚点 / ?query 与开头的 ./
+        s = s.split(/[?#]/)[0].replace(/^(\.\/)+/, "");
+        const segs = [];
+        for (const p of s.split("/")) {
+          if (!p || p === ".") continue;
+          if (p === "..") { if (segs.length) segs.pop(); else return ""; }
+          else segs.push(p);
+        }
+        return segs.join("/");
+      },
+      // 打开应用内文档查看器
+      async openDoc(rel) {
+        this.docLoading = true;
+        this.docView = null;
+        try {
+          const d = await api(`/api/projects/${this.projectId}/file?rel=${encodeURIComponent(rel)}`,
+            { silent: true });
+          if (!d.found) { this.docView = { kind: "missing", rel }; return; }
+          // relDir：该文档所在目录（查看器内的相对链接以此为基础解析）
+          const i = rel.lastIndexOf("/");
+          d.relDir = i > 0 ? rel.slice(0, i) : "";
+          this.docView = d;
+        } catch (err) {
+          // 404/409/422 → 明确提示找不到原资源（不再白屏）
+          this.docView = { kind: "missing", rel, error: err.message };
+        } finally {
+          this.docLoading = false;
+        }
+      },
+      closeDoc() { this.docView = null; },
+      // 外部 http(s) 链接 → 系统默认浏览器（后端校验仅 http/https）
+      async openExternal(url) {
+        try {
+          await api("/api/open-url", { method: "POST", body: { url }, silent: true });
+        } catch (err) {
+          toast("无法打开外部浏览器：" + (err.message || ""), "error");
+        }
+      },
+      // 查看器内嵌 Markdown 里相对链接的基准目录（数据绑定到模板 data-relbase）
+      docRelBase() {
+        if (!this.docView || this.docView.kind !== "md") return "";
+        return this.docView.relDir || "";
       },
       async load() {
         try {
@@ -906,9 +995,10 @@
       window.addEventListener("scroll", this.onScroll, { passive: true });
       // 有未保存内容时的离开确认改用应用内弹窗（leaveConfirm），见 gotoSibling/返回首页：
       // 原生 beforeunload 在 pywebview(WebView2) 桌面壳里确认框可能不可见，导致「退不出来」。
-      // Esc 依次关闭：设置弹窗 → 截图灯箱 → 更多菜单 → 编辑弹窗
+      // Esc 依次关闭：文档查看器 → 设置弹窗 → 截图灯箱 → 启动表单 → 更多菜单 → 编辑弹窗
       this._onKey = (e) => {
         if (e.key !== "Escape") return;
+        if (this.docView) { this.docView = null; return; }
         if (this.$refs.settings && this.$refs.settings.visible) { this.$refs.settings.close(); return; }
         if (this.previewShot) { this.previewShot = null; return; }
         if (this.showLaunchForm) { this.showLaunchForm = false; return; }
@@ -916,10 +1006,14 @@
         if (this.showEdit) this.showEdit = false;
       };
       document.addEventListener("keydown", this._onKey);
+      // Markdown 区链接全局拦截（捕获阶段，先于默认跳转）
+      this._onMdClick = (e) => this.onMdLinkClick(e);
+      document.addEventListener("click", this._onMdClick, true);
     },
     beforeUnmount() {
       window.removeEventListener("scroll", this.onScroll);
       document.removeEventListener("keydown", this._onKey);
+      document.removeEventListener("click", this._onMdClick, true);
     },
   });
 

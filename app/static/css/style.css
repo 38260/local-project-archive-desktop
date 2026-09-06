@@ -1452,3 +1452,38 @@ body.modal-open { overflow: hidden; }
   .commit-scroll { max-height: none; overflow: visible; }
   a { color: inherit; text-decoration: none; }
 }
+
+/* ---- 应用内文档查看器（README/笔记里的相对引用文档） ---- */
+.doc-modal-mask { align-items: flex-start; }
+.doc-modal { width: min(860px, 96vw); max-width: 96vw; display: flex; flex-direction: column;
+  max-height: 86vh; padding: 0 0 var(--s-3); }
+.doc-modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-2);
+  padding: var(--s-4) 24px 0; }
+.doc-modal-head h3 { display: flex; align-items: center; gap: 8px; margin: 0;
+  min-width: 0; }
+.doc-modal-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-modal-rel { padding: 2px 24px 0; font-size: 12px; color: var(--muted);
+  word-break: break-all; }
+.doc-modal .mono { font-family: var(--mono); }
+.doc-scroll { overflow-y: auto; max-height: 66vh; padding: 6px 4px; }
+.doc-md { padding: var(--s-2) 24px 0; min-height: 120px; }
+.doc-md .md-body { font-size: 15px; }
+.doc-loading { display: flex; align-items: center; gap: 10px; padding: 36px 24px;
+  color: var(--muted); }
+.doc-missing { padding: var(--s-5) 24px; text-align: center; color: var(--text);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.doc-missing-ico { color: var(--danger); }
+.doc-missing .actions { justify-content: center; }
+.doc-text { margin: var(--s-2) 24px 0; padding: var(--s-3); background: var(--panel-2);
+  border-radius: var(--r-md); font-family: var(--mono); font-size: 13px;
+  white-space: pre-wrap; word-break: break-word; }
+.doc-image { padding: var(--s-2) 24px; text-align: center; overflow: auto;
+  max-height: 66vh; }
+.doc-image img { max-width: 100%; max-height: 62vh; border-radius: var(--r-md);
+  box-shadow: var(--shadow); }
+.doc-binary { padding: var(--s-5) 24px; text-align: center; color: var(--muted); }
+.doc-binary .actions { justify-content: center; }
+.doc-actions { display: flex; align-items: center; gap: var(--s-2);
+  padding: var(--s-3) 24px 0; }
+.doc-footer { padding: 4px 24px 0; }

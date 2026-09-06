@@ -773,6 +773,89 @@
     </button>
   </div>
 
+  <!-- 应用内文档查看器：README/笔记等 Markdown 里的相对链接在此打开，
+       不再整页跳转到不存在路由（杜绝 WebView2 白屏 + 无返回入口） -->
+  <div class="modal-mask doc-modal-mask" v-if="docView || docLoading"
+       @click.self="docView = null; docLoading = false">
+    <div class="modal doc-modal" v-modal role="dialog" aria-modal="true"
+         aria-labelledby="doc-modal-title">
+      <div class="doc-modal-head">
+        <h3 id="doc-modal-title">
+          <lpa-icon name="file-text" :size="16"></lpa-icon>
+          <span class="doc-modal-title">
+            <template v-if="docView && docView.kind === 'missing'">找不到引用的原资源</template>
+            <template v-else-if="docView && docView.name">{{ docView.name }}</template>
+            <template v-else-if="docView">{{ docView.rel }}</template>
+            <template v-else>正在打开…</template>
+          </span>
+        </h3>
+        <button class="btn icon-only" @click="docView = null; docLoading = false"
+                title="关闭" aria-label="关闭文档">
+          <lpa-icon name="x" :size="18"></lpa-icon>
+        </button>
+      </div>
+      <div class="doc-modal-rel mono" v-if="docView && docView.rel">相对路径：{{ docView.rel }}</div>
+
+      <!-- 加载中 -->
+      <div class="doc-loading" v-if="docLoading">
+        <span class="spinner" aria-hidden="true"></span>正在读取文件…
+      </div>
+
+      <!-- 找不到原资源：友好提示，可查看同目录或去资源管理器 -->
+      <div class="doc-missing" v-else-if="docView && docView.kind === 'missing'">
+        <lpa-icon name="warning" :size="22" class="doc-missing-ico"></lpa-icon>
+        <p><b>{{ docView.rel }}</b></p>
+        <p>引用的原资源不存在{{ docView.error ? "：" + docView.error : "（文件可能已被移动或删除）" }}。</p>
+        <p class="section-note">可在右侧目录树浏览项目现有文件；若文件仍在磁盘上，请先确认其是否被归档排除（如依赖/构建目录）。</p>
+        <div class="actions">
+          <button class="btn" @click="copyText(docView.rel || '')">
+            <lpa-icon name="copy" :size="14"></lpa-icon>复制路径
+          </button>
+          <button class="btn primary" @click="docView = null">关闭</button>
+        </div>
+      </div>
+
+      <!-- Markdown 文档 -->
+      <div class="doc-md" v-else-if="docView && docView.kind === 'md'">
+        <div class="md-body doc-scroll" v-html="docView.html"
+             :data-relbase="docRelBase()"></div>
+      </div>
+
+      <!-- 纯文本 -->
+      <pre class="doc-text doc-scroll" v-else-if="docView && docView.kind === 'text'">{{ docView.text }}</pre>
+
+      <!-- 图片 -->
+      <div class="doc-image" v-else-if="docView && docView.kind === 'image'">
+        <img :src="docView.url" :alt="docView.name">
+      </div>
+
+      <!-- 二进制/其它类型 -->
+      <div class="doc-binary" v-else-if="docView && docView.kind === 'binary'">
+        <p>该文件不是文本/图片类型（{{ docView.size ? fmtSize(docView.size) : "" }}），无法在应用内预览。</p>
+        <div class="actions">
+          <button class="btn" @click="copyText(docView.rel || '')">
+            <lpa-icon name="copy" :size="14"></lpa-icon>复制相对路径
+          </button>
+          <button class="btn" @click="openIn('explorer')" :disabled="p && p.is_lost">
+            <lpa-icon name="folder-open" :size="14"></lpa-icon>在资源管理器打开
+          </button>
+          <button class="btn primary" @click="docView = null">关闭</button>
+        </div>
+      </div>
+
+      <div class="doc-actions" v-if="docView && docView.kind !== 'missing' && docView.kind !== 'binary'">
+        <button class="btn sm" @click="copyText(docView.rel || '')">
+          <lpa-icon name="copy" :size="13"></lpa-icon>复制相对路径
+        </button>
+        <span class="spacer"></span>
+        <button class="btn primary sm" @click="docView = null">关闭</button>
+      </div>
+      <div class="section-note doc-footer" v-if="docView && docView.truncated">
+        文件较大，仅显示前 1MB 内容。
+      </div>
+    </div>
+  </div>
+
   <!-- 编辑档案 -->
   <div class="modal-mask" v-if="showEdit" @click.self="showEdit = false">
     <div class="modal" v-modal role="dialog" aria-modal="true" aria-labelledby="edit-title">

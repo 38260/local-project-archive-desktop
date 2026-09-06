@@ -1,7 +1,9 @@
 """项目档案 API：增删改查、重新解析、README、目录树、系统打开。"""
 import json
 import logging
+import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -10,8 +12,10 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 
 from app.config import (
     DATA_DIR, LAUNCHERS_MAX_PER_PROJECT, STATUS_VALUES,
@@ -464,7 +468,130 @@ def get_readme(project_id: int):
     readme_path = parser.find_readme(row["path"])
     if readme_path is None:
         return {"exists": False, "file": None, "html": "", "raw": ""}
-    return parser.render_readme_file(readme_path)
+    result = parser.render_readme_file(readme_path)
+    # 相对图片改写为应用内 /file 接口（raw 输出），否则 <img src="docs/x.png">
+    # 会在 WebView 里请求不存在路由而显示裂图/白屏残留
+    if result.get("html"):
+        result["html"] = _rewrite_md_images(result["html"], project_id)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 应用内查看 README 等 Markdown 引用的本地资源（docs/*.md、图片等）
+# 解决：README 里的相对链接被 <a href> 注入后，在 pywebview(WebView2) 中点击会
+# 整页导航到 /project/xxx.md 之类不存在路由 → 白屏、无返回入口、只能重启。
+# 现在相对链接改为走这里安全读文件，在应用内弹层打开；图片也在此原样输出。
+# ---------------------------------------------------------------------------
+
+# 可安全读文本/Markdown 的扩展名白名单（只读，避免把任意二进制读成乱码）
+_DOC_TEXT_EXTS = {
+    ".md", ".markdown", ".txt", ".rst", ".log", ".json", ".yaml", ".yml",
+    ".toml", ".ini", ".cfg", ".conf", ".csv", ".xml", ".html", ".htm",
+    ".css", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue",
+    ".py", ".pyw", ".sh", ".bat", ".cmd", ".ps1", ".sql", ".c", ".h",
+    ".cpp", ".hpp", ".cc", ".java", ".go", ".rs", ".rb", ".php",
+    ".cs", ".kt", ".swift", ".svelte", ".dockerfile",
+}
+_DOC_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+                   ".bmp", ".ico", ".avif", ".jfif", ".apng"}
+# 单文件读取上限（文本类 1MB，超出按二进制处理）
+_DOC_TEXT_MAX = 1024 * 1024
+
+
+def _resolve_project_rel(project_path: str, rel: str) -> str:
+    """把 README/描述里的相对路径安全地解析到项目内文件（防目录穿越）。
+
+    规则：
+      - 必须以相对形式给出（不允许绝对路径 / 盘符 / 协议头）；
+      - 标准化后必须落在项目根目录内，`..` 越界一律拒绝；
+      - 返回值是项目根的绝对路径。
+    """
+    rel = (rel or "").strip().replace("\\", "/")
+    # 去掉开头的 ./ 与多余斜杠（markdown 作者常写 ./docs/x.md 或 /docs/x.md）
+    rel = re.sub(r"^(?:\./|/+)+", "", rel)
+    if not rel or rel.startswith(".."):
+        raise HTTPException(422, "引用的路径越出了项目范围")
+    base = os.path.normpath(project_path)
+    full = os.path.normpath(os.path.join(base, rel))
+    if full != base and not full.startswith(base + os.sep):
+        raise HTTPException(422, f"引用的路径越出了项目范围：{rel}")
+    return full
+
+
+# README 等 Markdown 里相对图片（![图](docs/架构.png)）落到 <img src> 会请求不存在
+# 路由而 404；渲染时把它们改写成应用内 /file 接口的 raw 输出，图片才能真正显示。
+# base_dir：当前 Markdown 文件所在目录（项目根=""，docs/guide.md 内则是 "docs"）。
+_IMG_SRC_RE = re.compile(r"(<img\b[^>]*\bsrc\s*=\s*[\"'])([^\"']+)([\"'])", re.I)
+
+
+def _rewrite_md_images(html: str, project_id: int, base_dir: str = "") -> str:
+    def _repl(m: "re.Match") -> str:
+        prefix, src, suffix = m.group(1), m.group(2).strip(), m.group(3)
+        if src.startswith(("http://", "https://", "data:", "//", "#")):
+            return m.group(0)
+        rel = src.replace("\\", "/")
+        # 以 / 开头表示项目根（作者按站内绝对路径习惯写），否则相对当前文档目录
+        if not rel.startswith("/"):
+            rel = (base_dir + "/" if base_dir else "") + rel
+        rel = re.sub(r"^(?:\./|/+)+", "", rel)
+        ext = os.path.splitext(rel)[1].lower()
+        if ext not in _DOC_IMAGE_EXTS:
+            return m.group(0)  # 非图片扩展名不动，交给链接拦截逻辑
+        return prefix + f"/api/projects/{project_id}/file?rel={quote(rel)}&raw=1" + suffix
+
+    return _IMG_SRC_RE.sub(_repl, html)
+
+
+@router.get("/{project_id}/file")
+def get_project_file(project_id: int,
+                     rel: str = Query("", max_length=1000, description="项目内相对路径"),
+                     raw: int = Query(0, description="1=按原文件输出（图片预览）")):
+    """应用内打开 README/描述等 Markdown 引用的项目内文件。
+
+    - 文本类（md/txt/代码等）：返回 {found, kind:"text", name, rel, text, truncated}
+    - Markdown：额外返回渲染后的 html
+    - 图片：raw=0 返回元信息与 raw URL；raw=1 返回文件本体（<img> 直接显示）
+    - 文件不存在：404 + 明确文案（不再出现「点引用 → 整页 404 白屏」）
+    """
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+    if not os.path.isdir(row["path"]):
+        raise HTTPException(409, dir_not_exists_hint(row["path"]))
+    full = _resolve_project_rel(row["path"], rel)
+    if not os.path.isfile(full):
+        raise HTTPException(404, f"找不到引用的原资源：{rel}\n文件可能已被移动或删除。")
+    name = os.path.basename(full)
+    ext = os.path.splitext(name)[1].lower()
+
+    if ext in _DOC_IMAGE_EXTS and raw:
+        return FileResponse(full,
+                            media_type=mimetypes.guess_type(name)[0] or "application/octet-stream",
+                            filename=name)
+    if ext in _DOC_IMAGE_EXTS:
+        return {"found": True, "kind": "image", "name": name, "rel": rel,
+                "url": f"/api/projects/{project_id}/file?rel={quote(rel)}&raw=1",
+                "size": os.path.getsize(full)}
+
+    if ext in _DOC_TEXT_EXTS:
+        try:
+            size = os.path.getsize(full)
+            with open(full, encoding="utf-8-sig", errors="replace") as f:
+                text = f.read(_DOC_TEXT_MAX)
+            truncated = size > _DOC_TEXT_MAX
+            if ext in {".md", ".markdown"}:
+                return {"found": True, "kind": "md", "name": name, "rel": rel,
+                        "html": _rewrite_md_images(render_markdown(text, mode="readme"),
+                                                   project_id,
+                                                   os.path.dirname(rel).replace("\\", "/")),
+                        "text": text, "truncated": truncated, "size": size}
+            return {"found": True, "kind": "text", "name": name, "rel": rel,
+                    "text": text, "truncated": truncated, "size": size}
+        except OSError as exc:
+            raise HTTPException(502, f"文件读取失败（无权限或 IO 错误）：{exc}")
+
+    # 其余类型：不读内容，仅告知“可打开所在位置/在资源管理器中查看”
+    return {"found": True, "kind": "binary", "name": name, "rel": rel,
+            "size": os.path.getsize(full)}
 
 
 @router.get("/{project_id}/tree")
