@@ -16,7 +16,8 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.config import APP_NAME, APP_VERSION, DATA_DIR, STATIC_DIR, STATUS_VALUES, DB_PATH
+from app.config import (APP_AUTHOR, APP_NAME, APP_VERSION, DATA_DIR,
+                        STATIC_DIR, STATUS_VALUES, DB_PATH)
 from app.db import get_db, init_db
 from app.models import OpenUrlRequest, RenderRequest
 from app.routers import projects, scanner, settings
@@ -103,6 +104,7 @@ async def _origin_guard(request, call_next):
 @app.get("/api/health")
 def health(request: Request):
     return {"ok": True, "app": APP_NAME, "version": APP_VERSION,
+            "author": APP_AUTHOR,
             "data_path": str(DB_PATH), "port": request.url.port}
 
 
@@ -244,6 +246,7 @@ def export_all():
     payload = {
         "app": APP_NAME,
         "version": APP_VERSION,
+        "author": APP_AUTHOR,
         "exported_at": datetime.now().astimezone().isoformat(),
         "statuses": STATUS_VALUES,
         "projects": project_items,

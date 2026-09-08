@@ -27,6 +27,7 @@
         backupKeep: 10,
         backupSaving: false,
         appVersion: "",
+        appAuthor: "",
         appPort: "",
         dataPath: "",
       };
@@ -48,6 +49,7 @@
         api("/api/health", { silent: true }).then(h => {
           this.dataPath = h.data_path || "";
           this.appVersion = h.version || "";
+          this.appAuthor = h.author || "";
           this.appPort = h.port || "";
         }).catch(() => {});
       },
@@ -500,7 +502,7 @@
           </div>
 
           <div class="app-info">
-            归迹拾光 <b>v{{ appVersion }}</b> · 服务端口 <b>{{ appPort }}</b> ·
+            归迹拾光 <b>v{{ appVersion }}</b> · 作者 <b>{{ appAuthor }}</b> · 服务端口 <b>{{ appPort }}</b> ·
             数据：<span class="mono">{{ dataPath }}</span>
           </div>
           <div class="actions">
