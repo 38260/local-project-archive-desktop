@@ -6,8 +6,8 @@
 # 生成/修改后需重新 pyinstaller 才生效。
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 3, 1, 0),
-    prodvers=(1, 3, 1, 0),
+    filevers=(1, 3, 2, 0),
+    prodvers=(1, 3, 2, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -22,12 +22,12 @@ VSVersionInfo(
         u'080404B0',
         [StringStruct(u'CompanyName', u'Tracelight'),
         StringStruct(u'FileDescription', u'归迹拾光 · 本地项目档案管理系统'),
-        StringStruct(u'FileVersion', u'1.3.1.0'),
+        StringStruct(u'FileVersion', u'1.3.2.0'),
         StringStruct(u'InternalName', u'Tracelight'),
         StringStruct(u'LegalCopyright', u'Copyright (C) 2026 Tracelight'),
         StringStruct(u'OriginalFilename', u'Tracelight.exe'),
         StringStruct(u'ProductName', u'Tracelight 归迹拾光'),
-        StringStruct(u'ProductVersion', u'1.3.1.0')])
+        StringStruct(u'ProductVersion', u'1.3.2.0')])
       ]),
     VarFileInfo([VarStruct(u'Translation', [2052, 1200])])
   ]
