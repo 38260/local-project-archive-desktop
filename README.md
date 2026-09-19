@@ -102,6 +102,9 @@ local-project-archive-desktop/
 - **开发活动总览**：首页 GitHub 风格提交热力图，聚合全部仓库按天提交，悬浮显示日期与来源项目，可折叠（半年/一年可调）。
 - **项目详情页**：左侧目录树导航（分组可折叠）、右侧目录树只读预览；基础信息、Git 信息、构建配置与依赖、文件统计、项目描述、开发笔记、变更日志、提交记录、截图、README 各成面板。
 - **Git 提交可视化**：按月提交柱状图（全量历史聚合、当月高亮，一眼看出开发节奏；跨度半年/一年可调）+ 时间线（哈希/类型/信息/作者/时间，点击展开完整详情）+ 类型筛选。
+- **提交构成分析**：在提交面板内直接回答"主要发力点在哪里"——类型分布（占比条）+ **类型 × 月份堆叠柱**（看出注意力何时从堆功能转向补 bug）+ 一句话结论（Top2 类型、峰值月份、活跃天数）。
+  统计口径是**全量提交**（只取时间与首行、不带 diff，故可全量聚合），与时间线"已加载最近 N 条"是两个范围，界面上分别标明；
+  分类同时认 Conventional 前缀与自造前缀（`design:` / `security:` 会各自成类而非并进"其他"），无前缀的提交计入"其他"并另有小字说明有多少条是靠关键词推断的。
 - **导出**：单项目 HTML 档案报告（自包含单文件，可直接分享/打印）；全库 JSON 备份（含笔记与变更日志），可导入恢复。
 
 ### 记录
@@ -147,6 +150,7 @@ local-project-archive-desktop/
 | POST | /api/projects/{id}/rescan | 重新解析磁盘 |
 | GET | /api/projects/{id}/commits | git 提交记录（`limit`、`date` 按天过滤） |
 | GET | /api/projects/{id}/heatmap | 单项目提交热力图（按天聚合） |
+| GET | /api/projects/{id}/commit-stats | 提交构成分析（全量聚合：类型分布 / 类型×月份 / 活跃天数；`scope`、`include_merges`、`max_commits` 可选） |
 | GET | /api/heatmap | 全项目提交热力图聚合 |
 | GET/POST | /api/projects/{id}/notes、/changelogs | 笔记与变更日志（PUT/DELETE 同路径） |
 | GET | /api/projects/{id}/readme、/tree、/screenshots | README / 目录树 / 截图 |

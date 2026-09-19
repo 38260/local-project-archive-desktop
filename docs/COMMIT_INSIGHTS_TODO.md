@@ -57,7 +57,7 @@
 | S2 | 后端接口 | `routers/projects.py` 新增 `GET /api/projects/{id}/commit-stats`，沿用前置校验与 409 提示 | ✅ |
 | S3 | 前端数据层 | `common.js` 分类口径与后端对齐（认未登记前缀 + `ct-unknown` 兜底类）；`project.js` 新增 `commitStats` 状态 + `loadCommitStats()` | ✅ |
 | S4 | 前端 UI | `project.html` 新增「提交构成分析」块（类型分布条 + 类型×月份堆叠柱 + 结论行）；`style.css` 新增样式 | ✅ |
-| S5 | 文档更新 | `README.md` 更新功能段与 API 一览表 | ⬜ |
+| S5 | 文档更新 | `README.md` 更新功能段与 API 一览表 | ✅ |
 | S6 | 整体测试 | `tools/smoke_test.py` 追加断言并一次性跑完整套；执行 V1–V8 验证项 | ⬜ |
 
 ---
@@ -145,6 +145,9 @@
     specificity(0,2,0) 压过了 `.ci-bg-*(0,1,0)`，导致所有色块都渲染成兜底灰（实测 6 个 dot 全是 `rgb(101,109,118)`）。
     改为单类选择器 `.ci-dot, .ci-bar, .ci-seg { background: var(--muted) }` 并放在 `.ci-bg-*` **之前**，复测色块正确。
     注释里写清了这个坑，避免下一个人再踩。
+- **2026-09-19 · S5 完成**：`README.md` 补功能点与 API 表。
+  - 功能段写清了**两个范围的区别**（分析块=全量、时间线=已加载最近 N 条），以及分类认自造前缀、
+    无前缀归"其他"且如实说明推断条数——这三点正是最容易被使用者误解的地方，提前写在文档里比只靠界面提示稳。
 
 ---
 
