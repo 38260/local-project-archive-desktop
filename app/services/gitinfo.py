@@ -8,7 +8,10 @@ import logging
 import os
 import re
 import subprocess
-from datetime import datetime
+from datetime import date, datetime, timedelta
+
+from app.config import (COMMIT_STATS_MAX, COMMIT_STATS_PREFIX_LIMIT,
+                        COMMIT_STATS_TYPE_LIMIT)
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +272,210 @@ def collect_heatmap(path: str, weeks: int = 53) -> dict:
     except Exception as exc:
         logger.debug("热力图聚合失败 %s: %s", path, exc)
         result["error"] = f"热力图聚合失败：{exc}"
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 提交构成分析：分类计数 + 发力点（类型分布 / 类型 × 月份）
+# ---------------------------------------------------------------------------
+
+# Conventional Commits 白名单。前端 common.js 的 commitType() 用同一套前缀，
+# 但**权威口径以后端为准**（前端在新数据到达后改为取后端结果），避免两处漂移。
+_COMMIT_TYPE_RE = re.compile(
+    r"^\s*(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert|merge)\b",
+    re.I)
+
+# 白名单类型名集合：正则只能正向匹配，判定"是否自造前缀"需要反向查一份名单
+_KNOWN_TYPES = frozenset((
+    "feat", "fix", "docs", "style", "refactor", "perf", "test",
+    "chore", "build", "ci", "revert", "merge",
+))
+
+# 未登记前缀：形如 `design: xxx` / `security：xxx`（中英文冒号都认）。
+# 本仓库实测就有 design/security/init 这类自造前缀，若直接丢进 other 会埋掉
+# 真实的工作类型，因此这里**以前缀名本身成类**。
+_PREFIX_RE = re.compile(r"^\s*([a-z][a-z0-9_-]{1,14})\s*[:：]\s*\S", re.I)
+
+# 无前缀提交的兜底关键词（弱分类）。顺序即优先级：越具体的规则越靠前。
+# 结果只用于数据留痕（weak_inferred），界面上默认**不展示**——关键词猜测的
+# 误判会直接污染「主要发力点」这个结论，代价大于收益。
+_WEAK_RULES = (
+    ("fix", ("修复", "修正", "解决", "故障", "报错", "崩溃", "bug", "hotfix")),
+    ("refactor", ("重构", "整理结构", "优化结构", "重写")),
+    ("perf", ("性能", "提速", "卡顿")),
+    ("docs", ("文档", "readme", "注释", "说明")),
+    ("style", ("样式", "排版", "美化", "css")),
+    ("test", ("测试", "用例")),
+    ("chore", ("依赖", "升级", "版本", "bump")),
+    ("feat", ("新增", "添加", "支持", "实现", "增加")),
+)
+
+
+def classify_commit(subject: str) -> tuple[str, bool]:
+    """把提交首行归类，返回 (类型, 是否为弱分类推断)。
+
+    三级口径（顺序不可调换）：
+      1. Conventional 白名单命中 → 直接用该类型；
+      2. 未登记前缀（`design:` 等）→ 以前缀名本身成类；
+      3. 无前缀 → 关键词弱分类，标记 inferred=True；仍判不出则归 "other"。
+    """
+    text = (subject or "").strip()
+    if not text:
+        return "other", False
+    m = _COMMIT_TYPE_RE.match(text)
+    if m:
+        return m.group(1).lower(), False
+    m = _PREFIX_RE.match(text)
+    if m:
+        return m.group(1).lower(), False
+    lowered = text.lower()
+    for ctype, words in _WEAK_RULES:
+        if any(w in lowered for w in words):
+            return ctype, True
+    return "other", False
+
+
+def _is_known_type(ctype: str) -> bool:
+    """是否为白名单内的 Conventional 类型；否则视为自造前缀。"""
+    return ctype in _KNOWN_TYPES
+
+
+def collect_commit_stats(path: str, scope: str = "all",
+                         include_merges: bool = False,
+                         max_commits: int = COMMIT_STATS_MAX) -> dict:
+    """聚合提交构成，供详情页「提交构成分析」（分类计数 + 发力点）。
+
+    只取「提交时间 + 首行」两个字段，**不带 --numstat/diff**——与 collect_heatmap
+    同一路线，几千条提交也在毫秒级。这是本方案能做到「全量」而不是「最近 200 条」
+    的前提：一旦带上 diff，十万级提交的仓库就会明显变慢。
+
+    只读；任何异常都降级为带 error 的空结果，不影响调用方其它面板。
+
+    返回：
+      is_repo / scanned（参与统计的提交数）/ truncated / scope / include_merges /
+      types: [{type, count, pct, weak}]（按 count 倒序，Σcount == scanned）/
+      months: [{key, total, types: {类型: 次数}}]（升序）/
+      type_order（月份分段用的稳定顺序）/
+      active_days / busiest_month / first_date / last_date / error
+    """
+    result = {"is_repo": False, "scanned": 0, "truncated": False,
+              "scope": scope, "include_merges": include_merges,
+              "types": [], "type_order": [], "months": [],
+              "active_days": 0, "busiest_month": None,
+              "first_date": None, "last_date": None, "error": None}
+    if not _GITPY_AVAILABLE:
+        result["error"] = "GitPython 未安装，无法读取 git 信息"
+        return result
+    try:
+        Repo(path)   # 同样的定位方式，非仓库/路径不存在直接降级
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        return result
+    except Exception as exc:
+        logger.debug("提交构成分析失败 %s: %s", path, exc)
+        result["error"] = f"git 信息读取失败：{exc}"
+        return result
+
+    result["is_repo"] = True
+    try:
+        args = ["log", f"--max-count={max_commits + 1}",   # 多取 1 条用于判断截断
+                "--pretty=format:%cI%x1f%s"]
+        # 合并提交用 git 自己的 --no-merges 排除（按父提交数判定），
+        # 比"看 subject 是不是以 Merge 开头"准确；白名单里的 merge 类型
+        # 仍然保留，用于单亲提交但写了 merge: 前缀的情况。
+        if not include_merges:
+            args.append("--no-merges")
+        if scope == "year":
+            since = date.today() - timedelta(days=365)
+            args.append(f"--since={since.isoformat()}")
+
+        raw = _run_git(args, path)
+        if raw is None:
+            result["error"] = "提交历史读取失败（仓库为空或 git 命令超时）"
+            return result
+
+        type_counts: dict[str, int] = {}
+        weak_counts: dict[str, int] = {}
+        months: dict[str, dict] = {}
+        days: set = set()
+        scanned = 0
+        for line in raw.splitlines():
+            if not line.strip():
+                continue
+            if scanned >= max_commits:
+                result["truncated"] = True
+                break
+            iso, _, subject = line.partition("\x1f")
+            iso = iso.strip()
+            if len(iso) < 10:
+                continue
+            scanned += 1
+            ctype, inferred = classify_commit(subject)
+            type_counts[ctype] = type_counts.get(ctype, 0) + 1
+            if inferred:
+                weak_counts[ctype] = weak_counts.get(ctype, 0) + 1
+            day, month = iso[:10], iso[:7]
+            days.add(day)
+            slot = months.setdefault(month, {"total": 0, "types": {}})
+            slot["total"] += 1
+            slot["types"][ctype] = slot["types"].get(ctype, 0) + 1
+
+        if not scanned:
+            result["error"] = "仓库还没有任何提交"
+            return result
+
+        # 类别收敛（两道，都只做「并类」，不改动任何计数总和）：
+        #   ① 超出展示上限的尾部 → 「其他」（各种类按 count 倒序，同数时白名单类型
+        #      优先，避免自造前缀把标准类型挤下去）；
+        #   ② 白名单外的自造前缀最多单列 PREFIX_LIMIT 个，多余的也 → 「其他」。
+        # 先求出「原类型名 → 最终类型名」的唯一映射，再据此归并月份分段，
+        # 保证同一根柱子里各段之和 == 该月总数（数值守恒）。
+        ranked = sorted(type_counts.items(),
+                        key=lambda kv: (-kv[1], 0 if _is_known_type(kv[0]) else 1, kv[0]))
+        keep = ({t for t, _ in ranked[:COMMIT_STATS_TYPE_LIMIT - 1]}
+                if len(ranked) > COMMIT_STATS_TYPE_LIMIT
+                else {t for t, _ in ranked})
+        unknown = [t for t, _ in ranked if t in keep and not _is_known_type(t)]
+        demote = set(unknown[COMMIT_STATS_PREFIX_LIMIT:])
+
+        def final_name(ctype: str) -> str:
+            """原类型 → 最终展示类型名（未保留的一律并入「其他」）。"""
+            return ctype if (ctype in keep and ctype not in demote) else "other"
+
+        merged: dict[str, int] = {}
+        weak_merged: dict[str, int] = {}
+        for ctype, n in type_counts.items():
+            fname = final_name(ctype)
+            merged[fname] = merged.get(fname, 0) + n
+            if weak_counts.get(ctype):
+                weak_merged[fname] = weak_merged.get(fname, 0) + weak_counts[ctype]
+
+        order = [t for t, _ in sorted(merged.items(), key=lambda kv: (-kv[1], kv[0]))]
+        result["type_order"] = order
+        result["types"] = [
+            {"type": t, "count": merged[t],
+             "pct": round(merged[t] * 100.0 / scanned, 1),
+             "weak": weak_merged.get(t, 0)}
+            for t in order]
+        result["months"] = []
+        for key, slot in sorted(months.items()):
+            seg: dict[str, int] = {}
+            for ctype, n in slot["types"].items():
+                fname = final_name(ctype)
+                seg[fname] = seg.get(fname, 0) + n
+            result["months"].append({
+                "key": key, "total": slot["total"],
+                "types": {t: seg[t] for t in order if seg.get(t)},
+            })
+        result["scanned"] = scanned
+        result["active_days"] = len(days)
+        result["first_date"] = min(days)
+        result["last_date"] = max(days)
+        if result["months"]:
+            result["busiest_month"] = max(result["months"],
+                                          key=lambda m: m["total"])["key"]
+    except Exception as exc:
+        logger.debug("提交构成分析失败 %s: %s", path, exc)
+        result["error"] = f"提交构成分析失败：{exc}"
     return result
 
 

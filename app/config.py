@@ -161,6 +161,12 @@ SCAN_MAX_DIRS = 20000        # 扫描最多访问目录数
 SCAN_MAX_CANDIDATES = 300    # 扫描最多返回候选项目数
 DEPS_MAX_ITEMS = 60          # 依赖清单最多记录条数
 
+# Git 提交构成分析（详情页「提交构成分析」块）：只取提交时间 + 首行，不带 diff，
+# 因此可以做到全量聚合；下面三个是规模与展示护栏。
+COMMIT_STATS_MAX = 20000        # 最多扫描的提交数（超出则截断并如实标注）
+COMMIT_STATS_TYPE_LIMIT = 8     # 类型分布最多展示的行数（含末尾合并出的「其他」）
+COMMIT_STATS_PREFIX_LIMIT = 6   # 未登记前缀最多单列几类，避免自造前缀刷屏
+
 # 快速启动：直接可执行入口的扩展名（用户自备的启动方式，最权威）
 LAUNCH_DIRECT_EXTS = {".bat", ".cmd", ".exe", ".ps1"}
 # 快速启动：智能推断的 Python 候选入口文件（按常见度排序）
