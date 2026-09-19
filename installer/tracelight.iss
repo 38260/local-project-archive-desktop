@@ -15,7 +15,7 @@
 
 #define MyAppName        "Tracelight"
 #define MyAppDisplayName "归迹拾光"
-#define MyAppVersion     "1.2.0"
+#define MyAppVersion     "1.3.0"
 #define MyAppPublisher   "BJTU-zyb"
 #define MyAppExeName     "Tracelight.exe"
 ; 固定 GUID：升级安装靠它识别「同一个应用」，不要改
