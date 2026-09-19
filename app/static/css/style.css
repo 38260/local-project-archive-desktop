@@ -1140,6 +1140,82 @@ body.modal-open { overflow: hidden; }
 /* 暗色下柱体稍提亮，与面板底色保持对比 */
 [data-theme="dark"] .mb-bar { opacity: .82; }
 
+/* ---- 提交构成分析（全量口径：类型分布 + 类型×月份堆叠）---- */
+.ci-block { margin-bottom: var(--s-4); padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); }
+.ci-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--s-2); margin-bottom: var(--s-2); flex-wrap: wrap;
+}
+.ci-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.ci-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-4); }
+.ci-col { min-width: 0; }
+.ci-col-title {
+  display: flex; align-items: baseline; gap: var(--s-2); flex-wrap: wrap;
+  font-size: 13px; color: var(--muted); margin-bottom: var(--s-2);
+}
+
+/* 左栏：类型分布条 */
+.ci-rows { display: flex; flex-direction: column; gap: 6px; }
+.ci-row { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
+/* 左栏每行 = 色块 + 类型名 + 条形 + 计数。
+   这里刻意**不用 .ct-* 徽章底色**：实测 .ct-* 的硬编码色在暗色主题下不随主题变
+   （.ct-style 亮 4.24 / 暗 3.32，低于 WCAG AA 4.5），套在分析块里会跟着一起糊。
+   类型身份由前面的色块承担，文字用 --text（实测亮 15.8 / 暗 15.5），信息不丢且始终清晰。 */
+.ci-type {
+  flex: none; width: 88px; min-width: 0;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 12px; color: var(--text);
+  padding: 1px 0;
+}
+.ci-type .ci-dot {
+  flex: none; width: 9px; height: 9px; border-radius: 2px;
+}
+.ci-bar-track {
+  flex: 1; min-width: 0; height: 9px;
+  border-radius: 999px; background: var(--panel-2); overflow: hidden;
+}
+/* 条形：高度 100%、宽度由行内 style 控制 */
+.ci-bar { display: block; height: 100%; border-radius: 999px; transition: width .3s ease; }
+.ci-num {
+  flex: none; min-width: 72px; text-align: right;
+  font-family: var(--mono); font-size: 12px; color: var(--muted);
+}
+
+/* 右栏：类型 × 月份堆叠柱（column-reverse：DOM 首个分段落在柱底） */
+.ci-track {
+  flex: 1; width: 100%; max-width: 34px;
+  display: flex; flex-direction: column-reverse;
+  border-radius: 3px 3px 0 0; overflow: hidden;
+}
+/* 无提交的月份留一条可见基线，避免整列"消失" */
+.ci-track.empty::before { content: ""; height: 2px; background: var(--border); flex: none; }
+.ci-seg { width: 100%; min-height: 2px; transition: height .3s ease, opacity .15s; }
+.mb-col:hover .ci-seg { opacity: .85; }
+.mb-col.current .ci-track { outline: 1px solid var(--accent); outline-offset: 1px; }
+
+/* 分段/色块配色与 .ct-* 徽章同源（同一类型同一个色），避免"图表一套、徽章一套"。
+   注意：兜底色必须用**单类选择器**声明（.ci-dot/.ci-bar/.ci-seg 各自一条），
+   写成 `.ci-type .ci-dot { background: ... }` 会因 specificity(0,2,0) 压过这里的 (0,1,0)，
+   导致所有色块都变成兜底灰（已实测踩过）。 */
+.ci-dot, .ci-bar, .ci-seg { background: var(--muted); }
+.ci-bg-feat { background: var(--ok); }
+.ci-bg-fix { background: var(--danger); }
+.ci-bg-docs { background: var(--accent); }
+.ci-bg-style { background: #bf3989; }
+.ci-bg-refactor { background: #bc4c00; }
+.ci-bg-perf { background: #8250df; }
+.ci-bg-test { background: var(--c-teal-fg); }
+.ci-bg-chore, .ci-bg-build, .ci-bg-ci, .ci-bg-revert, .ci-bg-merge,
+.ci-bg-other, .ci-bg-unknown { background: var(--muted); }
+
+.ci-foot { margin-top: var(--s-3); display: flex; flex-direction: column; gap: 2px; }
+.ci-conclusion { font-size: 13px; font-weight: 600; color: var(--text); }
+
+/* 窄窗口下两栏改单栏，避免把面板横向撑开 */
+@media (max-width: 900px) {
+  .ci-cols { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* ---- 快速启动面板 ---- */
 .launch-note { padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); margin-bottom: var(--s-3); }
 .launch-note .md-body { font-size: 14px; }

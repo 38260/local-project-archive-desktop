@@ -577,6 +577,56 @@
           </div>
         </div>
       </div>
+      <!-- 提交构成分析：全量口径的分类计数 + 发力点（类型分布 / 类型 × 月份堆叠）
+           数据来自 /commit-stats（全量聚合），与下方时间线的「已加载 N 条」是两个范围，
+           所以这里的数字通常大于 chips 上的数字——范围各自标称，不混用。 -->
+      <div class="ci-block" v-if="commitStatsLoading">
+        <span class="skel" style="width:100%;height:104px"></span>
+      </div>
+      <div class="ci-block" v-else-if="statsRows.length">
+        <div class="ci-head">
+          <span class="ci-title">提交构成分析</span>
+          <span class="section-note">{{ statsScopeLabel }}</span>
+        </div>
+        <div class="ci-cols">
+          <div class="ci-col">
+            <div class="ci-col-title">类型分布</div>
+            <div class="ci-rows">
+              <div class="ci-row" v-for="r in statsRows" :key="r.type"
+                   :title="r.type + '：' + r.count + ' 次（' + r.pct + '%）'">
+                <span class="ci-type" :title="r.type">
+                  <i class="ci-dot" :class="'ci-bg-' + r.type"></i>{{ r.type }}
+                </span>
+                <span class="ci-bar-track">
+                  <span class="ci-bar" :class="'ci-bg-' + r.type" :style="{ width: r.w + '%' }"></span>
+                </span>
+                <span class="ci-num">{{ r.count }} · {{ r.pct }}%</span>
+              </div>
+            </div>
+          </div>
+          <div class="ci-col">
+            <div class="ci-col-title">类型 × 月份
+              <span class="section-note">堆叠顺序同左侧（下 → 上）</span>
+            </div>
+            <div class="month-bars" role="img" :aria-label="statsChartLabel">
+              <div class="mb-col" v-for="m in statsMonthBars" :key="m.key"
+                   :class="{ current: m.current }" :title="m.tip">
+                <div class="ci-track" :class="{ empty: !m.total }">
+                  <span class="ci-seg" v-for="s in m.segs" :key="s.type"
+                        :class="'ci-bg-' + s.type" :style="{ height: s.h + '%' }"
+                        :title="s.title"></span>
+                </div>
+                <span class="mb-label">{{ m.label }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ci-foot">
+          <div class="ci-conclusion" v-if="statsConclusion">{{ statsConclusion }}</div>
+          <div class="section-note">{{ statsFootnote }}</div>
+          <div class="section-note" v-if="statsWeakNote">{{ statsWeakNote }}</div>
+        </div>
+      </div>
       <!-- 骨架屏：避免时间线加载完成时把整页往下推 -->
       <div class="skel-stack" v-if="commitLoading">
         <span class="skel" style="width:100%;height:52px"></span>

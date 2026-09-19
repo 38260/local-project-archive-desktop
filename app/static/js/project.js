@@ -215,6 +215,82 @@
       monthChartLabel() {
         return `${this.monthSpan === 6 ? "最近半年" : "最近一年"}按月提交柱状图，共 ${this.monthTotal} 次提交`;
       },
+      // ---- 提交构成分析（全量口径，数据来自 /commit-stats）----
+      // 类型分布行：条形宽度按「占最大类型」的比例，便于同屏比其他类型的量级
+      statsRows() {
+        const st = this.commitStats;
+        if (!st || !st.is_repo || !st.types || !st.types.length) return [];
+        const max = Math.max(...st.types.map(t => t.count), 1);
+        return st.types.map(t => ({
+          type: t.type, count: t.count, pct: t.pct,
+          w: Math.max(Math.round((t.count / max) * 100), 2),
+        }));
+      },
+      // 类型 × 月份堆叠柱：每段高度按「全月最大值」同一比例尺换算（count / max * 100），
+      // 而不是按本柱占比——这样段高与整柱高出于同一把尺子，跨月份也能直接比长短，
+      // 且不会因逐段四舍五入在柱内留缝。
+      statsMonthBars() {
+        const st = this.commitStats;
+        if (!st || !st.is_repo || !st.months || !st.months.length) return [];
+        const max = Math.max(...st.months.map(m => m.total), 1);
+        const now = new Date();
+        const cur = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+        const order = st.type_order || [];
+        return st.months.map(m => ({
+          key: m.key,
+          label: Number(m.key.slice(5)) + "月",
+          total: m.total,
+          tip: `${m.key}：${m.total} 次提交`,
+          current: m.key === cur,
+          segs: order.filter(t => m.types[t]).map(t => ({
+            type: t,
+            count: m.types[t],
+            h: (m.types[t] / max) * 100,
+            title: `${t}：${m.types[t]} 次`,
+          })),
+        }));
+      },
+      statsChartLabel() {
+        const st = this.commitStats;
+        if (!st || !st.is_repo) return "";
+        return `类型×月份堆叠柱状图，${st.months.length} 个月共 ${st.scanned} 次提交`;
+      },
+      // 口径标签：必须让用户看清"这是全量还是样本"（B7 不假装全量）
+      statsScopeLabel() {
+        const st = this.commitStats;
+        if (!st || !st.is_repo) return "";
+        const n = this.fmtNum(st.scanned);
+        return st.truncated ? `基于最近 ${n} 次提交（已截断）` : `全量 ${n} 次提交`;
+      },
+      // 一句话结论：主要发力点 = 占比最高的类型 + 峰值月份 + 活跃天数
+      statsConclusion() {
+        const st = this.commitStats;
+        if (!st || !st.is_repo || !st.types || !st.types.length) return "";
+        const [top, second] = st.types;
+        const parts = [`主要发力点：${top.type} ${top.pct}%`];
+        if (second) parts.push(`${second.type} ${second.pct}%`);
+        if (st.busiest_month) {
+          const m = (st.months || []).find(x => x.key === st.busiest_month);
+          parts.push(`峰值在 ${st.busiest_month}（${m ? m.total : 0} 次）`);
+        }
+        if (st.active_days) parts.push(`活跃 ${st.active_days} 天`);
+        return parts.join(" · ");
+      },
+      statsFootnote() {
+        const st = this.commitStats;
+        if (!st || !st.is_repo) return "";
+        return "口径：Conventional 前缀 + 未登记前缀按前缀名归类，无前缀者计入「其他」；"
+          + "此处为提交次数，不等于工作量。";
+      },
+      // 关键词推断留痕（不参与分布，只在这里如实说明有多少条是猜的）
+      statsWeakNote() {
+        const st = this.commitStats;
+        const w = (st && st.weak_inferred) || [];
+        if (!w.length) return "";
+        const sum = w.reduce((s, x) => s + x.count, 0);
+        return `另有 ${sum} 条无前缀提交已计入「其他」（关键词推断倾向：`
+          + w.slice(0, 3).map(x => `${x.type} ${x.count}`).join("、") + "）";
+      },
       // 启动面板入口总数（自定义 + 去重后的自动检测）
       launchEntryCount() {
         if (!this.launch) return 0;
