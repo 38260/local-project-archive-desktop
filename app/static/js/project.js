@@ -102,6 +102,10 @@
         // 按月提交柱状图：后端 /heatmap 固定取一年按天数据，前端聚合到日历月
         heat: null,
         monthSpan: 12,          // 柱状图月数（6=半年 | 12=一年），被设置 ui.heatmap_weeks 覆盖
+        // 月柱状图默认折叠：它与下方「提交构成分析」里的类型×月份堆叠柱信息重叠，
+        // 折叠后仍保留"共 N 次提交"的摘要可见，需要细节再展开。状态记忆在 localStorage，
+        // 判据写成 `!== "0"`（即默认折叠），用户展开过一次后才记住"展开"。
+        monthCollapsed: localStorage.getItem("lpa-month-collapsed") !== "0",
         editorCmd: "code",      // 打开项目的编辑器命令，被设置 editor.command 覆盖
         // 快速启动（GET /launch 载荷：note/note_html/supported/detect_kind/suggestions/launchers）
         launch: null,
@@ -254,6 +258,44 @@
         const st = this.commitStats;
         if (!st || !st.is_repo) return "";
         return `类型×月份堆叠柱状图，${st.months.length} 个月共 ${st.scanned} 次提交`;
+      },
+      // 环状图数据：按周长比例把每个类型切成一段（标准 stroke-dasharray 画法）。
+      // 段长用**原始浮点**累加，保证各段首尾相接、环严丝合缝；只有"可见性下限"
+      // 与"段间留缝"是刻意做的手脚（见 segLen / gap）。
+      statsRing() {
+        const rows = this.statsRows;
+        const R = 42;                       // viewBox 100×100，留 8 单位给描边宽度
+        const C = 2 * Math.PI * R;
+        const total = rows.reduce((s, r) => s + r.count, 0);
+        const n = rows.length;
+        // 段间留 1.5 单位的缝：本项目有多个类型共用同一灰度（chore/other 等），
+        // 不留缝时相邻同色段会连成一片，看不出分界。
+        const gap = n > 1 ? 1.5 : 0;
+        let acc = 0;
+        const segs = rows.map(r => {
+          const raw = total ? (r.count / total) * C : 0;
+          // 段长 = 真实弧长 - 缝宽，并给一个 0.6 单位的下限：占比 <1% 的段按真实弧长
+          // 会细到看不见（264 单位周长里 1% 才 2.6 单位），0.6 是"还能看见"的最小值。
+          // 下限只在极小段上生效，此时累计偏移误差 <0.25% 圈长，肉眼不可辨。
+          const segLen = Math.max(raw - gap, 0.6);
+          const seg = {
+            type: r.type, count: r.count, pct: r.pct,
+            dash: +segLen.toFixed(3),
+            rest: +(C - segLen).toFixed(3),
+            offset: +(-acc).toFixed(3),
+            title: `${r.type}：${r.count} 次（${r.pct}%）`,
+          };
+          acc += raw;
+          return seg;
+        });
+        return { R, C: +C.toFixed(3), total, segs };
+      },
+      statsRingLabel() {
+        const ring = this.statsRing;
+        if (!ring.total) return "";
+        const head = ring.segs.slice(0, 3)
+          .map(s => `${s.type} ${s.pct}%`).join("、");
+        return `提交类型分布环状图，共 ${ring.total} 次：${head}`;
       },
       // 口径标签：必须让用户看清"这是全量还是样本"（B7 不假装全量）
       statsScopeLabel() {
@@ -911,6 +953,11 @@
       toggleTree() {
         this.treeCollapsed = !this.treeCollapsed;
         localStorage.setItem("lpa-tree-collapsed", this.treeCollapsed ? "1" : "0");
+      },
+      // 月柱状图折叠（状态跨项目记忆）
+      toggleMonthChart() {
+        this.monthCollapsed = !this.monthCollapsed;
+        localStorage.setItem("lpa-month-collapsed", this.monthCollapsed ? "1" : "0");
       },
       // 目录树分组折叠（跨项目记忆展开偏好）
       toggleGroup(id) {

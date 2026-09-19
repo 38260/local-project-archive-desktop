@@ -556,16 +556,25 @@
           显示最近 {{ commitData.commits.length }} 条 · 点击单条展开详情
         </span>
       </h2>
-      <!-- 按月提交柱状图：全量历史按日历月聚合，比逐日网格更直观 -->
-      <div class="month-chart" v-if="monthBars.length" role="img" :aria-label="monthChartLabel">
-        <div class="month-chart-head">
-          <span class="gh-heat-total">
-            {{ monthSpan === 6 ? "最近半年" : "最近一年" }}共
-            <b>{{ fmtNum(monthTotal) }}</b> 次提交
+      <!-- 按月提交柱状图：全量历史按日历月聚合，比逐日网格更直观。
+           默认折叠（与下方「提交构成分析」的类型×月份堆叠柱信息重叠，两处都展开太占高度），
+           折叠时仍保留"共 N 次提交"的摘要；折叠状态跨项目记忆。
+           这里复用首页热力图的 `.heat-head` / `.heat-chev` 折叠样式，保持交互一致。 -->
+      <div class="month-chart" v-if="monthBars.length">
+        <button type="button" class="heat-head" @click="toggleMonthChart"
+                :aria-expanded="monthCollapsed ? 'false' : 'true'">
+          <lpa-icon name="chevron-down" :size="13" class="heat-chev"
+                    :class="{ folded: monthCollapsed }"></lpa-icon>
+          <span class="heat-title">
+            每月提交量
+            <span class="heat-sub">
+              {{ monthSpan === 6 ? "最近半年" : "最近一年" }}共
+              <b>{{ fmtNum(monthTotal) }}</b> 次提交
+            </span>
           </span>
-          <span class="section-note">每月提交量 · 全量历史</span>
-        </div>
-        <div class="month-bars">
+          <span class="section-note">全量历史</span>
+        </button>
+        <div class="month-bars" v-show="!monthCollapsed" role="img" :aria-label="monthChartLabel">
           <div class="mb-col" v-for="m in monthBars" :key="m.key"
                :class="{ current: m.current }" :title="m.tip">
             <span class="mb-num">{{ m.count || "" }}</span>
@@ -591,16 +600,33 @@
         <div class="ci-cols">
           <div class="ci-col">
             <div class="ci-col-title">类型分布</div>
-            <div class="ci-rows">
-              <div class="ci-row" v-for="r in statsRows" :key="r.type"
-                   :title="r.type + '：' + r.count + ' 次（' + r.pct + '%）'">
-                <span class="ci-type" :title="r.type">
-                  <i class="ci-dot" :class="'ci-bg-' + r.type"></i>{{ r.type }}
-                </span>
-                <span class="ci-bar-track">
-                  <span class="ci-bar" :class="'ci-bg-' + r.type" :style="{ width: r.w + '%' }"></span>
-                </span>
-                <span class="ci-num">{{ r.count }} · {{ r.pct }}%</span>
+            <div class="ci-ring-wrap">
+              <!-- 环状分布：每段用 stroke-dasharray 按占比切弧长；rotate(-90) 让起点落在 12 点方向。
+                   段内 <title> 提供悬浮提示（role=img 下对读屏不可见，读屏走 svg 的 aria-label）。 -->
+              <div class="ci-ring-box">
+                <svg class="ci-ring" viewBox="0 0 100 100" role="img" :aria-label="statsRingLabel">
+                  <circle class="ci-ring-bg" cx="50" cy="50" :r="statsRing.R"></circle>
+                  <g transform="rotate(-90 50 50)">
+                    <circle v-for="s in statsRing.segs" :key="s.type"
+                            class="ci-ring-seg" :class="'ci-c-' + s.type"
+                            cx="50" cy="50" :r="statsRing.R"
+                            :stroke-dasharray="s.dash + ' ' + s.rest"
+                            :stroke-dashoffset="s.offset">
+                      <title>{{ s.title }}</title>
+                    </circle>
+                  </g>
+                </svg>
+                <div class="ci-ring-center" aria-hidden="true">
+                  <b>{{ fmtNum(statsRing.total) }}</b>
+                  <span>次提交</span>
+                </div>
+              </div>
+              <div class="ci-legend">
+                <div class="ci-lg-row" v-for="s in statsRing.segs" :key="s.type" :title="s.title">
+                  <i class="ci-dot" :class="'ci-c-' + s.type"></i>
+                  <span class="ci-lg-name">{{ s.type }}</span>
+                  <span class="ci-lg-num">{{ s.count }} · {{ s.pct }}%</span>
+                </div>
               </div>
             </div>
           </div>
@@ -613,7 +639,7 @@
                    :class="{ current: m.current }" :title="m.tip">
                 <div class="ci-track" :class="{ empty: !m.total }">
                   <span class="ci-seg" v-for="s in m.segs" :key="s.type"
-                        :class="'ci-bg-' + s.type" :style="{ height: s.h + '%' }"
+                        :class="'ci-c-' + s.type" :style="{ height: s.h + '%' }"
                         :title="s.title"></span>
                 </div>
                 <span class="mb-label">{{ m.label }}</span>
