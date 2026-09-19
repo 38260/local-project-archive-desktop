@@ -18,7 +18,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from app.config import (
-    DATA_DIR, LAUNCHERS_MAX_PER_PROJECT, STATUS_VALUES,
+    COMMIT_STATS_MAX, DATA_DIR, LAUNCHERS_MAX_PER_PROJECT, STATUS_VALUES,
 )
 from app.db import get_db
 from app.models import (
@@ -889,6 +889,29 @@ def get_heatmap(project_id: int, weeks: int = Query(53, ge=8, le=104)):
     if not os.path.isdir(row["path"]):
         raise HTTPException(409, dir_not_exists_hint(row["path"]))
     return gitinfo.collect_heatmap(row["path"], weeks=weeks)
+
+
+@router.get("/{project_id}/commit-stats")
+def get_commit_stats(project_id: int,
+                     scope: str = Query("all", pattern="^(all|year)$"),
+                     include_merges: bool = Query(False),
+                     max_commits: int = Query(COMMIT_STATS_MAX, ge=100, le=50000)):
+    """提交构成分析：分类计数 + 发力点（类型分布 / 类型 × 月份堆叠）。
+
+    与 /commits 的分工：那个返回最近 N 条**明细**（默认 50、上限 200），供时间线展示；
+    这个做**全量聚合**且只返回计数，因此能回答「主要发力点在哪里」——两者互补，
+    /commits 的语义与上限不变。
+
+    参数：scope=all|year 决定统计范围；include_merges 是否把合并提交计入；
+    max_commits 是超大仓库的护栏（默认取配置值，超出则截断并在返回里标 truncated）。
+    """
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+    if not os.path.isdir(row["path"]):
+        raise HTTPException(409, dir_not_exists_hint(row["path"]))
+    return gitinfo.collect_commit_stats(
+        row["path"], scope=scope, include_merges=include_merges,
+        max_commits=max_commits)
 
 
 # ---------------------------------------------------------------------------

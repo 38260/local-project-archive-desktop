@@ -54,7 +54,7 @@
 | 编号 | 名称 | 内容 | 状态 |
 |---|---|---|---|
 | S1 | 后端统计服务层 | `config.py` 规模常量 + `gitinfo.collect_commit_stats()`：全量轻量拉取 → 三级分类 → 聚合 types / months / active_days / busiest_month | ✅ |
-| S2 | 后端接口 | `routers/projects.py` 新增 `GET /api/projects/{id}/commit-stats`，沿用前置校验与 409 提示 | ⬜ |
+| S2 | 后端接口 | `routers/projects.py` 新增 `GET /api/projects/{id}/commit-stats`，沿用前置校验与 409 提示 | ✅ |
 | S3 | 前端数据层 | `project.js` 新增 `commitStats` 状态 + `loadCommitStats()` + 相关 computed；`commitTypes()` 改为优先取后端口径 | ⬜ |
 | S4 | 前端 UI | `project.html` 新增「提交构成分析」块（类型分布条 + 类型×月份堆叠柱 + 结论行）；`style.css` 新增样式 | ⬜ |
 | S5 | 文档更新 | `README.md` 更新功能段与 API 一览表 | ⬜ |
@@ -87,6 +87,16 @@
     本仓库 11 个原始种类塞不下，`design`(3) 已经是能挤进榜的最后一名，`security`(2)/`init`(1) 按规则本就该并入「其他」。
     顺带用 `git log --date=short` 复核了服务输出（121 提交 / 11 个活跃日 / 2026-08-29 起），与 git 逐位一致。
     —— 教训记录在案：**自检跑红时先怀疑夹具**，这次又是夹具。
+- **2026-09-19 · S2 完成**：新增 `GET /{project_id}/commit-stats`。
+  - 参数用 `Query` 做白名单约束（`scope` 只允许 `all|year`、`max_commits` 限定 100~50000），非法值交给 FastAPI 直接 422，不自己写校验；
+    `scope` 用 `pattern` 而不是 `Literal`，这样不必为此新增 `typing` 导入。
+  - 前置校验沿用 `_get_row_or_404` + `os.path.isdir`（与 `/commits`、`/heatmap` 完全一致），路径丢失时行为统一。
+  - 端点写成同步函数（`def` 而非 `async def`），与既有 git 端点一致：FastAPI 会把它丢线程池，git 子进程阻塞不会卡住事件循环。
+  - **自检（临时探针）**：22 项全过。除守恒外，专门验证了**不回归**——`/commits` 与 `/heatmap` 的字段结构不变、
+    `max_commits` 的上下界与非法 `scope` 都返回 422、不存在的项目 404、非 git 项目 200 + `is_repo=False` 降级。
+  - **测试环境两处坑（下轮沿用）**：① 本机 8300 被**已安装的 Tracelight**（数据目录在 `%LOCALAPPDATA%\Tracelight`）占着，
+    直接跑冒烟测试会写到用户真实档案库，必须另起端口；② 沙箱设了 `http_proxy=127.0.0.1:6141`，
+    非 8300 端口会被代理挡成 **502 Bad Gateway**（看起来像服务没起来），需在脚本里 `no_proxy=127.0.0.1,localhost` 直连。
 
 ---
 
