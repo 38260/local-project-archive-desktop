@@ -297,8 +297,10 @@ _KNOWN_TYPES = frozenset((
 _PREFIX_RE = re.compile(r"^\s*([a-z][a-z0-9_-]{1,14})\s*[:：]\s*\S", re.I)
 
 # 无前缀提交的兜底关键词（弱分类）。顺序即优先级：越具体的规则越靠前。
-# 结果只用于数据留痕（weak_inferred），界面上默认**不展示**——关键词猜测的
-# 误判会直接污染「主要发力点」这个结论，代价大于收益。
+# **弱分类不计入类型分布**（那些提交一律算「其他」），只作为 weak_inferred 元数据回传，
+# 供界面用一行小字说明"还有多少条是靠关键词猜的"。原因：类型分布要能被前端按前缀
+# 筛选 chips 精确对上号，而关键词猜测无法在前端复现同一匹配，算进去就会出现
+# "图表说 fix 30 条、点开只能筛出 12 条"的自相矛盾。
 _WEAK_RULES = (
     ("fix", ("修复", "修正", "解决", "故障", "报错", "崩溃", "bug", "hotfix")),
     ("refactor", ("重构", "整理结构", "优化结构", "重写")),
@@ -353,14 +355,15 @@ def collect_commit_stats(path: str, scope: str = "all",
 
     返回：
       is_repo / scanned（参与统计的提交数）/ truncated / scope / include_merges /
-      types: [{type, count, pct, weak}]（按 count 倒序，Σcount == scanned）/
+      types: [{type, count, pct}]（按 count 倒序，Σcount == scanned）/
       months: [{key, total, types: {类型: 次数}}]（升序）/
       type_order（月份分段用的稳定顺序）/
+      weak_inferred: [{type, count}]（无前缀提交的关键词推断留痕，不参与分布与守恒）/
       active_days / busiest_month / first_date / last_date / error
     """
     result = {"is_repo": False, "scanned": 0, "truncated": False,
               "scope": scope, "include_merges": include_merges,
-              "types": [], "type_order": [], "months": [],
+              "types": [], "type_order": [], "months": [], "weak_inferred": [],
               "active_days": 0, "busiest_month": None,
               "first_date": None, "last_date": None, "error": None}
     if not _GITPY_AVAILABLE:
@@ -410,14 +413,17 @@ def collect_commit_stats(path: str, scope: str = "all",
                 continue
             scanned += 1
             ctype, inferred = classify_commit(subject)
-            type_counts[ctype] = type_counts.get(ctype, 0) + 1
+            # 弱分类结果只留痕、不进分布：无前缀的提交一律计入「其他」，
+            # 这样 types 与前端按前缀筛选的结果能精确对上（B4）。
+            count_key = "other" if inferred else ctype
+            type_counts[count_key] = type_counts.get(count_key, 0) + 1
             if inferred:
                 weak_counts[ctype] = weak_counts.get(ctype, 0) + 1
             day, month = iso[:10], iso[:7]
             days.add(day)
             slot = months.setdefault(month, {"total": 0, "types": {}})
             slot["total"] += 1
-            slot["types"][ctype] = slot["types"].get(ctype, 0) + 1
+            slot["types"][count_key] = slot["types"].get(count_key, 0) + 1
 
         if not scanned:
             result["error"] = "仓库还没有任何提交"
@@ -442,20 +448,21 @@ def collect_commit_stats(path: str, scope: str = "all",
             return ctype if (ctype in keep and ctype not in demote) else "other"
 
         merged: dict[str, int] = {}
-        weak_merged: dict[str, int] = {}
         for ctype, n in type_counts.items():
             fname = final_name(ctype)
             merged[fname] = merged.get(fname, 0) + n
-            if weak_counts.get(ctype):
-                weak_merged[fname] = weak_merged.get(fname, 0) + weak_counts[ctype]
 
         order = [t for t, _ in sorted(merged.items(), key=lambda kv: (-kv[1], kv[0]))]
         result["type_order"] = order
         result["types"] = [
             {"type": t, "count": merged[t],
-             "pct": round(merged[t] * 100.0 / scanned, 1),
-             "weak": weak_merged.get(t, 0)}
+             "pct": round(merged[t] * 100.0 / scanned, 1)}
             for t in order]
+        # 弱分类留痕：这些提交已被算进「其他」，这里只说明"关键词会判成什么"，
+        # 供界面加一行小字（不参与类型分布，也不参与守恒）。
+        result["weak_inferred"] = [
+            {"type": t, "count": n}
+            for t, n in sorted(weak_counts.items(), key=lambda kv: (-kv[1], kv[0]))]
         result["months"] = []
         for key, slot in sorted(months.items()):
             seg: dict[str, int] = {}
