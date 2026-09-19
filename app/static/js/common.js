@@ -322,15 +322,40 @@
   }
 
   // ---------- git 提交记录分色 ----------
-  // Conventional Commits 前缀 → 类型（用于彩色徽章）
+  // Conventional Commits 白名单。**必须与后端 gitinfo._KNOWN_TYPES 保持一致**，
+  // 否则前端筛选出来的类型与 /commit-stats 的类型分布会对不上号（改一边就要改另一边）。
+  const COMMIT_TYPES = ["feat", "fix", "docs", "style", "refactor", "perf",
+                        "test", "chore", "build", "ci", "revert", "merge"];
+  const COMMIT_TYPE_RE = new RegExp("^\\s*(" + COMMIT_TYPES.join("|") + ")\\b", "i");
+  // 未登记前缀：形如 `design: xxx` / `security：xxx`，与后端 _PREFIX_RE 同一规则。
+  // 本项目作者实际在用 design:/security:/init: 这类自造前缀，若只认白名单，
+  // 这些提交会既没有徽章、也无法被类型筛选命中。
+  const COMMIT_PREFIX_RE = /^\s*([a-z][a-z0-9_-]{1,14})\s*[:：]\s*\S/i;
+
+  // 首行 → 类型。纯前缀口径，与后端 /commit-stats 的分类规则相同：
+  //   白名单命中 → 该类型；未登记前缀 → 以前缀名本身成类；都没有 → ""（调用方按 plain/other 处理）
+  // 注意：这里只统一「怎么分类」，不统一「统计多少条」——chips 统计的是已加载的
+  // 时间线条目（它就是列表筛选器），分析块统计的是全量，两者范围不同且各自在界面上标明。
   function commitType(msg) {
-    const m = /^\s*(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert|merge)\b/i.exec(msg || "");
-    return m ? m[1].toLowerCase() : "";
+    const text = msg || "";
+    const m = COMMIT_TYPE_RE.exec(text);
+    if (m) return m[1].toLowerCase();
+    const p = COMMIT_PREFIX_RE.exec(text);
+    return p ? p[1].toLowerCase() : "";
   }
-  // 首行去掉类型前缀后的正文
+  // 类型 → 徽章 CSS 类。白名单外的自造前缀统一落到 ct-unknown，
+  // 避免出现有类型名却没有对应样式（裸露成无底色）的徽章。
+  function commitTypeClass(t) {
+    if (!t) return "ct-plain";
+    return COMMIT_TYPES.indexOf(t) >= 0 || t === "other" ? "ct-" + t : "ct-unknown";
+  }
+  // 首行去掉类型前缀后的正文（白名单前缀 + 未登记前缀都去掉，与徽章显示的语义一致）
+  const COMMIT_STRIP_RE = new RegExp(
+    "^\\s*(?:" + COMMIT_TYPES.join("|") + ")\\b[:：\\s]*"
+    + "|^\\s*[a-z][a-z0-9_-]{1,14}\\s*[:：]\\s*", "i");
   function commitMsgText(msg) {
     const first = (msg || "").split("\n")[0] || "";
-    return first.replace(/^\s*(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert|merge)\b[:：\s]*/i, "").slice(0, 120) || first.slice(0, 120);
+    return first.replace(COMMIT_STRIP_RE, "").slice(0, 120) || first.slice(0, 120);
   }
   // 贡献者名字 → 稳定取色（哈希散列到调色板，两种主题下都可见）
   const USER_COLORS = ["#0969da", "#1a7f37", "#bf3989", "#bc4c00", "#8250df", "#0f766e"];
@@ -473,7 +498,7 @@
   window.LPA_HELPERS = {
     fmtTime, relTime, shortPath, fmtSize, fmtNum, copyText, statusBadgeClass,
     themeName, cycleTheme, tagClass,
-    commitType, commitMsgText, userColor, fileColor,
+    commitType, commitMsgText, commitTypeClass, userColor, fileColor,
     editorIcon, editorName,
   };
 

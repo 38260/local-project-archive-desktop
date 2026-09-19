@@ -587,7 +587,7 @@
           <button type="button" class="tfilter" :class="{on: commitTypeFilter === ''}"
                   @click="commitTypeFilter = ''">全部 {{ commitData.commits.length }}</button>
           <button type="button" class="tfilter" v-for="t in commitTypes" :key="t.type"
-                  :class="['ct-' + t.type, {on: commitTypeFilter === t.type}]"
+                  :class="[commitTypeClass(t.type), {on: commitTypeFilter === t.type}]"
                   @click="commitTypeFilter = t.type">{{ t.type }} {{ t.count }}</button>
         </div>
         <div class="commit-scroll">
@@ -596,7 +596,7 @@
               <div class="ct-row" @click="toggleCommit(c.hash)">
                 <span class="ct-dot"></span>
                 <span class="ct-hash">{{ c.short }}</span>
-                <span class="ct-type" :class="'ct-' + (commitType(c.message) || 'plain')"
+                <span class="ct-type" :class="commitTypeClass(commitType(c.message))"
                       v-if="commitType(c.message)">{{ commitType(c.message) }}</span>
                 <span class="ct-msg" :title="firstLine(c.message)">{{ commitMsgText(c.message) }}</span>
                 <span class="ct-meta">

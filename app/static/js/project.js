@@ -95,6 +95,10 @@
         commitLimit: 50,        // 初始加载量，被设置 commits.limit 覆盖
         commitTypeFilter: "",
         expandedCommits: [],
+        // 提交构成分析（GET /commit-stats）：全量分类计数 + 类型×月份。
+        // 与 commitData 是**两个范围**：那个是最近 N 条明细（时间线），这个是全量聚合。
+        commitStats: null,
+        commitStatsLoading: true,
         // 按月提交柱状图：后端 /heatmap 固定取一年按天数据，前端聚合到日历月
         heat: null,
         monthSpan: 12,          // 柱状图月数（6=半年 | 12=一年），被设置 ui.heatmap_weeks 覆盖
@@ -285,6 +289,12 @@
         };
       },
       // 提交类型分布（用于时间线上方的筛选 chip）
+      // 范围 = **已加载的时间线条目**：chips 本质是"筛下方列表"，
+      // 所以它的数字必须等于点下去能筛出来的条数，不能取后端全量数字
+      // （否则又变成"显示 43、点开只有 12"）。
+      // 分类规则则与后端 /commit-stats 完全一致（commitType 认未登记前缀），
+      // 所以 chips 的类型名与下方「提交构成分析」的类型名能一一对上；
+      // 两者数字不同是**范围不同**（已加载 vs 全量），界面上分别标明。
       commitTypes() {
         if (!this.commitData || !this.commitData.commits.length) return [];
         const m = {};
@@ -434,6 +444,9 @@
           // 先拿设置（决定提交记录加载数），再加载提交与热力图
           await this.loadPrefs();
           this.loadCommits();
+          // 与分析块并行发起、互不 await：两者数据源独立，
+          // 分析块慢/失败都不该拖住时间线（反之亦然）
+          this.loadCommitStats();
         } catch (e) {
           if (e.status === 404) this.notFound = true;
         }
@@ -786,6 +799,19 @@
         }, 500);
       },
       // ---- Git 提交记录 ----
+      // 提交构成分析：全量分类计数 + 类型×月份（后端只回计数，不回明细）
+      // 失败时置 null，模板据此整块隐藏或显示降级文案，不影响时间线与其它面板
+      async loadCommitStats() {
+        this.commitStatsLoading = true;
+        try {
+          this.commitStats = await api(
+            `/api/projects/${this.projectId}/commit-stats`, { silent: true });
+        } catch (e) {
+          this.commitStats = null;
+        } finally {
+          this.commitStatsLoading = false;
+        }
+      },
       async loadCommits(more) {
         if (more) this.commitLoadingMore = true;
         else this.commitLoading = true;

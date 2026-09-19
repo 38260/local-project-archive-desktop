@@ -1253,6 +1253,9 @@ body.modal-open { overflow: hidden; }
 .ct-perf { background: rgba(130, 80, 223, .12); color: #8250df; }
 .ct-test { background: var(--c-teal-bg); color: var(--c-teal-fg); }
 .ct-chore, .ct-build, .ct-ci, .ct-revert, .ct-merge, .ct-other { background: var(--panel-2); color: var(--muted); }
+/* 未登记前缀（design: / security: / init: 等自造类型）：有类型名但没有专属配色时统一走这里，
+   避免徽章类名拼出来却匹配不到样式而裸露无底色 */
+.ct-unknown { background: var(--panel-2); color: var(--muted); }
 .ct-plain { background: var(--accent-soft); color: var(--accent); }
 /* 变更规模增删行数 */
 .diff-add { color: var(--ok); font-weight: 700; }
