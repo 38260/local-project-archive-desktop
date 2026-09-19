@@ -251,6 +251,43 @@ def main():
         st, cm2 = req("GET", f"/api/projects/{p1['id']}/commits?limit=1")
         check("提交记录 limit 生效", st == 200 and len(cm2["commits"]) == 1)
 
+        # ---- 提交构成分析（全量聚合；与上面的明细是两个范围，互不影响） ----
+        st, cs = req("GET", f"/api/projects/{p1['id']}/commit-stats")
+        check("提交构成分析读取", st == 200 and cs["is_repo"] is True and cs["scanned"] >= 1,
+              str(st))
+        check("守恒：类型计数之和 == scanned",
+              sum(t["count"] for t in cs["types"]) == cs["scanned"],
+              f"{sum(t['count'] for t in cs['types'])} vs {cs['scanned']}")
+        check("守恒：月份计数之和 == scanned",
+              sum(m["total"] for m in cs["months"]) == cs["scanned"])
+        check("守恒：每月分段之和 == 该月 total",
+              all(sum(m["types"].values()) == m["total"] for m in cs["months"]))
+        check("百分比合计 100±0.5", abs(sum(t["pct"] for t in cs["types"]) - 100) <= 0.5,
+              str(sum(t["pct"] for t in cs["types"])))
+        check("type_order 与 types 顺序一致",
+              cs["type_order"] == [t["type"] for t in cs["types"]])
+        check("月份升序",
+              [m["key"] for m in cs["months"]] == sorted(m["key"] for m in cs["months"]))
+        # 示例仓库的提交信息是 "init: 初始提交"：自造前缀必须自成一类，不能被埋进 other
+        check("未登记前缀 init 自成一类（不并入 other）",
+              any(t["type"] == "init" for t in cs["types"]),
+              str([t["type"] for t in cs["types"]]))
+        check("默认口径：scope=all 且排除 merge",
+              cs["scope"] == "all" and cs["include_merges"] is False)
+        check("全量口径覆盖不少于明细口径（分析块 >= 时间线已加载）",
+              cs["scanned"] >= len(cm["commits"]),
+              f"{cs['scanned']} vs {len(cm['commits'])}")
+        st, csy = req("GET", f"/api/projects/{p1['id']}/commit-stats?scope=year")
+        check("scope=year 可用且守恒",
+              st == 200 and sum(t["count"] for t in csy["types"]) == csy["scanned"])
+        check("scope=year 不超过 scope=all", csy["scanned"] <= cs["scanned"])
+        st, _ = req("GET", f"/api/projects/{p1['id']}/commit-stats?scope=nope")
+        check("非法 scope 返回 422", st == 422)
+        st, _ = req("GET", f"/api/projects/{p1['id']}/commit-stats?max_commits=999999")
+        check("max_commits 超上界返回 422", st == 422)
+        st, cst = req("GET", f"/api/projects/{p1['id']}/commit-stats?max_commits=120")
+        check("max_commits 生效", st == 200 and cst["scanned"] <= 120)
+
         # ---- 批量重新解析（解析器升级后刷新） ----
         st, d2 = req("GET", f"/api/projects/{p1['id']}")
         git_info = d2["auto_meta"]["git"]
@@ -278,6 +315,9 @@ def main():
         # 非 git 目录的提交记录提示
         st, cm3 = req("GET", f"/api/projects/{p1['id'] + 1}/commits")
         check("非 git 目录 is_repo=False", st == 200 and cm3["is_repo"] is False)
+        st, cs3 = req("GET", f"/api/projects/{p1['id'] + 1}/commit-stats")
+        check("非 git 目录 commit-stats 同样降级",
+              st == 200 and cs3["is_repo"] is False and cs3["error"] is None)
 
         # ---- 批量重新解析（后台任务 + 进度轮询） ----
         st, ra = req("POST", "/api/projects/rescan-all")

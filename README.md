@@ -170,7 +170,7 @@ local-project-archive-desktop/
 
 ```bash
 # 需先启动服务；脚本创建临时示例项目做全流程冒烟测试，结束后自动清理
-.venv/Scripts/python.exe tools/smoke_test.py            # 56 项
+.venv/Scripts/python.exe tools/smoke_test.py            # 82 项
 ```
 
 另有 74 项全功能回归（覆盖设置/备份恢复/热力图/导入导出闭环等），随开发迭代维护。
