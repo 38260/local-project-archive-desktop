@@ -8,11 +8,16 @@
   let descTimer = null;
 
   // 递归目录树组件
+  // 文件节点交互：单击复制相对路径，双击在应用内打开（.md / .txt）。
+  // 浏览器在 dblclick 之前必定先派发两次 click，若不做区分就会「打开前先复制一次」，
+  // 因此单击延迟一小段再执行、双击到来时取消它。延迟取 300ms：比系统双击间隔略短，
+  // 单击手感可接受；极慢的双击最多多出一次复制（无副作用）。
   const TreeNode = {
     name: "tree-node",
     props: {
       node: { type: Object, required: true },
     },
+    inject: ["openProjectFile"],
     data() {
       // 目录一律默认收起；展开状态记在 node.open 上，父目录收起再展开也能恢复
       return { open: !!(this.node && this.node.open) };
@@ -25,9 +30,43 @@
         const base = this.node.rel || "";
         return base ? `${base}/${this.node.name}` : this.node.name;
       },
+      // 可在应用内打开的类型（当前支持 Markdown 与纯文本）
+      canOpen() {
+        return !this.isDir && /\.(md|markdown|txt)$/i.test(this.node.name || "");
+      },
+      fileTitle() {
+        return this.canOpen
+          ? `单击复制路径，双击打开：${this.fileRel}`
+          : `单击复制路径：${this.fileRel}`;
+      },
+    },
+    methods: {
+      onClickFile() {
+        if (this._clickTimer) clearTimeout(this._clickTimer);
+        this._clickTimer = setTimeout(() => {
+          this._clickTimer = null;
+          copyText(this.fileRel);
+        }, 300);
+      },
+      onDblClickFile() {
+        if (this._clickTimer) {              // 双击：撤销待执行的单击复制
+          clearTimeout(this._clickTimer);
+          this._clickTimer = null;
+        }
+        if (!this.canOpen) {
+          toast("当前仅 .md / .txt 支持在应用内打开，已复制该文件路径", "error");
+          copyText(this.fileRel);
+          return;
+        }
+        if (this.openProjectFile) this.openProjectFile(this.fileRel);
+      },
+    },
+    beforeUnmount() {
+      // 目录树重新加载会批量销毁节点，定时器必须清掉
+      if (this._clickTimer) { clearTimeout(this._clickTimer); this._clickTimer = null; }
     },
     template: `
-      <li class="t-row" :class="{ 't-file': !isDir, clickable: !isDir }">
+      <li class="t-row" :class="{ 't-file': !isDir, clickable: !isDir, openable: canOpen }">
         <template v-if="isDir">
           <span class="t-dir" @click="open = !open; node.open = open">
             <span class="t-caret">
@@ -45,8 +84,9 @@
           <span class="t-caret"></span>
           <span class="f-dot" :style="{ background: fileColor(node.name) }"></span>
           <span class="t-name" :style="{ color: fileColor(node.name) }"
-                :title="'点击复制：' + fileRel"
-                @click="copyText(fileRel)">{{ node.name }}</span>
+                :title="fileTitle"
+                @click="onClickFile"
+                @dblclick="onDblClickFile">{{ node.name }}</span>
           <span class="t-size">{{ fmtSize(node.size) }}</span>
         </template>
       </li>
@@ -150,6 +190,10 @@
         docView: null,        // null=关闭；打开时为 {kind,name,rel,relDir,html,text,url,error?}
         docLoading: false,
       };
+    },
+    // 目录树是递归组件，用 provide 把「打开项目内文件」下发给任意层级的节点
+    provide() {
+      return { openProjectFile: rel => this.openProjectFile(rel) };
     },
     computed: {
       gitInfo() {
@@ -543,6 +587,21 @@
         }
       },
       closeDoc() { this.docView = null; },
+      // 目录树双击打开项目内文件：复用应用内文档查看器（.md 渲染 / .txt 纯文本）
+      // 注意路径口径：目录树节点的 rel 以「项目文件夹名」为根（后端 build_tree
+      // 把项目目录本身也当作根节点），而读取文件需要「项目内相对路径」，
+      // 因此这里剥掉首段项目名；单击复制仍沿用节点原 rel，保持既有行为不变。
+      openProjectFile(rel) {
+        const clean = this.normalizeRel(rel);
+        if (!clean) { toast("路径越出了项目范围，无法打开", "error"); return; }
+        const root = (this.tree && this.tree.name) || "";
+        let inner = clean;
+        if (root && (clean === root || clean.startsWith(root + "/"))) {
+          inner = clean.slice(root.length).replace(/^\/+/, "");
+        }
+        if (!inner) { toast("无法定位该文件在项目内的相对路径", "error"); return; }
+        this.openDoc(inner);
+      },
       // 外部 http(s) 链接 → 系统默认浏览器（后端校验仅 http/https）
       async openExternal(url) {
         try {

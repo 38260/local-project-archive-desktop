@@ -1574,6 +1574,16 @@ body.modal-open { overflow: hidden; }
 .tree .f-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 2px; vertical-align: 1px; }
 .tree .t-file.clickable .t-name { cursor: copy; }
 .tree .t-file.clickable:hover .t-name { text-decoration: underline; filter: brightness(1.15); }
+/* 可双击打开的文件（.md / .txt）：点状下划线常驻，提示「这里还能打开」；
+   光标改 pointer。单击仍是复制路径，两种行为都写在 title 文案里。 */
+.tree .t-file.clickable.openable .t-name {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.tree .t-file.clickable.openable:hover .t-name { text-decoration-style: solid; }
+/* 单击即复制路径、双击即打开，不需要选中文件名（也避免双击时出现选中高亮） */
+.tree .t-name { user-select: none; }
 /* 面板锚点跳转闪烁 */
 @keyframes panel-flash { 0% { box-shadow: 0 0 0 3px var(--accent-soft); } 100% { box-shadow: 0 0 0 3px transparent; } }
 .panel.flash { animation: panel-flash 1.1s ease-out 1; }
