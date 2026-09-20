@@ -390,6 +390,58 @@ def main():
         check("直接运行目标不存在返回 400", st == 400)
         st, _ = req("DELETE", f"/api/projects/{p1['id']}/launchers/{lc['id']}")
         check("删除自定义启动项", st == 200)
+
+        # ---- 捕获运行与运行历史（启动执行反馈）----
+        st, r = req("POST", f"/api/projects/{p1['id']}/launch",
+                    {"command": "echo smoke-capture", "mode": "console", "capture": True})
+        check("捕获运行返回 run_id", st == 200 and r.get("run_id"))
+        rid = r.get("run_id")
+        detail = {}
+        for _ in range(80):
+            time.sleep(0.3)
+            st, detail = req("GET", f"/api/projects/{p1['id']}/runs/{rid}?offset=0")
+            if st == 200 and not detail["run"]["running"]:
+                break
+        check("捕获运行状态为成功", detail.get("run", {}).get("status") == "succeeded",
+              str(detail.get("run")))
+        check("捕获运行记录退出码 0", detail.get("run", {}).get("exit_code") == 0,
+              str(detail.get("run", {}).get("exit_code")))
+        check("捕获运行记录 stdout",
+              any("smoke-capture" in x for x in detail.get("lines", [])),
+              str(detail.get("lines")))
+        st, rl = req("GET", f"/api/projects/{p1['id']}/runs")
+        check("运行历史列表包含该次运行",
+              st == 200 and any(x["id"] == rid for x in rl["runs"]))
+        check("运行历史列表不含输出正文",
+              all("output" not in x for x in rl["runs"]))
+        st, _ = req("POST", f"/api/projects/{p1['id']}/launch",
+                    {"command": "echo x", "mode": "console", "capture": True,
+                     "cwd": "../outside"})
+        check("捕获运行的子目录越界被拒绝", st == 422)
+        st, _ = req("POST", f"/api/projects/{p1['id']}/launch",
+                    {"command": "whatever.exe", "mode": "open", "capture": True})
+        check("直接运行不支持捕获输出", st == 400)
+        st, _ = req("GET", f"/api/projects/{p1['id']}/runs/999999?offset=0")
+        check("不存在的运行记录返回 404", st == 404)
+        st, _ = req("POST", f"/api/projects/{p1['id']}/runs/999999/stop")
+        check("停止不存在的运行返回 409", st == 409)
+        # 再跑一次用于验证删除与清空（此时库中应恰好两条）
+        st, r2 = req("POST", f"/api/projects/{p1['id']}/launch",
+                     {"command": "echo smoke-second", "mode": "console", "capture": True})
+        rid2 = r2.get("run_id")
+        for _ in range(80):
+            time.sleep(0.3)
+            st, d2 = req("GET", f"/api/projects/{p1['id']}/runs/{rid2}?offset=0")
+            if st == 200 and not d2["run"]["running"]:
+                break
+        st, _ = req("DELETE", f"/api/projects/{p1['id']}/runs/{rid}")
+        check("删除单条运行记录", st == 200)
+        st, _ = req("GET", f"/api/projects/{p1['id']}/runs/{rid}?offset=0")
+        check("已删除的运行记录返回 404", st == 404)
+        st, cl = req("DELETE", f"/api/projects/{p1['id']}/runs")
+        check("清空运行历史", st == 200 and cl.get("removed") == 1, str(cl))
+        st, rl = req("GET", f"/api/projects/{p1['id']}/runs")
+        check("清空后运行历史为空", rl.get("runs") == [], str(rl))
         os.remove(bat_path)
         # ---- 列表与统计 ----
         st, lst = req("GET", "/api/projects")
