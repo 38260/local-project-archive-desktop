@@ -71,6 +71,7 @@ local-project-archive-desktop/
 │   │   ├── scanner.py      # 递归扫描发现候选项目
 │   │   ├── render.py       # Markdown 渲染 + HTML 基础净化
 │   │   ├── settings_store.py  # settings.json 读写（默认值 + 容错 + 原子写入）
+│   │   ├── runlog.py       # 捕获运行：进程管理 / 输出采集 / 退出码与运行历史落库
 │   │   └── autostart.py    # 开机自启动（注册表，仅安装版）
 │   └── static/             # 前端（Vue3 本地文件，无构建）
 │       ├── dashboard.html  #   首页：统计 / 开发热力图 / 卡片 / 设置
@@ -78,7 +79,7 @@ local-project-archive-desktop/
 │       ├── css/style.css   #   亮/暗主题样式
 │       └── js/…            #   common / dashboard / project / vendor(vue)
 ├── data/                   # 运行时生成（git 忽略）
-│   ├── projects.db         #   SQLite：项目、笔记、变更日志，重启不丢失
+│   ├── projects.db         #   SQLite：项目、笔记、变更日志、启动项、运行历史，重启不丢失
 │   ├── backups/            #   启动自动备份（保留份数可在设置中调整）
 │   ├── screenshots/        #   项目截图
 │   └── settings.json       #   用户设置
@@ -117,6 +118,7 @@ local-project-archive-desktop/
 ### 桌面体验（desktop.py / 安装版）
 
 - 原生窗口 + **系统托盘**：关闭可收进托盘，双击托盘图标唤出；**二次启动直接弹回已有窗口**，不会「提示在运行却找不到」。
+- **托盘直达项目**：托盘菜单「最近项目」列出最近开发的 3 个项目（按 git 最近提交时间排序，无 git 则回退磁盘修改时间），点一下直接用系统文件管理器打开对应目录——不必先唤出主窗口。
 - **静默启动**：配合开机自启动，登录后只在托盘待命。
 - **升级自愈**：安装版升级后，二次启动/开机自启动自动指向新版 exe（版本握手，不会唤起旧版窗口或旧快捷方式）。
 - **窗口记忆**：记住大小与位置，下次启动还原。
@@ -128,6 +130,7 @@ local-project-archive-desktop/
 - **顶栏一键启动**：详情页顶栏直接一键执行主启动项（防连点，带模式小图标），启动面板内有完整入口。
 - **智能检测启动入口（三级漏斗）**：① 可信直接可执行——根目录与 dist 的 .bat/.cmd/.exe/.ps1，双击等效直接运行（build/test/bump 等维护脚本自动降级）；② 构建配置推断——Docker compose / Dockerfile → package.json scripts（按 lockfile 选 pnpm/yarn/bun/npm）→ Python 入口（项目内 .venv / poetry / pipenv 优先，manage.py 特判 runserver）→ cargo/go；前两级都没有才把疑似脚本列为弱候选（direct_weak，界面明确提示不确定）。一层子目录的 monorepo（frontend/backend 等常见命名）复用同一套检测并附带子目录 cwd。
 - **一键执行**：新开终端窗口运行（日志可见、Ctrl+C 可停），点击前弹确认框展示完整命令（可关）；自定义启动项支持增删改与子目录（monorepo 分仓），自动检测结果与自定义项去重展示。
+- **执行反馈（捕获运行）**：确认框可勾选「捕获输出并记录」——勾选后在后台无窗口执行并采集 stdout/stderr、退出码与耗时，写入「运行历史」（状态 / 退出码 / 耗时 / 输出可增量查看，运行中可一键停止含子进程树；每项目保留最近 20 条）。不勾选则仍是原「新终端窗口运行」：其输出属于那个控制台，父进程读不到，故无法记录——界面文案如实区分两种方式。
 - **启动说明**：Markdown 记录「先起后端再起前端」这类步骤，与启动按钮同面板展示。
 
 ### 数据安全
@@ -158,7 +161,11 @@ local-project-archive-desktop/
 | GET | /api/projects/{id}/launch | 启动面板：说明+自动检测建议+自定义启动项 |
 | PUT | /api/projects/{id}/launch-note | 保存启动说明 |
 | POST/PUT/DELETE | /api/projects/{id}/launchers[/{lid}] | 自定义启动项管理 |
-| POST | /api/projects/{id}/launch | 执行启动（open=双击等效 / console=新终端窗口） |
+| POST | /api/projects/{id}/launch | 执行启动（open=双击等效 / console=新终端窗口；`capture=true` 走捕获运行并记录输出） |
+| GET/DELETE | /api/projects/{id}/runs | 运行历史列表（不含输出正文）/ 清空历史 |
+| GET | /api/projects/{id}/runs/{run_id} | 运行详情与输出（`offset` 增量取，供轮询） |
+| POST | /api/projects/{id}/runs/{run_id}/stop | 停止运行中的进程（含子进程树） |
+| DELETE | /api/projects/{id}/runs/{run_id} | 删除单条运行记录 |
 | GET | /api/projects/{id}/export-html | 导出单项目 HTML 档案报告 |
 | POST | /api/scan、/api/scan/import | 批量扫描 / 批量导入 |
 | GET/POST | /api/export、/api/import | 导出全库 JSON / 导入恢复 |
@@ -170,7 +177,7 @@ local-project-archive-desktop/
 
 ```bash
 # 需先启动服务；脚本创建临时示例项目做全流程冒烟测试，结束后自动清理
-.venv/Scripts/python.exe tools/smoke_test.py            # 82 项
+.venv/Scripts/python.exe tools/smoke_test.py            # 96 项
 ```
 
 另有 74 项全功能回归（覆盖设置/备份恢复/热力图/导入导出闭环等），随开发迭代维护。
