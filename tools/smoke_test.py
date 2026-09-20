@@ -223,6 +223,19 @@ def main():
               and readme_node["rel"] == os.path.basename(p1["path"]),
               str(readme_node))
         os.remove(txt_path)
+        # 「用系统默认应用打开文件」只测失败路径：成功路径会真的拉起外部程序，
+        # 干扰正在使用电脑的人，故不在冒烟里触发（隔离环境已单独验证成功路径）
+        st, _ = req("POST", f"/api/projects/{p1['id']}/open-file",
+                    {"rel": "../outside.md"})
+        check("默认应用打开拒绝越界路径", st == 422)
+        st, _ = req("POST", f"/api/projects/{p1['id']}/open-file",
+                    {"rel": "C:/Windows/win.ini"})
+        check("默认应用打开拒绝绝对路径", st == 422)
+        st, _ = req("POST", f"/api/projects/{p1['id']}/open-file",
+                    {"rel": "docs/not-there.md"})
+        check("默认应用打开不存在的文件返回 404", st == 404)
+        st, _ = req("POST", f"/api/projects/{p1['id']}/open-file", {})
+        check("默认应用打开缺少 rel 返回 422", st == 422)
 
         # ---- 更新 ----
         notes = "## 项目背景\n测试笔记"
