@@ -396,8 +396,59 @@ def _setting_true(key: str) -> bool:
         return False
 
 
+def _sort_key(value) -> float:
+    """把 ISO 时间串转成时间戳用于排序；无法解析时排到最后。"""
+    if not value:
+        return 0.0
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(str(value)).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def recent_projects(limit: int = 3) -> list[dict]:
+    """最近开发的 N 个项目（托盘「最近项目」用）。
+
+    「最近开发」取 git 最近提交时间（解析时已写入 auto_meta 的快照），
+    没有 git 则退回磁盘最后修改时间、再退回档案更新时间。
+
+    刻意**不调用 git**：托盘菜单必须瞬间弹出，任何外部命令都会造成可见卡顿；
+    快照最多滞后到上次解析，对「最近在做哪几个项目」这个用途足够。
+    只读、失败一律降级为空列表，绝不让托盘功能拖垮桌面壳。
+    """
+    import json as _json
+    import logging
+
+    try:
+        from app.db import get_db
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, name, path, status, is_lost, fs_modified, updated_at, "
+                "auto_meta FROM projects "
+                "WHERE is_lost=0 AND status<>'废弃'").fetchall()
+    except Exception as exc:
+        logging.getLogger("lpa").debug("读取最近项目失败：%s", exc)
+        return []
+
+    items = []
+    for r in rows:
+        git_date = None
+        try:
+            meta = _json.loads(r["auto_meta"] or "{}")
+            git_date = ((meta.get("git") or {}).get("last_commit") or {}).get("date")
+        except (ValueError, AttributeError):
+            git_date = None
+        stamp = _sort_key(git_date) or _sort_key(r["fs_modified"]) \
+            or _sort_key(r["updated_at"])
+        items.append({"id": r["id"], "name": r["name"], "path": r["path"],
+                      "stamp": stamp})
+    items.sort(key=lambda x: x["stamp"], reverse=True)
+    return items[:max(1, int(limit or 3))]
+
+
 def start_tray(window, server, logger):
-    """系统托盘：显示窗口 / 桌面设置开关（自启动、托盘、静默启动等）/ 退出。
+    """系统托盘：显示窗口 / 最近项目直达 / 桌面设置开关 / 退出。
 
     勾选状态实时读取设置与注册表（pystray 每次弹出菜单时重新求值 callable），
     点选后 update_menu() 立即刷新勾选。在独立线程跑图标消息循环。
@@ -425,6 +476,37 @@ def start_tray(window, server, logger):
         except Exception as exc:
             logger.warning("托盘唤起窗口失败：%s", exc)
 
+    def notify(icon, msg: str):
+        try:
+            icon.notify(msg, WINDOW_TITLE)
+        except Exception:
+            pass
+
+    def open_project_dir(icon, item, path: str, name: str):
+        """直接在系统文件管理器中打开项目目录（只打开，不修改任何文件）。"""
+        if not os.path.isdir(path):
+            notify(icon, f"路径不存在：{name}")
+            return
+        try:
+            os.startfile(path)  # noqa: S606 与资源管理器双击行为一致
+        except OSError as exc:
+            logger.warning("托盘打开项目目录失败（%s）：%s", path, exc)
+            notify(icon, f"打开失败：{exc}")
+
+    def recent_items():
+        """动态生成「最近项目」子菜单（每次弹出时重新求值）。"""
+        items = recent_projects(3)
+        if not items:
+            return [pystray.MenuItem("（暂无项目）", None, enabled=False)]
+        out = []
+        for p in items:
+            label = p["name"] if len(p["name"]) <= 28 else p["name"][:27] + "…"
+            out.append(pystray.MenuItem(
+                label,
+                (lambda path, name: lambda icon, item:
+                    open_project_dir(icon, item, path, name))(p["path"], p["name"])))
+        return out
+
     def open_settings(icon, item):
         """唤出窗口并直接打开设置弹窗（前端在首页暴露 LPA_OPEN_SETTINGS）。"""
         show_window(icon, item)
@@ -434,12 +516,6 @@ def start_tray(window, server, logger):
                 ": (location.href = '/')")
         except Exception as exc:
             logger.debug("托盘打开设置失败：%s", exc)
-
-    def notify(icon, msg: str):
-        try:
-            icon.notify(msg, WINDOW_TITLE)
-        except Exception:
-            pass
 
     def toggle_setting(key: str, label: str):
         """生成布尔设置的勾选切换动作：写设置 → 刷新菜单 → 气泡反馈。"""
@@ -472,6 +548,10 @@ def start_tray(window, server, logger):
 
     menu = pystray.Menu(
         pystray.MenuItem("显示窗口", show_window, default=True),
+        pystray.Menu.SEPARATOR,
+        # 最近项目：动态子菜单（每次弹出时按「最近开发」重排），点一下即用
+        # 系统文件管理器打开该项目目录，不必先唤出主窗口
+        pystray.MenuItem("最近项目", pystray.Menu(recent_items)),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("开机自启动", toggle_autostart,
                          checked=lambda item: autostart.get_enabled(),
