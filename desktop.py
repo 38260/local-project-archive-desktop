@@ -482,29 +482,26 @@ def start_tray(window, server, logger):
         except Exception:
             pass
 
-    def open_project_dir(icon, item, path: str, name: str):
-        """直接在系统文件管理器中打开项目目录（只打开，不修改任何文件）。"""
-        if not os.path.isdir(path):
-            notify(icon, f"路径不存在：{name}")
-            return
+    def open_project_page(icon, item, project_id: int, name: str):
+        """唤出窗口并进入该项目的详情页（应用内打开，不打开文件管理器）。"""
+        show_window(icon, item)
         try:
-            os.startfile(path)  # noqa: S606 与资源管理器双击行为一致
-        except OSError as exc:
-            logger.warning("托盘打开项目目录失败（%s）：%s", path, exc)
-            notify(icon, f"打开失败：{exc}")
+            window.evaluate_js(f"location.href = '/project/{int(project_id)}'")
+        except Exception as exc:
+            logger.warning("托盘打开项目详情失败（%s）：%s", name, exc)
 
     def recent_items():
-        """动态生成「最近项目」子菜单（每次弹出时重新求值）。"""
+        """最近项目：平铺在托盘菜单里（不做子菜单），每次弹出时按「最近开发」重排。"""
         items = recent_projects(3)
         if not items:
-            return [pystray.MenuItem("（暂无项目）", None, enabled=False)]
-        out = []
+            return [pystray.MenuItem("最近项目：暂无", None, enabled=False)]
+        out = [pystray.MenuItem("最近项目", None, enabled=False)]   # 分组标题（不可点）
         for p in items:
             label = p["name"] if len(p["name"]) <= 28 else p["name"][:27] + "…"
             out.append(pystray.MenuItem(
-                label,
-                (lambda path, name: lambda icon, item:
-                    open_project_dir(icon, item, path, name))(p["path"], p["name"])))
+                "  " + label,
+                (lambda pid, name: lambda icon, item:
+                    open_project_page(icon, item, pid, name))(p["id"], p["name"])))
         return out
 
     def open_settings(icon, item):
@@ -546,29 +543,38 @@ def start_tray(window, server, logger):
         except Exception:
             os._exit(0)
 
-    menu = pystray.Menu(
-        pystray.MenuItem("显示窗口", show_window, default=True),
-        pystray.Menu.SEPARATOR,
-        # 最近项目：动态子菜单（每次弹出时按「最近开发」重排），点一下即用
-        # 系统文件管理器打开该项目目录，不必先唤出主窗口
-        pystray.MenuItem("最近项目", pystray.Menu(recent_items)),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem("开机自启动", toggle_autostart,
-                         checked=lambda item: autostart.get_enabled(),
-                         visible=lambda item: autostart.is_available()),
-        pystray.MenuItem("关闭时最小化到托盘",
-                         toggle_setting("tray.close_to_tray", "「关闭时最小化到托盘」"),
-                         checked=lambda item: bool(settings_store.get("tray.close_to_tray"))),
-        pystray.MenuItem("启动时静默（不弹窗口）",
-                         toggle_setting("app.start_minimized", "「启动时静默」"),
-                         checked=lambda item: bool(settings_store.get("app.start_minimized"))),
-        pystray.MenuItem("启动时自动检查项目路径",
-                         toggle_setting("scan.refresh_on_start", "「启动时自动检查项目路径」"),
-                         checked=lambda item: bool(settings_store.get("scan.refresh_on_start"))),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem("打开设置", open_settings),
-        pystray.MenuItem("退出", quit_app),
-    )
+    def build_menu():
+        """每次弹出菜单时重新生成（pystray 对「单个 callable」形式的 Menu 会实时求值）。
+
+        这样「最近项目」始终是最新的，不需要额外调用 update_menu()。
+        """
+        items = [
+            pystray.MenuItem("显示窗口", show_window, default=True),
+            pystray.Menu.SEPARATOR,
+        ]
+        # 最近项目：平铺列出（不做子菜单），点一下唤出窗口并进入该项目详情页
+        items.extend(recent_items())
+        items.extend([
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("开机自启动", toggle_autostart,
+                             checked=lambda item: autostart.get_enabled(),
+                             visible=lambda item: autostart.is_available()),
+            pystray.MenuItem("关闭时最小化到托盘",
+                             toggle_setting("tray.close_to_tray", "「关闭时最小化到托盘」"),
+                             checked=lambda item: bool(settings_store.get("tray.close_to_tray"))),
+            pystray.MenuItem("启动时静默（不弹窗口）",
+                             toggle_setting("app.start_minimized", "「启动时静默」"),
+                             checked=lambda item: bool(settings_store.get("app.start_minimized"))),
+            pystray.MenuItem("启动时自动检查项目路径",
+                             toggle_setting("scan.refresh_on_start", "「启动时自动检查项目路径」"),
+                             checked=lambda item: bool(settings_store.get("scan.refresh_on_start"))),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("打开设置", open_settings),
+            pystray.MenuItem("退出", quit_app),
+        ])
+        return items
+
+    menu = pystray.Menu(build_menu)
     icon = pystray.Icon("Tracelight", image, "归迹拾光", menu)
     threading.Thread(target=icon.run, daemon=True).start()
     logger.info("系统托盘已启用")
