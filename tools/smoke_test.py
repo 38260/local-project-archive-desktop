@@ -199,6 +199,31 @@ def main():
         check("目录树包含 src", "src" in names)
         check("目录树跳过 node_modules", "node_modules" not in names)
 
+        # ---- 项目内文件读取（目录树双击打开 md/txt 依赖此接口）----
+        st, f1 = req("GET", f"/api/projects/{p1['id']}/file?rel=README.md")
+        check("按项目内相对路径读取 md",
+              st == 200 and f1["kind"] == "md" and "<h1" in f1.get("html", ""))
+        docs = os.path.join(node, "docs")
+        os.makedirs(docs, exist_ok=True)
+        txt_path = os.path.join(docs, "notes.txt")
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write("纯文本内容" + chr(10) + "第二行" + chr(10))
+        st, f2 = req("GET", f"/api/projects/{p1['id']}/file?rel=docs/notes.txt")
+        check("按项目内相对路径读取 txt",
+              st == 200 and f2["kind"] == "text" and "纯文本内容" in f2.get("text", ""))
+        st, _ = req("GET", f"/api/projects/{p1['id']}/file?rel=../outside.md")
+        check("文件读取拒绝越界路径", st == 422)
+        st, _ = req("GET", f"/api/projects/{p1['id']}/file?rel=docs/nope.md")
+        check("读取不存在的文件返回 404", st == 404)
+        # 目录树节点 rel 的口径：以「项目文件夹名」为根（前端打开文件时需剥掉这一段），
+        # 后端若改语义这里会立刻失败，提醒同步前端 openProjectFile 的剥离逻辑
+        readme_node = next((c for c in tree["children"] if c["name"] == "README.md"), None)
+        check("目录树文件节点 rel 以项目名为根",
+              readme_node is not None
+              and readme_node["rel"] == os.path.basename(p1["path"]),
+              str(readme_node))
+        os.remove(txt_path)
+
         # ---- 更新 ----
         notes = "## 项目背景\n测试笔记"
         st, up = req("PUT", f"/api/projects/{p1['id']}",
