@@ -36,7 +36,7 @@
       },
       fileTitle() {
         return this.canOpen
-          ? `单击复制路径，双击打开：${this.fileRel}`
+          ? `单击复制路径，双击用默认应用打开：${this.fileRel}`
           : `单击复制路径：${this.fileRel}`;
       },
     },
@@ -54,7 +54,7 @@
           this._clickTimer = null;
         }
         if (!this.canOpen) {
-          toast("当前仅 .md / .txt 支持在应用内打开，已复制该文件路径", "error");
+          toast("当前仅 .md / .txt 支持用默认应用打开，已复制该文件路径", "error");
           copyText(this.fileRel);
           return;
         }
@@ -587,20 +587,28 @@
         }
       },
       closeDoc() { this.docView = null; },
-      // 目录树双击打开项目内文件：复用应用内文档查看器（.md 渲染 / .txt 纯文本）
-      // 注意路径口径：目录树节点的 rel 以「项目文件夹名」为根（后端 build_tree
-      // 把项目目录本身也当作根节点），而读取文件需要「项目内相对路径」，
-      // 因此这里剥掉首段项目名；单击复制仍沿用节点原 rel，保持既有行为不变。
-      openProjectFile(rel) {
+      // 目录树节点的 rel 以「项目文件夹名」为根（后端 build_tree 把项目目录本身也当作
+      // 根节点），而读取文件需要「项目内相对路径」；越界或无法定位时返回 null。
+      toProjectInnerRel(rel) {
         const clean = this.normalizeRel(rel);
-        if (!clean) { toast("路径越出了项目范围，无法打开", "error"); return; }
+        if (!clean) return null;
         const root = (this.tree && this.tree.name) || "";
         let inner = clean;
         if (root && (clean === root || clean.startsWith(root + "/"))) {
           inner = clean.slice(root.length).replace(/^\/+/, "");
         }
+        return inner || null;
+      },
+      // 目录树双击：用系统默认应用打开项目内文件（不在应用内预览，
+      // 与在资源管理器里双击该文件等效；.md 若无关联程序会由系统弹出「打开方式」）
+      async openProjectFile(rel) {
+        const inner = this.toProjectInnerRel(rel);
         if (!inner) { toast("无法定位该文件在项目内的相对路径", "error"); return; }
-        this.openDoc(inner);
+        try {
+          const r = await api(`/api/projects/${this.projectId}/open-file`,
+            { method: "POST", body: { rel: inner } });
+          toast(`已用默认应用打开：${r.name || inner}`, "ok");
+        } catch (e) { /* toast 已提示 */ }
       },
       // 外部 http(s) 链接 → 系统默认浏览器（后端校验仅 http/https）
       async openExternal(url) {

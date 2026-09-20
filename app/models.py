@@ -53,6 +53,12 @@ class OpenRequest(BaseModel):
     target: Literal["explorer", "vscode"]
 
 
+class OpenFileRequest(BaseModel):
+    """用系统默认应用打开项目内的文件（等价于在资源管理器里双击该文件）。"""
+    rel: str = Field(..., min_length=1, max_length=1000,
+                     description="项目内相对路径")
+
+
 class RenderRequest(BaseModel):
     """Markdown 渲染预览。"""
     text: str

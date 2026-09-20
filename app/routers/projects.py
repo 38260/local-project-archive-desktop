@@ -23,8 +23,8 @@ from app.config import (
 from app.db import get_db
 from app.models import (
     ChangelogCreate, ChangelogUpdate, LaunchNoteUpdate, LaunchRequest,
-    LauncherCreate, LauncherUpdate, NoteCreate, NoteUpdate, OpenRequest,
-    ProjectCreate, ProjectUpdate,
+    LauncherCreate, LauncherUpdate, NoteCreate, NoteUpdate, OpenFileRequest,
+    OpenRequest, ProjectCreate, ProjectUpdate,
 )
 from app.services import (gitinfo, launcher as launcher_service, parser, runlog,
                           settings_store)
@@ -647,6 +647,29 @@ def open_project(project_id: int, body: OpenRequest):
     except OSError as exc:
         raise HTTPException(502, f"无法启动「{editor_cmd}」：{exc}")
     return {"ok": True, "target": "editor"}
+
+
+@router.post("/{project_id}/open-file")
+def open_project_file(project_id: int, body: OpenFileRequest):
+    """用系统默认应用打开项目内的文件（与在资源管理器里双击该文件等效）。
+
+    安全边界：只接受项目内已存在的文件；路径越界（`..` / 绝对路径 / 盘符）一律拒绝；
+    只交给系统 Shell 打开，绝不读取或修改文件内容。
+    """
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+    if not os.path.isdir(row["path"]):
+        raise HTTPException(409, dir_not_exists_hint(row["path"]))
+    if not hasattr(os, "startfile"):
+        raise HTTPException(400, "当前环境不支持用系统默认应用打开（仅 Windows 可用）")
+    full = _resolve_project_rel(row["path"], body.rel)
+    if not os.path.isfile(full):
+        raise HTTPException(404, f"文件不存在：{body.rel}")
+    try:
+        os.startfile(full)  # noqa: S606 与资源管理器双击行为一致
+    except OSError as exc:
+        raise HTTPException(502, f"无法用默认应用打开：{exc}")
+    return {"ok": True, "rel": body.rel, "name": os.path.basename(full)}
 
 
 # ---------------------------------------------------------------------------
