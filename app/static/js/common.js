@@ -84,6 +84,8 @@
 
   // ---------- 统一确认弹窗（替代原生 confirm，风格与应用一致） ----------
   // 用法：const ok = await confirmDialog("确定删除？", { danger: true, okText: "删除" });
+  // 可选复选框：opts.checkbox = { label, checked }，确认时返回 { ok:true, checked }；
+  // 不传 checkbox 时返回值仍是布尔 true（保持既有调用方语义不变）。
   window.confirmDialog = function (message, opts) {
     opts = opts || {};
     return new Promise(resolve => {
@@ -91,6 +93,7 @@
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       // requireText：需在弹窗内输入指定文本才能确认（危险操作防误触，替代原生 prompt）
       const needText = opts.requireText != null;
+      const hasCheck = !!opts.checkbox;
       const mask = document.createElement("div");
       mask.className = "modal-mask";
       mask.innerHTML = `
@@ -101,6 +104,10 @@
             <input type="text" class="c-input" autocomplete="off" spellcheck="false"
                    aria-label="确认文本">
           </div>
+          <label class="confirm-check" style="display:none">
+            <input type="checkbox" class="c-check">
+            <span class="c-check-label"></span>
+          </label>
           <div class="actions">
             <button type="button" class="btn c-cancel">${esc(opts.cancelText || "取消")}</button>
             <button type="button" class="btn ${opts.danger ? "danger-solid" : "primary"} c-ok">${esc(opts.okText || "确定")}</button>
@@ -110,6 +117,13 @@
       const okBtn = mask.querySelector(".c-ok");
       const inputRow = mask.querySelector(".confirm-input-row");
       const input = mask.querySelector(".c-input");
+      const checkRow = mask.querySelector(".confirm-check");
+      const check = mask.querySelector(".c-check");
+      if (hasCheck) {
+        checkRow.style.display = "";
+        check.checked = !!opts.checkbox.checked;
+        mask.querySelector(".c-check-label").textContent = opts.checkbox.label || "";
+      }
       if (needText) {
         inputRow.style.display = "";
         input.placeholder = opts.requireText;
@@ -126,6 +140,11 @@
         mask.remove();
         resolve(v);
       };
+      // 确认结果：带复选框时把勾选状态一并返回（调用方据此决定执行方式）
+      const confirmValue = () => {
+        if (needText) return input.value;
+        return hasCheck ? { ok: true, checked: check.checked } : true;
+      };
       const onKey = e => {
         if (e.key === "Escape") { e.stopPropagation(); done(false); return; }
         // 输入模式下回车 = 尝试确认（值不匹配时按钮禁用，回车无效果）
@@ -133,7 +152,7 @@
       };
       document.addEventListener("keydown", onKey, true);
       mask.querySelector(".c-cancel").onclick = () => done(false);
-      okBtn.onclick = () => done(needText ? input.value : true);
+      okBtn.onclick = () => done(confirmValue());
       mask.addEventListener("mousedown", e => { if (e.target === mask) done(false); });
       document.body.appendChild(mask);
       (needText ? input : okBtn).focus();
@@ -439,6 +458,8 @@
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
     package: '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
     pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+    // 停止运行（运行历史里结束捕获进程）
+    stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
   };
   window.LpaIcon = {
     name: "LpaIcon",

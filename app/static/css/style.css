@@ -600,6 +600,14 @@ body.modal-open { overflow: hidden; }
   background: var(--panel-2); color: var(--text);
 }
 .confirm-input-row .c-input:focus { outline: none; border-color: var(--danger); box-shadow: 0 0 0 3px var(--lost-border); }
+/* 可选复选框（confirmDialog 的 checkbox 模式，如「捕获输出并记录」） */
+.confirm-check {
+  display: flex; align-items: flex-start; gap: 8px; margin: var(--s-2) 0 0;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--panel-2); cursor: pointer;
+}
+.confirm-check input { margin: 2px 0 0; flex: none; accent-color: var(--accent); }
+.confirm-check .c-check-label { font-size: 13px; line-height: 1.6; color: var(--text); }
 
 /* ---- 设置项：开关 ---- */
 .setting-row { display: flex; align-items: center; gap: var(--s-3); justify-content: space-between; }
@@ -1257,6 +1265,55 @@ body.modal-open { overflow: hidden; }
   border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; vertical-align: 1px;
 }
 .lb-ops { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+/* ---- 运行历史（捕获运行）：状态 / 退出码 / 耗时 / 输出 ----
+   状态一律「文字色 + 边框」表达，不用彩色底块：亮色主题下底块配色容易低于
+   WCAG AA 对比度（见 .ct-* 的历史问题），这里从设计上规避。 */
+.run-history { margin-top: var(--s-3); padding-top: var(--s-3); border-top: 1px solid var(--border); }
+.run-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); margin-bottom: var(--s-2); }
+.run-head-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.run-running-tip {
+  margin-left: 6px; font-size: 12px; font-weight: 600;
+  color: var(--accent); border: 1px solid var(--accent);
+  border-radius: 999px; padding: 1px 8px;
+}
+.run-head-ops { display: flex; gap: 6px; }
+.run-list { display: flex; flex-direction: column; gap: 6px; }
+.run-item { border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--panel-2); }
+.run-item.open { border-color: var(--accent); }
+.run-row { display: flex; align-items: stretch; gap: 8px; }
+.run-toggle {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; background: none; border: none; cursor: pointer;
+  font: inherit; text-align: left; color: var(--text); border-radius: var(--r-sm);
+}
+.run-toggle:hover { background: var(--panel); }
+.run-chev { color: var(--muted); flex: none; transition: transform .15s ease; }
+.run-item.open .run-chev { transform: rotate(90deg); }
+.run-status {
+  flex: none; font-size: 12px; font-weight: 600; padding: 1px 8px;
+  border: 1px solid var(--border); border-radius: 999px; color: var(--muted);
+}
+.run-status.run-running { color: var(--accent); border-color: var(--accent); }
+.run-status.run-ok { color: var(--ok); border-color: var(--ok); }
+.run-status.run-fail { color: var(--danger); border-color: var(--danger); }
+.run-status.run-stop { color: var(--muted); border-color: var(--border); }
+.run-name { font-size: 13px; flex: none; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-cmd {
+  font-family: var(--mono); font-size: 12px; color: var(--muted);
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.run-meta { flex: none; font-size: 12px; color: var(--muted); }
+.run-output { padding: 0 10px 10px; }
+.run-output-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2);
+  font-size: 12px; color: var(--muted); margin-bottom: 6px;
+}
+.run-log {
+  margin: 0; padding: 10px 12px; max-height: 260px; overflow: auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-sm);
+  font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--text);
+  white-space: pre-wrap; word-break: break-all;
+}
 /* P1-10：按提交类型筛选 */
 .commit-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .tfilter {

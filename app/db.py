@@ -73,6 +73,22 @@ CREATE TABLE IF NOT EXISTS launchers (
     updated_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_launchers_project ON launchers(project_id);
+
+-- 启动运行历史（捕获运行：记录退出码与输出，便于回溯「上次为什么没起来」）
+CREATE TABLE IF NOT EXISTS runs (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id       INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name             TEXT NOT NULL DEFAULT '',          -- 启动项名称快照（改名不影响历史）
+    command          TEXT NOT NULL,                     -- 执行的命令快照
+    cwd              TEXT NOT NULL DEFAULT '',          -- 实际工作目录（绝对路径快照）
+    status           TEXT NOT NULL DEFAULT 'running',   -- running/succeeded/failed/stopped/error
+    exit_code        INTEGER,                           -- 退出码（未能获取时为 NULL）
+    output           TEXT NOT NULL DEFAULT '',          -- 输出尾部（超出上限时截断并标记）
+    output_truncated INTEGER NOT NULL DEFAULT 0,        -- 1=输出曾超上限被截断
+    started_at       TEXT NOT NULL,
+    finished_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_runs_project ON runs(project_id, id DESC);
 """
 
 

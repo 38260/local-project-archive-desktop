@@ -84,7 +84,7 @@ def pick_port(host: str = HOST, preferred: int = DEFAULT_PORT, tries: int = 50) 
 
 # 应用标识（导出 JSON 时使用）
 APP_NAME = "tracelight"
-APP_VERSION = "1.3.2"
+APP_VERSION = "1.4.0"
 APP_AUTHOR = "BJTU-Yibo"
 
 # 项目状态枚举（归档=收尾留档可展示；废弃=不再维护，默认隐藏）
@@ -186,3 +186,10 @@ LAUNCH_MONOREPO_DIRS = ["frontend", "client", "web", "backend", "server", "api"]
 LAUNCH_MAINTENANCE_HINTS = ("build", "test", "clean", "setup", "install", "deploy",
                             "uninstall", "pack", "publish", "lint", "format",
                             "release", "ci")
+
+# 启动执行反馈（捕获运行 + 运行历史）：
+# 「新终端窗口运行」由 Windows 新控制台承载，其输出无法被父进程读取；
+# 捕获运行改为后台无窗口执行并把 stdout/stderr 收进管道，因此可记录退出码与输出。
+RUN_OUTPUT_MAX_LINES = 400          # 单次运行保留的输出行数（超出丢弃最早的行并标记截断）
+RUN_OUTPUT_LINE_MAX = 2000          # 单行最多保留的字符数（防单行超长撑爆内存/库）
+RUN_HISTORY_MAX_PER_PROJECT = 20    # 每个项目保留的运行记录条数（超出删除最旧）

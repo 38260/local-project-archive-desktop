@@ -26,7 +26,8 @@ from app.models import (
     LauncherCreate, LauncherUpdate, NoteCreate, NoteUpdate, OpenRequest,
     ProjectCreate, ProjectUpdate,
 )
-from app.services import gitinfo, launcher as launcher_service, parser, settings_store
+from app.services import (gitinfo, launcher as launcher_service, parser, runlog,
+                          settings_store)
 from app.services.paths import (
     PathError, basename, dir_not_exists_hint, is_wsl_path, normalize_input_path,
 )
@@ -800,9 +801,11 @@ def delete_launcher(project_id: int, launcher_id: int):
 
 @router.post("/{project_id}/launch")
 def launch_project(project_id: int, body: LaunchRequest):
-    """执行启动。两种模式：
+    """执行启动。三种执行方式：
     - open：直接运行（os.startfile，双击等效）——命令须指向已存在的文件；
-    - console：新开终端窗口运行命令（CREATE_NEW_CONSOLE），日志可见、Ctrl+C 可停。
+    - console：新开终端窗口运行命令（CREATE_NEW_CONSOLE），日志可见、Ctrl+C 可停；
+    - capture（body.capture=true）：后台无窗口运行并采集 stdout/stderr 与退出码，
+      记入运行历史（新终端窗口的输出属于那个控制台，父进程读不到，故无法记录）。
 
     安全约束：绝不自动执行（前端确认后才调用）；命令无换行；
     cwd 不得越出项目目录；WSL/UNC 路径项目不支持。
@@ -822,10 +825,25 @@ def launch_project(project_id: int, body: LaunchRequest):
         if l is None:
             raise HTTPException(404, "启动项不存在")
         command, mode, cwd = l["command"], l["mode"], l["cwd"]
+        label = l["name"]
     else:
         command, mode, cwd = body.command or "", body.mode or "console", body.cwd or ""
+        label = (body.name or "").strip() or command
     command = _clean_launch_command(command)
     workdir = _resolve_launch_cwd(path, cwd)
+
+    # 捕获运行：后台执行 + 管道采集（与下面两个分支互斥）
+    if body.capture:
+        if mode == "open":
+            raise HTTPException(
+                400, "「直接运行」不支持捕获输出：它由目标程序自己承载日志。"
+                     "如需记录输出，请改用命令行方式（新终端窗口或捕获运行）。")
+        result = runlog.start_run(project_id, label[:60], command, workdir)
+        if result.get("error"):
+            raise HTTPException(502, result["error"])
+        return {"ok": True, "mode": "capture", "run_id": result["run_id"],
+                "pid": result.get("pid"),
+                "note": "已在后台运行并开始记录输出，可在「运行历史」查看"}
 
     try:
         if mode == "open":
@@ -861,6 +879,57 @@ def launch_project(project_id: int, body: LaunchRequest):
         raise
     except OSError as exc:
         raise HTTPException(502, f"启动失败：{exc}")
+
+
+# ---------------------------------------------------------------------------
+# 运行历史（捕获运行：状态 / 输出 / 退出码 / 停止）
+# ---------------------------------------------------------------------------
+
+@router.get("/{project_id}/runs")
+def list_runs(project_id: int, limit: int = Query(10, ge=1, le=50)):
+    """运行历史列表（不含输出正文，避免列表接口过重）。"""
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+    return {"runs": runlog.list_runs(project_id, limit)}
+
+
+@router.get("/{project_id}/runs/{run_id}")
+def get_run(project_id: int, run_id: int, offset: int = Query(0, ge=0)):
+    """单次运行的详情与输出；offset 为已取到的行数，只返回新增部分（增量轮询）。"""
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+    data = runlog.get_run(project_id, run_id, offset)
+    if data is None:
+        raise HTTPException(404, "运行记录不存在")
+    return data
+
+
+@router.post("/{project_id}/runs/{run_id}/stop")
+def stop_run(project_id: int, run_id: int):
+    """停止运行中的捕获进程（含子进程树）。"""
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+    if not runlog.stop_run(project_id, run_id):
+        raise HTTPException(409, "该运行已结束或不在运行中")
+    return {"ok": True, "note": "已发送停止指令，稍后刷新查看退出状态"}
+
+
+@router.delete("/{project_id}/runs/{run_id}")
+def delete_run(project_id: int, run_id: int):
+    """删除一条运行记录（运行中的需先停止）。"""
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+    if not runlog.delete_run(project_id, run_id):
+        raise HTTPException(409, "运行中的记录不能删除，请先停止")
+    return {"ok": True, "deleted": run_id}
+
+
+@router.delete("/{project_id}/runs")
+def clear_runs(project_id: int):
+    """清空该项目的运行历史（运行中的记录保留，避免丢失停止入口）。"""
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+    return {"ok": True, "removed": runlog.clear_runs(project_id)}
 
 
 # ---------------------------------------------------------------------------

@@ -113,11 +113,17 @@ class LauncherUpdate(LauncherCreate):
 
 
 class LaunchRequest(BaseModel):
-    """执行启动：要么指定 launcher_id，要么给完整 command+mode（自动检测直跑用）。"""
+    """执行启动：要么指定 launcher_id，要么给完整 command+mode（自动检测直跑用）。
+
+    capture=True 时走「捕获运行」：后台无窗口执行并把 stdout/stderr、退出码
+    记入运行历史（新终端窗口模式的输出父进程读不到，无法记录）。
+    """
     launcher_id: Optional[int] = None
     command: Optional[str] = Field(None, max_length=500)
+    name: Optional[str] = Field(None, max_length=60)
     mode: Optional[Literal["console", "open"]] = None
     cwd: Optional[str] = Field("", max_length=260)
+    capture: bool = False
 
 
 # 仅允许 http/https：README 等 Markdown 里的外部链接用系统默认浏览器打开，

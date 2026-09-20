@@ -118,6 +118,15 @@
         launchFormSaving: false,
         launchBusyKey: null,    // 启动中防连点
         launchForm: { id: null, name: "", command: "", cwd: "", mode: "console" },
+        // 捕获运行与运行历史：勾选后后台执行并采集输出/退出码（记忆上次选择）
+        runCapture: localStorage.getItem("lpa-run-capture") === "1",
+        runs: [],               // 运行历史列表（不含输出正文）
+        runsLoading: false,
+        runOpenId: null,        // 当前展开输出查看的运行 id
+        runDetail: null,        // 展开运行的详情（状态/退出码/耗时）
+        runLines: [],           // 已拉取到的输出行
+        runOffset: 0,           // 已拉取行数（增量轮询用）
+        runStopping: false,
         // 截图
         screenshots: [],
         previewShot: null,
@@ -353,6 +362,10 @@
           || (this.visibleSuggestions && this.visibleSuggestions[0])
           || null;
       },
+      // 有运行中的记录时，面板标题显示数量提示
+      runningCount() {
+        return (this.runs || []).filter(r => r.running).length;
+      },
       // 左侧目录：隐藏空内容面板的锚点
       sections() {
         const list = [
@@ -559,6 +572,7 @@
           this.loadChangelogs();
           this.loadShots();
           this.loadLaunch();
+          this.loadRuns();
           // 先拿设置（决定提交记录加载数），再加载提交与热力图
           await this.loadPrefs();
           this.loadCommits();
@@ -603,23 +617,152 @@
         } finally { this.launchLoading = false; }
       },
       // 执行一个入口：entry 带 id 走已保存启动项，否则按完整命令直跑（自动检测）
+      // 确认框内可勾选「捕获输出并记录」：勾选后走后台捕获运行（可看退出码与日志），
+      // 不勾选仍是原有的「新终端窗口运行」——输出属于那个控制台，父进程读不到。
       async runEntry(entry) {
         if (this.launchBusyKey) return;              // 正在启动中，忽略连点
         const modeText = entry.mode === "open" ? "直接运行" : "在新终端窗口运行";
         const cmdText = entry.command + (entry.cwd ? `\n子目录：${entry.cwd}` : "");
-        if (this.launchConfirm && !await confirmDialog(
-          `将${modeText}：\n${cmdText}\n\n命令来自项目内文件，运行前请确认内容。`,
-          { title: `启动 · ${entry.name}`, okText: "启动" })) return;
+        // 「直接运行」由目标程序自己承载日志，无法采集输出，故不提供该选项
+        const canCapture = entry.mode !== "open";
+        let capture = canCapture && this.runCapture;
+        if (this.launchConfirm) {
+          const r = await confirmDialog(
+            `将${modeText}：\n${cmdText}\n\n命令来自项目内文件，运行前请确认内容。`,
+            { title: `启动 · ${entry.name}`, okText: "启动",
+              checkbox: canCapture
+                ? { label: "捕获输出并记录（后台运行，可查看退出码与日志）",
+                    checked: this.runCapture }
+                : undefined });
+          if (!r) return;
+          capture = !!(r && r.checked);
+        }
+        if (canCapture) {                            // 记住选择，下次默认沿用
+          this.runCapture = capture;
+          localStorage.setItem("lpa-run-capture", capture ? "1" : "0");
+        }
         this.launchBusyKey = entry.id ? `l${entry.id}` : `s${entry.command}`;
         try {
           const body = entry.id
-            ? { launcher_id: entry.id }
-            : { command: entry.command, mode: entry.mode, cwd: entry.cwd || "" };
+            ? { launcher_id: entry.id, capture }
+            : { command: entry.command, name: entry.name,
+                mode: entry.mode, cwd: entry.cwd || "", capture };
           const r = await api(`/api/projects/${this.projectId}/launch`,
             { method: "POST", body });
           toast(r.note || "已启动", "ok");
+          if (r.run_id) {                            // 捕获运行：刷新历史并直接展开输出
+            await this.loadRuns();
+            await this.toggleRun({ id: r.run_id });
+          }
         } catch (e) { /* toast 已提示 */ }
         finally { this.launchBusyKey = null; }
+      },
+      // ---- 运行历史（捕获运行） ----
+      async loadRuns() {
+        if (!this.p || this.p.is_lost) { this.runs = []; return; }
+        this.runsLoading = true;
+        try {
+          const r = await api(`/api/projects/${this.projectId}/runs?limit=10`,
+            { silent: true });
+          this.runs = r.runs || [];
+        } catch (e) { this.runs = []; }              // 历史读取失败不影响启动面板
+        finally { this.runsLoading = false; }
+      },
+      runStatusMeta(run) {
+        const map = {
+          running: { text: "运行中", cls: "run-running" },
+          succeeded: { text: "成功", cls: "run-ok" },
+          failed: { text: "失败", cls: "run-fail" },
+          stopped: { text: "已停止", cls: "run-stop" },
+          error: { text: "启动失败", cls: "run-fail" },
+        };
+        return map[(run && run.status) || ""] || { text: (run && run.status) || "-", cls: "" };
+      },
+      runExitText(run) {
+        if (!run) return "";
+        if (run.running) return "退出码：运行中";
+        return run.exit_code == null ? "退出码：未知" : `退出码：${run.exit_code}`;
+      },
+      async toggleRun(run) {
+        if (this.runOpenId === run.id) { this.closeRun(); return; }
+        this.runOpenId = run.id;
+        this.runDetail = null;
+        this.runLines = [];
+        this.runOffset = 0;
+        await this.pollRun(true);
+      },
+      closeRun() {
+        this.stopRunPolling();
+        this.runOpenId = null;
+        this.runDetail = null;
+        this.runLines = [];
+        this.runOffset = 0;
+      },
+      stopRunPolling() {
+        if (this._runTimer) { clearTimeout(this._runTimer); this._runTimer = null; }
+      },
+      // 拉取一次运行详情（增量取输出）；仍在运行时继续轮询直到结束
+      async pollRun(initial) {
+        if (!this.runOpenId) return;
+        const rid = this.runOpenId;
+        try {
+          const r = await api(
+            `/api/projects/${this.projectId}/runs/${rid}?offset=${this.runOffset}`,
+            { silent: true });
+          if (this.runOpenId !== rid) return;        // 已切换目标，丢弃本次结果
+          this.runDetail = r.run;
+          if (r.lines && r.lines.length) this.runLines = this.runLines.concat(r.lines);
+          this.runOffset = r.offset;
+          if (!r.run.running) {
+            if (!initial) this.loadRuns();           // 结束：刷新列表让摘要与展开内容一致
+            this.stopRunPolling();
+          } else {
+            this.scheduleRunPoll();
+          }
+        } catch (e) {
+          this.stopRunPolling();                     // 记录可能已被清理，停止轮询
+        }
+      },
+      scheduleRunPoll() {
+        this.stopRunPolling();
+        this._runTimer = setTimeout(() => this.pollRun(false), 1500);
+      },
+      async stopRun(run) {
+        if (!await confirmDialog(
+          `停止「${run.name || run.command}」？\n\n将结束该进程及其子进程（包括它占用的端口）。`,
+          { title: "停止运行", okText: "停止", danger: true })) return;
+        this.runStopping = true;
+        try {
+          const r = await api(`/api/projects/${this.projectId}/runs/${run.id}/stop`,
+            { method: "POST" });
+          toast(r.note || "已发送停止指令", "ok");
+          // 进程退出需要一点时间，稍后再刷新状态
+          setTimeout(() => {
+            this.loadRuns();
+            if (this.runOpenId === run.id) this.pollRun(false);
+          }, 900);
+        } catch (e) { /* toast 已提示 */ }
+        finally { this.runStopping = false; }
+      },
+      async deleteRun(run) {
+        try {
+          await api(`/api/projects/${this.projectId}/runs/${run.id}`, { method: "DELETE" });
+          if (this.runOpenId === run.id) this.closeRun();
+          this.loadRuns();
+          toast("运行记录已删除", "ok");
+        } catch (e) { /* toast 已提示 */ }
+      },
+      async clearRuns() {
+        if (!this.runs.length) return;
+        if (!await confirmDialog(
+          `清空本项目的 ${this.runs.length} 条运行记录？\n\n只删除记录，不影响项目文件与运行中的进程。`,
+          { title: "清空运行历史", okText: "清空", danger: true })) return;
+        try {
+          const r = await api(`/api/projects/${this.projectId}/runs`, { method: "DELETE" });
+          this.closeRun();
+          this.loadRuns();
+          toast(`已清空 ${r.removed} 条运行记录`, "ok");
+        } catch (e) { /* toast 已提示 */ }
       },
       quickLaunch() {
         if (this.primaryLaunchEntry) this.runEntry(this.primaryLaunchEntry);
@@ -1163,6 +1306,7 @@
       window.removeEventListener("scroll", this.onScroll);
       document.removeEventListener("keydown", this._onKey);
       document.removeEventListener("click", this._onMdClick, true);
+      this.stopRunPolling();   // 运行输出轮询定时器：离开页面必须清掉
     },
   });
 

@@ -66,6 +66,13 @@ async def lifespan(app: FastAPI):
         import threading
         threading.Thread(target=projects.refresh_lost_marks, daemon=True).start()
     yield
+    # 退出收尾：终止仍在运行的「捕获运行」进程。这些进程的输出管道随本进程
+    # 关闭而失效，留下它们会变成看不见的孤儿进程（占端口且无法再停止）。
+    try:
+        from app.services import runlog
+        runlog.shutdown()
+    except Exception as exc:
+        logging.getLogger(__name__).warning("收尾捕获进程失败：%s", exc)
 
 
 app = FastAPI(title="归迹拾光", version=APP_VERSION, docs_url="/api/docs",

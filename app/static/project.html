@@ -299,6 +299,60 @@
            v-if="launch && launch.supported && !launch.launchers.length && !visibleSuggestions.length">
         未检测到启动入口（.bat/.cmd/.exe/.ps1 或可推断的构建配置）。可以把常用的启动命令添加为自定义启动项。
       </div>
+
+      <!-- 运行历史：捕获运行的状态 / 退出码 / 耗时 / 输出 -->
+      <div class="run-history" v-if="runs.length">
+        <div class="run-head">
+          <span class="run-head-title">运行历史
+            <span class="run-running-tip" v-if="runningCount">{{ runningCount }} 个运行中</span>
+          </span>
+          <span class="run-head-ops">
+            <button class="btn sm" @click="loadRuns" :disabled="runsLoading" title="刷新运行历史">
+              <lpa-icon name="refresh" :size="13" :class="{spin: runsLoading}"></lpa-icon>刷新
+            </button>
+            <button class="btn sm" @click="clearRuns">清空</button>
+          </span>
+        </div>
+
+        <div class="run-list">
+          <div class="run-item" v-for="r in runs" :key="r.id"
+               :class="{ open: runOpenId === r.id }">
+            <div class="run-row">
+              <button type="button" class="run-toggle" @click="toggleRun(r)"
+                      :aria-expanded="runOpenId === r.id ? 'true' : 'false'">
+                <lpa-icon name="chevron-right" :size="13" class="run-chev"></lpa-icon>
+                <span class="run-status" :class="runStatusMeta(r).cls">{{ runStatusMeta(r).text }}</span>
+                <b class="run-name">{{ r.name || r.command }}</b>
+                <code class="run-cmd">{{ r.command }}</code>
+                <span class="run-meta">{{ relTime(r.started_at) }}<template
+                  v-if="r.elapsed != null"> · {{ r.elapsed }}s</template> · {{ runExitText(r) }}</span>
+              </button>
+              <span class="lb-ops">
+                <button class="icon-btn" v-if="r.running" title="停止运行" aria-label="停止运行"
+                        @click="stopRun(r)" :disabled="runStopping">
+                  <lpa-icon name="stop" :size="13"></lpa-icon>
+                </button>
+                <button class="icon-btn" v-else title="删除记录" aria-label="删除运行记录"
+                        @click="deleteRun(r)">
+                  <lpa-icon name="trash" :size="13"></lpa-icon>
+                </button>
+              </span>
+            </div>
+            <div class="run-output" v-if="runOpenId === r.id">
+              <div class="run-output-head">
+                <span>{{ runDetail ? runStatusMeta(runDetail).text : "加载中…" }}</span>
+                <span class="section-note" v-if="runDetail && runDetail.output_truncated">
+                  输出较长，仅保留最近 {{ runLines.length }} 行
+                </span>
+              </div>
+              <pre class="run-log" v-if="runLines.length">{{ runLines.join("\n") }}</pre>
+              <div class="section-note" v-else>
+                {{ runDetail && runDetail.running ? "暂无输出…" : "这次运行没有任何输出。" }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- 构建配置与依赖 -->
