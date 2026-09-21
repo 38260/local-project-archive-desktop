@@ -156,6 +156,12 @@ def main():
     try:
         st, data = req("GET", "/api/health")
         check("健康检查 /api/health", st == 200 and data.get("ok") is True)
+        # 桌面壳唤起接口：浏览器模式没有原生窗口，必须明确回「未启用」而不是报错，
+        # 否则二次启动（桌面/任务栏图标）的唤醒逻辑会走到错误分支
+        st, sw = req("POST", "/api/show-window")
+        check("唤起窗口接口在浏览器模式返回未启用",
+              st == 200 and sw.get("ok") is False
+              and sw.get("reason") == "browser-mode")
     except Exception as e:
         print(f"无法连接服务 {BASE}：{e}\n请先启动 run.py 再运行本测试。")
         return 2

@@ -20,6 +20,9 @@
 #define MyAppExeName     "Tracelight.exe"
 ; 固定 GUID：升级安装靠它识别「同一个应用」，不要改
 #define MyAppId          "{{B7E2F1A4-9C3D-4E6F-8A2B-5D4C3B2A1900}"
+; 任务栏归组标识：必须与 desktop.py 里 SetCurrentProcessExplicitAppUserModelID 的
+; 取值逐字一致，否则固定到任务栏的图标会被 Windows 当成另一个应用
+#define MyAppAUMID       "GuijiShiguang.Tracelight"
 
 [Setup]
 AppId={#MyAppId}
@@ -57,8 +60,11 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Source: "..\dist\Tracelight\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\{#MyAppDisplayName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppDisplayName}";  Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+; AppUserModelID 不可省：少了它，固定到任务栏的图标与运行中的窗口会被 Windows
+; 视为两个应用（出现两个任务栏按钮，点图标只会再拉起一个进程），
+; 加上后点图标才是「唤出已有窗口」，与托盘图标行为一致。
+Name: "{autoprograms}\{#MyAppDisplayName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "{#MyAppAUMID}"
+Name: "{autodesktop}\{#MyAppDisplayName}";  Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; AppUserModelID: "{#MyAppAUMID}"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch now"; Flags: nowait postinstall skipifsilent

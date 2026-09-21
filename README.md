@@ -72,6 +72,7 @@ local-project-archive-desktop/
 │   │   ├── render.py       # Markdown 渲染 + HTML 基础净化
 │   │   ├── settings_store.py  # settings.json 读写（默认值 + 容错 + 原子写入）
 │   │   ├── runlog.py       # 捕获运行：进程管理 / 输出采集 / 退出码与运行历史落库
+│   │   ├── window_focus.py # 主窗口唤起：从隐藏/最小化状态还原并置前（托盘 + 唤起接口共用）
 │   │   └── autostart.py    # 开机自启动（注册表，仅安装版）
 │   └── static/             # 前端（Vue3 本地文件，无构建）
 │       ├── dashboard.html  #   首页：统计 / 开发热力图 / 卡片 / 设置
@@ -118,12 +119,13 @@ local-project-archive-desktop/
 
 ### 桌面体验（desktop.py / 安装版）
 
-- 原生窗口 + **系统托盘**：关闭可收进托盘，双击托盘图标唤出；**二次启动直接弹回已有窗口**，不会「提示在运行却找不到」。
+- 原生窗口 + **系统托盘**：关闭可收进托盘，单击托盘图标（或菜单「显示窗口」）唤出；**二次启动直接弹回已有窗口**，不会「提示在运行却找不到」。
+- **唤起一定「弹出」**：无论窗口是被收进托盘（隐藏）还是被最小化，托盘图标 / 桌面与任务栏快捷方式都能把它**还原并置前**。pywebview 的 `window.show()` 只把窗口置为可见、不改最小化状态，故唤起统一走 `app/services/window_focus.py`（补 `ShowWindow(SW_RESTORE)` + 置前，见该模块说明）。
 - **托盘直达项目**：托盘菜单平铺列出最近开发的 3 个项目（按 git 最近提交时间排序，无 git 则回退磁盘修改时间），点一下即唤出窗口并**进入该项目的详情页**。
 - **静默启动**：配合开机自启动，登录后只在托盘待命。
 - **升级自愈**：安装版升级后，二次启动/开机自启动自动指向新版 exe（版本握手，不会唤起旧版窗口或旧快捷方式）。
 - **窗口记忆**：记住大小与位置，下次启动还原。
-- **任务栏/托盘**：应用独立图标与身份（开发模式同样生效）。
+- **任务栏/托盘**：应用独立图标与身份（开发模式同样生效）。安装器给快捷方式写入与进程一致的 `AppUserModelID`（`GuijiShiguang.Tracelight`，见 `installer/tracelight.iss` 的 `MyAppAUMID`），使「固定到任务栏的图标」与运行中的窗口归为同一项——点图标即唤出已有窗口，而不是再拉起一个进程。
 - **导出下载**：走系统保存对话框；「浏览…」走原生文件夹选择对话框。
 
 ### 快速启动（详情页「启动」面板）
@@ -174,12 +176,13 @@ local-project-archive-desktop/
 | GET/PUT | /api/settings | 设置读写；`/editors` 编辑器探测 |
 | GET/POST/DELETE | /api/settings/backups | 备份列表 / 立即备份；`/restore` 恢复 / 删除 |
 | GET | /api/health | 健康检查（版本/端口/数据路径） |
+| POST | /api/show-window | 唤出桌面主窗口（仅桌面模式；二次启动/图标点击用，浏览器模式返回 `ok=false`） |
 
 ## 验证
 
 ```bash
 # 需先启动服务；脚本创建临时示例项目做全流程冒烟测试，结束后自动清理
-.venv/Scripts/python.exe tools/smoke_test.py            # 105 项
+.venv/Scripts/python.exe tools/smoke_test.py            # 106 项
 ```
 
 另有 74 项全功能回归（覆盖设置/备份恢复/热力图/导入导出闭环等），随开发迭代维护。

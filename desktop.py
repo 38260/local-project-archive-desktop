@@ -34,6 +34,9 @@ if sys.stderr is None:
 # 窗口/托盘统一显示名（与任务栏、告警弹窗保持一致）
 WINDOW_TITLE = "归迹拾光"
 
+# 任务栏归组标识：与 installer/tracelight.iss 的 MyAppAUMID 必须逐字一致
+APP_AUMID = "GuijiShiguang.Tracelight"
+
 
 # --------------------------------------------------------------------------
 # 日志与异常兜底
@@ -123,12 +126,16 @@ def activate_existing(logger=None) -> str | None:
     from app.config import APP_NAME, APP_VERSION, DATA_DIR
 
     ports = list(range(8300, 8311))
-    # 实例戳优先：运行中的实例启动时写过自己的端口，比盲扫快且准
+    # 实例戳优先：运行中的实例启动时写过自己的端口，比盲扫快且准。
+    # 端口不做范围过滤——pick_port 会一路试到 8349，全被占用时还会交给系统分配，
+    # 若要求端口必须落在扫描区间内，这种情况下就会丢掉实例戳、退化成盲扫，
+    # 找不到正在运行的实例，用户点了图标只会看到「已在运行」的提示。
     try:
         stamp = _json.loads((DATA_DIR / "instance.json").read_text(encoding="utf-8"))
         p = int(stamp.get("port") or 0)
-        if 0 < p in ports:
-            ports.remove(p)
+        if 0 < p <= 65535:
+            if p in ports:
+                ports.remove(p)
             ports.insert(0, p)
     except (OSError, ValueError):
         pass
@@ -462,6 +469,7 @@ def start_tray(window, server, logger):
 
     from app.config import BASE_DIR
     from app.services import autostart, settings_store
+    from app.services.window_focus import bring_to_front
 
     icon_file = BASE_DIR / "assets" / "app.ico"
     try:
@@ -471,10 +479,11 @@ def start_tray(window, server, logger):
         image = Image.new("RGB", (64, 64), (9, 105, 218))
 
     def show_window(icon, item):
-        try:
-            window.show()
-        except Exception as exc:
-            logger.warning("托盘唤起窗口失败：%s", exc)
+        """唤起主窗口（托盘左键单击的默认动作，也是菜单项「显示窗口」）。
+
+        不能只调 window.show()：它无法把最小化的窗口还原出来，见 window_focus。
+        """
+        bring_to_front(window, WINDOW_TITLE, logger)
 
     def notify(icon, msg: str):
         try:
@@ -615,13 +624,18 @@ def open_browser_window(url: str, server) -> None:
 
 
 def set_app_identity() -> None:
-    """注册独立 AppUserModelID：任务栏把本进程当独立应用，而不是挂在 python.exe 下。"""
+    """注册独立 AppUserModelID：任务栏把本进程当独立应用，而不是挂在 python.exe 下。
+
+    该取值必须与 installer/tracelight.iss 的 MyAppAUMID 逐字一致：只有进程与
+    快捷方式用同一个 AUMID，Windows 才会把「固定到任务栏的图标」和运行中的窗口
+    归为同一项——点图标唤出已有窗口，而不是另起一个进程。
+    """
     if os.name != "nt":
         return
     try:
         import ctypes
         # 裸字符串会与全局 .ico 路径无关联，但必须与打包快捷方式的 AUMID 一致才完全生效
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("GuijiShiguang.Tracelight")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_AUMID)
     except Exception:
         pass
 

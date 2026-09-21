@@ -119,15 +119,19 @@ def health(request: Request):
 def show_window():
     """唤出桌面主窗口（仅桌面模式有效）。
 
-    二次启动的实例通过此接口把收进托盘/静默隐藏的窗口唤出来，
-    避免用户「程序在运行却找不到窗口」。浏览器模式无窗口，返回 ok=False。
+    二次启动的实例（桌面快捷方式 / 任务栏图标 / 开始菜单）通过此接口把收进
+    托盘或最小化的窗口唤出来，避免用户「程序在运行却找不到窗口」。
+    浏览器模式无窗口，返回 ok=False。
+
+    唤起逻辑统一走 window_focus.bring_to_front：只调 window.show() 无法把
+    最小化的窗口还原出来，见该模块说明。
     """
     w = getattr(app.state, "main_window", None)
     if w is None:
         return {"ok": False, "reason": "browser-mode"}
     try:
-        w.show()
-        return {"ok": True}
+        from app.services.window_focus import bring_to_front
+        return {"ok": bool(bring_to_front(w))}
     except Exception as exc:
         raise HTTPException(500, f"唤出窗口失败：{exc}")
 
