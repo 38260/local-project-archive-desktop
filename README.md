@@ -95,6 +95,7 @@ local-project-archive-desktop/
 
 - **手动录入**：粘贴路径，桌面模式下可点「浏览…」打开系统文件夹选择对话框；支持 `D:\code\x`、带引号路径、`~`、`\\wsl.localhost\Ubuntu\…`、`wsl:Ubuntu:/home/user/x`。
 - **批量扫描**：指定根目录按 `.git`、`package.json`、`pyproject.toml`、`CMakeLists.txt`、`go.mod`、`Cargo.toml` 等标记发现候选项目，已入库的标记「已导入」，重复导入自动跳过。
+- **重复检测**：手动录入与批量导入时，除路径外再按「同名 / 同 Git 远端」比对已有档案（远端归一化比较，`git@host:x.git` 与 `https://host/x` 视为同一）；疑似重复会提示并默认阻止/跳过，避免同一项目换路径后重复入库，确认后仍可强制录入。
 - **深度解析**：构建配置（requirements 变体 / setup.cfg / Pipfile / environment.yml / setup.py / Docker 等）+ 依赖清单识别框架（FastAPI/Flask/Django/React/Vue/Next/Electron/Tailwind…）+ 按文件构成推断语言 + README 简介提取；git 读取分支、远端、首次提交时间、贡献者 Top5。解析器升级后可一键「全部重新解析」（保留已有标签，补充新识别）。
 - **丢失自愈**：文件夹被删除/移动自动标记【丢失项目】，更新新路径即恢复。
 

@@ -21,6 +21,8 @@ class ProjectCreate(BaseModel):
     category: str = ""
     status: str = "进行中"
     tags: List[str] = []
+    # 同名/同 git remote 的疑似重复默认阻止录入；前端二次确认后带 force 重发
+    force: bool = False
 
 
 class ProjectUpdate(BaseModel):

@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException
 from app.config import STATUS_VALUES
 from app.db import get_db
 from app.models import ScanImportRequest, ScanRequest
-from app.services import parser
+from app.services import duplicates, parser
 from app.services.paths import PathError, basename, dir_not_exists_hint, normalize_input_path
 from app.services.scanner import scan_root
 
@@ -27,7 +27,8 @@ _SCAN_JOB = {"running": False, "finished": True, "root": "", "max_depth": 0,
              "scanned_dirs": 0, "truncated": False, "candidates": [], "error": None}
 _IMPORT_LOCK = threading.Lock()
 _IMPORT_JOB = {"running": False, "finished": True, "done": 0, "total": 0,
-               "imported": 0, "skipped": 0, "failed": [], "created_ids": []}
+               "imported": 0, "skipped": 0, "failed": [], "created_ids": [],
+               "duplicates": []}
 
 
 def _scan_worker(root: str, max_depth: int) -> None:
@@ -37,8 +38,19 @@ def _scan_worker(root: str, max_depth: int) -> None:
         with get_db() as conn:
             existing = {r["path"].lower() for r in
                         conn.execute("SELECT path FROM projects").fetchall()}
+            index = duplicates.build_existing_index(conn)
         for c in result["candidates"]:
             c["imported"] = c["path"].lower() in existing
+            # 路径未命中时再查同名 / 同 git remote：同一项目换路径后的第二道防线
+            c["dup"] = None
+            if not c["imported"]:
+                remote = duplicates.read_git_remote(c["path"])
+                matches = duplicates.match_existing(index, name=c["name"],
+                                                    remote=remote)
+                if matches:
+                    best = matches[0]
+                    c["dup"] = {"id": best["id"], "name": best["name"],
+                                "path": best["path"], "reasons": best["reasons"]}
         _SCAN_JOB["candidates"] = result["candidates"]
         _SCAN_JOB["truncated"] = result["truncated"]
     except Exception as exc:  # 后台线程兜底：异常进 error 字段而不是默默消失
@@ -113,6 +125,10 @@ def _import_worker(paths: list[str], category: str, status: str, tags: list[str]
                 return p, None, f"解析失败：{exc}"
 
         now = datetime.now().astimezone().isoformat()
+        # 同名/同 remote 查重的比对索引：解析前建一次，每入库一个就地补充，
+        # 同批导入内部的互相重复也能拦住
+        with get_db() as conn:
+            index = duplicates.build_existing_index(conn)
         with ThreadPoolExecutor(max_workers=4) as pool:
             for path, parsed, error in pool.map(parse_one, to_parse):
                 if error:
@@ -126,6 +142,21 @@ def _import_worker(paths: list[str], category: str, status: str, tags: list[str]
                         if dup:
                             job["skipped"] += 1
                         else:
+                            remote = (parsed["auto_meta"].get("git") or {}).get("remote")
+                            dups = [d for d in duplicates.match_existing(
+                                index, name=basename(path), remote=remote)
+                                if "path" not in d["reasons"]]
+                            if dups:
+                                # 与已有档案同名/同远端：默认跳过，避免换路径重复入库
+                                job["skipped"] += 1
+                                job["duplicates"].append({
+                                    "path": path,
+                                    "of": {"id": dups[0]["id"],
+                                           "name": dups[0]["name"]},
+                                    "reasons": dups[0]["reasons"],
+                                })
+                                job["done"] += 1
+                                continue
                             final_tags = [t.strip() for t in tags if t.strip()] \
                                 or parsed["auto_meta"]["tech_tags"]
                             cur = conn.execute(
@@ -138,6 +169,12 @@ def _import_worker(paths: list[str], category: str, status: str, tags: list[str]
                                  parsed["fs_created"], parsed["fs_modified"], now, now))
                             job["created_ids"].append(cur.lastrowid)
                             job["imported"] += 1
+                            index.append({
+                                "id": cur.lastrowid, "name": basename(path),
+                                "path": path, "name_l": basename(path).lower(),
+                                "base_l": basename(path).lower(),
+                                "remote_n": duplicates.normalize_remote(remote),
+                            })
                 job["done"] += 1
     except Exception as exc:  # 后台线程兜底：异常进 failed 而不是默默消失
         job["failed"].append({"path": "", "reason": f"导入任务异常：{exc}"})
@@ -158,7 +195,7 @@ def import_candidates(body: ScanImportRequest):
             return {"started": False, "reason": "已有导入任务在进行中", **_IMPORT_JOB}
         _IMPORT_JOB.update(running=True, finished=False, done=0,
                            total=len(body.paths), imported=0, skipped=0,
-                           failed=[], created_ids=[])
+                           failed=[], created_ids=[], duplicates=[])
     threading.Thread(target=_import_worker,
                      args=(body.paths, body.category, body.status, body.tags),
                      daemon=True).start()

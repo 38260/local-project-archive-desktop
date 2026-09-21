@@ -355,7 +355,15 @@
       },
       async submitAdd() {
         if (!this.form.path) { toast("请填写项目路径", "error"); return; }
+        if (this.submitting) return;
         this.submitting = true;
+        try {
+          await this._doSubmit(false);
+        } finally { this.submitting = false; }
+      },
+      // force=false 先正常提交；命中疑似重复（409 + duplicates）时弹确认，
+      // 用户确认后带 force 重发（后端允许强制录入，产生重复档案是用户显式选择）
+      async _doSubmit(force) {
         try {
           const p = await api("/api/projects", {
             method: "POST",
@@ -366,13 +374,25 @@
               category: this.form.category,
               status: this.form.status,
               tags: this.form.tagsText.split(/[,，;；]/).map(s => s.trim()).filter(Boolean),
+              force,
             },
           });
           toast(`「${p.name}」录入成功，已解析 ${p.auto_meta.configs.length} 个配置文件`, "ok");
           this.showAdd = false;
           this.load();
-        } catch (e) { /* toast 已提示 */ }
-        finally { this.submitting = false; }
+        } catch (e) {
+          const d = e.data && e.data.detail;
+          const dups = e.status === 409 && d && Array.isArray(d.duplicates) ? d.duplicates : null;
+          if (dups && !force) {
+            const lines = dups.slice(0, 4).map(x =>
+              `·「${x.name}」（${dupReasonText(x.reasons)}）：${shortPath(x.path, 64)}`);
+            if (dups.length > 4) lines.push(`…等共 ${dups.length} 条`);
+            const ok = await confirmDialog(
+              `档案库中已有疑似同一项目：\n${lines.join("\n")}\n\n仍然录入将产生重复档案。`,
+              { title: "疑似重复项目", okText: "仍然录入", danger: true });
+            if (ok) return this._doSubmit(true);
+          }
+        }
       },
 
       // ---- 批量扫描 ----
@@ -418,7 +438,8 @@
             return;
           }
           if (p.error) { toast(p.error, "error"); return; }
-          p.candidates.forEach(c => { c.checked = !c.imported; });
+          // 已导入 / 疑似重复的默认不勾选；疑似重复可手动勾选，导入时会再提示
+          p.candidates.forEach(c => { c.checked = !c.imported && !c.dup; });
           this.candidates = { root: p.root, candidates: p.candidates,
                               scanned_dirs: p.scanned_dirs, truncated: p.truncated };
           if (!p.candidates.length) toast("未发现候选项目", "ok");
@@ -426,7 +447,20 @@
         finally { this.scanning = false; }
       },
       async doImport() {
-        const paths = this.candidates.candidates.filter(c => c.checked).map(c => c.path);
+        // 疑似重复（同名/同 Git 远端）的候选：默认不导入，确认后只导其余；
+        // 如确需重复存档，取消后用「手动录入」并确认强制录入
+        const dups = this.candidates.candidates.filter(c => c.checked && c.dup && !c.imported);
+        if (dups.length) {
+          const lines = dups.slice(0, 5).map(c =>
+            `· ${c.name}（${dupReasonText(c.dup.reasons)}于「${c.dup.name}」）`);
+          if (dups.length > 5) lines.push(`…等共 ${dups.length} 个`);
+          const ok = await confirmDialog(
+            `以下候选与已有档案疑似同一项目，将跳过不导入：\n${lines.join("\n")}\n\n其余选中项目正常导入。`,
+            { title: "疑似重复项目", okText: "跳过并导入其余", cancelText: "返回修改" });
+          if (!ok) return;
+        }
+        const paths = this.candidates.candidates
+          .filter(c => c.checked && (!c.dup || c.imported)).map(c => c.path);
         if (!paths.length) return;
         this.importing = true;
         this.importProgress = null;
@@ -453,6 +487,9 @@
             return;
           }
           let msg = `导入 ${p.imported} 个项目，跳过 ${p.skipped} 个已存在`;
+          if (p.duplicates && p.duplicates.length) {
+            msg += `（其中 ${p.duplicates.length} 个疑似重复：${dupReasonText(p.duplicates[0].reasons)}）`;
+          }
           if (p.failed.length) msg += `，失败 ${p.failed.length} 个：${p.failed[0].path}（${p.failed[0].reason}）`;
           toast(msg, p.failed.length ? "error" : "ok");
           this.closeScan();

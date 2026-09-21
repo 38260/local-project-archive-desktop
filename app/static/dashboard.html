@@ -370,6 +370,9 @@
             <span class="cpath" :title="c.path">{{ c.path }}</span>
             <span class="mark">{{ c.markers.join(" / ") }}</span>
             <span class="mark" v-if="c.imported" style="color:var(--muted)">已导入</span>
+            <span class="mark" v-if="!c.imported && c.dup"
+                  :title="`与已有档案「${c.dup.name}」${dupReasonText(c.dup.reasons)}，其路径：${c.dup.path}`"
+                  style="color:var(--warn);font-weight:600">疑似重复</span>
           </label>
           <div class="cand-item" v-if="!candidates.candidates.length">
             <span class="section-note">未发现候选项目，可尝试增大扫描深度。</span>

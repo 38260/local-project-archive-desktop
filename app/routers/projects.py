@@ -26,8 +26,8 @@ from app.models import (
     LauncherCreate, LauncherUpdate, NoteCreate, NoteUpdate, OpenFileRequest,
     OpenRequest, ProjectCreate, ProjectUpdate,
 )
-from app.services import (gitinfo, launcher as launcher_service, parser, runlog,
-                          settings_store)
+from app.services import (duplicates, gitinfo, launcher as launcher_service,
+                          parser, runlog, settings_store)
 from app.services.paths import (
     PathError, basename, dir_not_exists_hint, is_wsl_path, normalize_input_path,
 )
@@ -139,13 +139,26 @@ def create_project(body: ProjectCreate):
                             else f"路径不是文件夹：{path}")
 
     status = _validate_status(body.status)
+    name = (body.name or "").strip() or basename(path)
     with get_db() as conn:
         dup = conn.execute("SELECT id FROM projects WHERE path=? COLLATE NOCASE",
                            (path,)).fetchone()
         if dup:
             raise HTTPException(409, f"该项目已在档案库中（id={dup['id']}）：{path}")
 
-        name = (body.name or "").strip() or basename(path)
+        # 同名 / 同 git remote 检测：同一项目换路径后，路径查重会漏，这里补上。
+        # 轻量读远端即可，完整解析在后面；确认强制录入（force）后才继续。
+        remote = duplicates.read_git_remote(path)
+        dups = [d for d in duplicates.match_existing(
+            duplicates.build_existing_index(conn), path=path, name=name,
+            remote=remote) if "path" not in d["reasons"]]
+        if dups and not body.force:
+            raise HTTPException(409, {
+                "message": "检测到疑似重复项目（同名或同一 Git 远端），"
+                           "确认后可在弹窗中选择仍然录入",
+                "duplicates": dups,
+            })
+
         try:
             parsed = parser.parse_project(path)
         except OSError as exc:

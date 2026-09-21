@@ -195,11 +195,13 @@
       const d = data && data.detail;
       let msg;
       if (typeof d === "string") msg = d;
+      else if (d && typeof d === "object" && !Array.isArray(d) && typeof d.message === "string") msg = d.message;
       else if (Array.isArray(d) && d.length) msg = d[0].msg || d[0].loc && `字段 ${d[0].loc.join(".")} 无效`;
       msg = msg || `请求失败（HTTP ${resp.status}）`;
       if (!opt.silent) toast(msg, "error");
       const err = new Error(msg);
       err.status = resp.status;
+      err.data = data;   // 结构化 detail（如重复项目列表）供调用方精细处理
       throw err;
     }
     return data;
@@ -405,6 +407,13 @@
     if (dot < 0) return "var(--muted)";
     return FILE_HUES[String(name).slice(dot).toLowerCase()] || "var(--muted)";
   }
+
+  // ---------- 重复项目命中依据 → 中文（与后端 duplicates.py 的 reasons 对应） ----------
+  const DUP_REASON_LABELS = { path: "同路径", name: "同名", remote: "同一 Git 远端" };
+  function dupReasonText(reasons) {
+    return (reasons || []).map(r => DUP_REASON_LABELS[r] || r).join(" / ");
+  }
+  window.dupReasonText = dupReasonText;
 
   // ---------- 图标（统一线性 SVG，替代 emoji 与几何符号） ----------
   // 说明：Markdown 工具栏保留 B / I / H2 这类排版惯例文字标，其余一律走图标。
