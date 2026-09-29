@@ -166,6 +166,26 @@ def main():
         print(f"无法连接服务 {BASE}：{e}\n请先启动 run.py 再运行本测试。")
         return 2
 
+    # ---- 目标实例护栏（务必先过，否则会写进用户正式库）----
+    # 8300 若已被桌面版 exe 占用，run.py 会自动退避到别的端口；测试若仍指向 8300，
+    # 就会打到 %LOCALAPPDATA%\Tracelight\projects.db（正式库）：
+    # 既产生假失败，又会在「丢失项目」用例里改写真实档案的 path。
+    expected_db = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "projects.db")
+    actual_db = data.get("data_path") or ""
+    if (sw.get("ok") is not False or sw.get("reason") != "browser-mode"
+            or os.path.normcase(actual_db) != os.path.normcase(expected_db)):
+        print("\n[中止] 目标不是 dev 实例，拒绝继续，以免写进用户正式库。")
+        print(f"  目标地址    : {BASE}")
+        print(f"  版本        : {data.get('version')}")
+        print(f"  实际数据目录: {actual_db}")
+        print(f"  期望数据目录: {expected_db}")
+        print(f"  show-window : {sw}（dev 应为 ok=False reason=browser-mode）")
+        print("  请改用独立端口的 dev 服务：")
+        print("    .venv/Scripts/python.exe run.py --port 8311 --no-browser")
+        print("    .venv/Scripts/python.exe tools/smoke_test.py --base http://127.0.0.1:8311")
+        return 2
+
     # 准备示例项目
     _temp_root = tempfile.mkdtemp(prefix="lpa-smoke-")
     node, py, cpp = make_samples(_temp_root)
@@ -352,6 +372,13 @@ def main():
         imp = wait_job("/api/scan/import/progress")
         check("批量导入 2 个", imp["imported"] == 2 and imp["skipped"] == 0)
         _created_ids.extend(imp.get("created_ids") or [])
+        # 记住 Python 示例项目的 id：后面的「丢失检测」只针对它。
+        # 不能用「全库第一个丢失项目」——正式库里本来就可能已有丢失项，
+        # 那样会把用户真实档案的 path 改写成临时目录（2026-09-29 真实发生过）。
+        _, _plist = req("GET", "/api/projects")
+        py_id = next((p["id"] for p in _plist["projects"]
+                      if os.path.normcase(p["path"]) == os.path.normcase(py)), None)
+        check("已定位 Python 示例项目 id", py_id is not None)
         req("POST", "/api/scan/import", {"paths": [py, cpp]})
         imp2 = wait_job("/api/scan/import/progress")
         check("重复导入被跳过", imp2["skipped"] == 2 and imp2["imported"] == 0)
@@ -511,14 +538,18 @@ def main():
         # ---- 丢失项目检测与路径更新 ----
         shutil.rmtree(py)
         st, lst = req("GET", "/api/projects")
-        lost = [p for p in lst["projects"] if p["is_lost"]]
-        check("删除文件夹后被标记丢失", len(lost) == 1 and lost[0]["name"] == "demo-python-tool")
+        # 只断言「我们刚删掉的那个」变成丢失，不看全库：正式库里可能本来就有丢失项
+        target = next((p for p in lst["projects"] if p["id"] == py_id), None)
+        check("删除文件夹后被标记丢失",
+              target is not None and target["is_lost"] is True
+              and target["name"] == "demo-python-tool")
         moved_to = os.path.join(_temp_root, "demo-python-moved")
         os.makedirs(moved_to)
         write_moved = os.path.join(moved_to, "main.py")
         with open(write_moved, "w", encoding="utf-8") as f:
             f.write("print('moved')\n")
-        st, up = req("PUT", f"/api/projects/{lost[0]['id']}", {"path": moved_to})
+        # 只用我们自己的 py_id，绝不用 lost[0]（那会改到用户的真实档案）
+        st, up = req("PUT", f"/api/projects/{py_id}", {"path": moved_to})
         check("更新路径恢复丢失状态", st == 200 and up["is_lost"] is False)
 
         # ---- 导出 / 渲染 ----
