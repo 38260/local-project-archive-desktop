@@ -290,6 +290,11 @@ a:hover { text-decoration: underline; }
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   font-size: 14px; font-family: inherit;
+  /* 行高必须显式写死：<a class="btn"> 会继承 body 的 line-height(22.4px)，
+     而 <button class="btn"> 用浏览器默认的 normal(19px)，两者高度差 3.4px。
+     详情页顶栏的「返回首页」是 <a>，首页顶栏全是 <button>，
+     于是首页↔详情页切换时顶栏高度 64↔67 跳一下、整页内容跟着位移。 */
+  line-height: normal;
   cursor: pointer; white-space: nowrap;
   transition: background .15s, border-color .15s, box-shadow .15s, transform .06s;
 }

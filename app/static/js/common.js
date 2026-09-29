@@ -618,6 +618,36 @@
     `,
   };
 
+  // ---------- 项目轻量列表（/api/projects/brief）共享缓存 ----------
+  // 谁在用：详情页顶栏的「上一个 / 下一个项目」箭头、顶部标签栏的名称与别名字典。
+  // 为什么要缓存：详情页的箭头位置由兄弟项目列表算出，若等异步请求回来才渲染，
+  // 软导航切换项目时会先渲染成「没有箭头」、数据到了箭头再冒出来，
+  // 顶栏内容整体左右跳一下（实测抖动约 30ms）。common.js 是外壳脚本、
+  // 软导航时不会重跑，把最近一次结果挂在这里，页面脚本重建时就能同步拿到，
+  // 首帧即为正确状态，切换过程没有任何中间态。
+  let briefList = [];
+  let briefPending = null;
+
+  function briefSync() { return briefList; }
+
+  function refreshBrief() {
+    if (!briefPending) {
+      briefPending = api("/api/projects/brief", { silent: true })
+        .then(b => {
+          briefList = ((b && b.projects) || []).map(p => ({
+            id: p.id, name: p.name, alias: p.alias || "",
+          }));
+          return briefList;
+        })
+        .catch(() => briefList)          // 拿不到就沿用上次缓存，不打断页面
+        .finally(() => { briefPending = null; });
+    }
+    return briefPending;
+  }
+
+  window.lpaBriefSync = briefSync;       // 同步读最近一次结果（页面 data() 里用）
+  window.lpaRefreshBrief = refreshBrief; // 异步刷新（同一 tick 内多次调用只发一次请求）
+
   // ---------- 页面内跳转的统一出口：同文档软导航 ----------
   // 背景：本应用是两个独立文档（/ 与 /project/N）。早期点标签直接 location.href，
   // 每切一次项目都要「卸载文档 → 重新下载解析 HTML → 重新加载 Vue → 再拉接口」，
@@ -919,12 +949,13 @@
         this.persist();
         this.afterTabsChange();
       },
-      // 名称与别名字典：brief 只查库、不做磁盘校验，开销可忽略
+      // 名称与别名字典：brief 只查库、不做磁盘校验，开销可忽略。
+      // 走共享缓存，与详情页的「兄弟项目」列表共用一次请求（见 refreshBrief）。
       async ensureNames() {
         try {
-          const b = await api("/api/projects/brief", { silent: true });
+          const list = await refreshBrief();
           const map = {};
-          (b.projects || []).forEach(p => { map[p.id] = { name: p.name, alias: p.alias || "" }; });
+          list.forEach(p => { map[p.id] = { name: p.name, alias: p.alias || "" }; });
           this.names = map;
           this.tabs.forEach(t => {
             if (!map[t.id]) return;

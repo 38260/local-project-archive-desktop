@@ -104,8 +104,11 @@
         tree: undefined, // undefined=加载中, null=失败
         notFound: false,
         themeTick: 0,
-        // 相邻项目（详情页左右切换）
-        siblings: [],
+        // 相邻项目（详情页左右切换）。
+        // 初值取 common.js 的共享缓存（外壳脚本常驻，软导航不重跑）：
+        // 列表非空时顶栏的 ‹ › 箭头首帧就能渲染成正确状态，
+        // 否则会「先没箭头、数据回来再冒出来」，顶栏内容左右跳一下。
+        siblings: (window.lpaBriefSync && window.lpaBriefSync()) || [],
         // 描述编辑：脏标记 + 本地草稿
         descBaseline: "",
         descDraftRestored: false,
@@ -932,10 +935,13 @@
       },
       async loadSiblings() {
         try {
-          // 轻量接口：只取 id/name，不做磁盘校验
-          const data = await api("/api/projects/brief", { silent: true });
-          this.siblings = data.projects || [];
-        } catch (e) { this.siblings = []; }
+          // 轻量接口：只取 id/name/alias，不做磁盘校验。
+          // 走 common.js 的共享缓存，与顶部标签栏共用一次请求。
+          const list = window.lpaRefreshBrief
+            ? await window.lpaRefreshBrief()
+            : ((await api("/api/projects/brief", { silent: true })).projects || []);
+          this.siblings = list;
+        } catch (e) { /* 失败就沿用缓存里的旧值，顶栏箭头不至于消失 */ }
       },
       gotoSibling(target) { if (target) this.leaveConfirm("/project/" + target.id); },
       // 离开详情页的统一出口：有未保存草稿时先应用内确认，再跳转。
