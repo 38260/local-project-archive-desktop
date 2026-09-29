@@ -37,7 +37,10 @@
         // 首页总热力图（全部项目提交聚合）
         heat: null,
         heatWeeks: 53,
-        heatCollapsed: localStorage.getItem("lpa-home-heat-collapsed") === "1",
+        // 折叠状态：**默认收起**，先把下面的项目列表露出来；用户手动展开后按本机偏好记住。
+        // 存储语义取「已展开」而不是「已收起」——这样「没存过」天然等于收起，无需额外迁移；
+        // 旧键 lpa-home-heat-collapsed（默认展开时代的产物）就此废弃，不再读写。
+        heatCollapsed: localStorage.getItem("lpa-home-heat-expanded") !== "1",
         // 当日提交弹窗（点击热力图某天）
         showDay: false,
         dayLoading: false,
@@ -311,7 +314,8 @@
       },
       toggleHeat() {
         this.heatCollapsed = !this.heatCollapsed;
-        localStorage.setItem("lpa-home-heat-collapsed", this.heatCollapsed ? "1" : "0");
+        // 记「已展开」，与上面的读取口径保持一致（没存过 = 收起）
+        localStorage.setItem("lpa-home-heat-expanded", this.heatCollapsed ? "0" : "1");
       },
       // 点击热力图某天：弹窗展示该日全部项目的提交明细
       openDayDetail(cell) {
