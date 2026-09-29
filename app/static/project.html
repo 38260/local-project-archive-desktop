@@ -4,14 +4,39 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>归迹拾光 · 项目详情</title>
+  <script>
+    /* 首帧引导：必须在样式表之前跑完，否则会出现"闪一下"。
+       1) 主题：偏好存在 localStorage，若等 common.js（body 末尾）才应用，
+          暗色用户会先看到一帧浅底再切黑；
+       2) 标签栏占位：has-tabbar 决定 --tabbar-h，提前打开可避免挂载后顶栏下移跳动；
+       3) 底色：与 style.css 的 --bg 同值（浅 #f6f7f9 / 暗 #0a0d12），
+          让样式表生效前的空白期也是应用底色，而不是白底。 */
+    (function () {
+      try {
+        var pref = localStorage.getItem("lpa-theme") || "auto";
+        var dark = pref === "dark"
+          || (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        var root = document.documentElement;
+        root.setAttribute("data-theme", dark ? "dark" : "light");
+        if (localStorage.getItem("lpa-tabbar-hidden") !== "1") {
+          root.classList.add("has-tabbar");
+        }
+      } catch (e) { /* 隐私模式等读不到 localStorage，按默认外观走 */ }
+    })();
+  </script>
+  <style>
+    /* 主样式表生效前的兜底底色，与 style.css 的 --bg 保持一致（改配色请同步两处） */
+    html { background: #f6f7f9; }
+    html[data-theme="dark"] { background: #0a0d12; }
+  </style>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%232f81f7'/><stop offset='1' stop-color='%230969da'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><path d='M23 74 V30 h22 v6 h32 v38 Z' fill='%23fafbfc' stroke='%23fafbfc' stroke-width='7' stroke-linejoin='round'/><path d='M42 47 l-9 9 9 9 M58 47 l9 9 -9 9 M54 45 l-8 22' fill='none' stroke='%230969da' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-<div id="app" v-cloak>
-  <!-- 顶部项目标签栏：浏览器式，在最近打开的项目之间一键切换 -->
-  <lpa-tabbar></lpa-tabbar>
+<!-- 顶部项目标签栏：挂在 #app 之外，切换项目时不会被重建（顶部区域保持稳定） -->
+<div id="tabbar-root" class="tabbar-slot"></div>
 
+<div id="app" v-cloak>
   <header class="topbar">
     <a class="btn" href="/" title="返回首页" @click.prevent="leaveConfirm('/')">
       <lpa-icon name="arrow-left" :size="15"></lpa-icon><span class="btn-text">返回首页</span>

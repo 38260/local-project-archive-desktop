@@ -618,21 +618,161 @@
     `,
   };
 
-  // ---------- 页面内跳转的统一出口 ----------
-  // 详情页会把它换成带「未保存内容」确认的版本（见 project.js 的 leaveConfirm），
-  // 标签栏与其它共享组件一律走这里，就不会绕过那道确认。
-  window.lpaNavigate = function (url) { location.href = url; };
+  // ---------- 页面内跳转的统一出口：同文档软导航 ----------
+  // 背景：本应用是两个独立文档（/ 与 /project/N）。早期点标签直接 location.href，
+  // 每切一次项目都要「卸载文档 → 重新下载解析 HTML → 重新加载 Vue → 再拉接口」，
+  // 表现出来就是整页闪一下、顶部栏跟着重建。
+  //
+  // 这里改成同文档切换：
+  //   · 标签栏挂在 #app 之外（.tabbar-slot），切换时它不重建，顶部区域完全稳定；
+  //   · 只替换 #app 的内容，并按需重新执行该页的脚本（dashboard.js / project.js），
+  //     拿到一份全新的 IIFE 作用域，页面逻辑与整页加载时完全一致；
+  //   · 页面外壳（#app 模板 + 脚本源码）与具体项目无关，取一次缓存复用，
+  //     之后切项目是纯 DOM 操作，没有网络与解析开销；
+  //   · 任何一步失败都回退到整页跳转（localStorage 里 lpa-soft-nav="0" 可强制关闭），
+  //     所以最坏情况等于改动前的行为，不会白屏卡死。
+  const SOFT_NAV_KEY = "lpa-soft-nav";
+  const PAGE_HOME = "home";
+  const PAGE_PROJECT = "project";
+
+  // common.js 执行时解析器只走到本文件，此刻页面上已有的 <script src> 就是「外壳脚本」
+  // （vue / common / settings）。页面脚本永远不在其中，所以每次切换都要重新执行一遍。
+  const SHELL_SCRIPTS = new Set(
+    [...document.querySelectorAll("script[src]")].map(el => el.getAttribute("src")));
+
+  const shellCache = new Map();    // 'home' | 'project' → { title, appHTML, scripts }
+  const scriptCache = new Map();   // 脚本地址 → 源码
+  let navToken = 0;                // 连点多个标签时，只让最后一次导航生效
+
+  function pathOf(url) {
+    try { return new URL(url, location.origin).pathname; }
+    catch (e) { return null; }
+  }
+  function pageTypeOf(url) {
+    const p = pathOf(url);
+    if (p === null) return null;
+    if (p === "/" || p === "") return PAGE_HOME;
+    return /^\/project\/\d+\/?$/.test(p) ? PAGE_PROJECT : null;
+  }
+  function projectIdOf(url) {
+    const m = /^\/project\/(\d+)\/?$/.exec(pathOf(url) || "");
+    return m ? Number(m[1]) : null;
+  }
+  function hardNavigate(url) { location.href = url; }
+
+  async function fetchText(url) {
+    const resp = await fetch(url, { credentials: "same-origin" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${url}`);
+    return resp.text();
+  }
+
+  // 取页面外壳：模板 + 该页脚本源码，一次备齐并缓存。
+  // 外壳与具体项目无关（只有 <title> 与 #app 模板，都是静态的），
+  // 所以只有第一次切到某类页面会真的发请求，之后是纯 DOM 操作。
+  // /project/0 只是用来拿模板：该路由不校验 id，也不查库。
+  async function loadShell(type) {
+    if (shellCache.has(type)) return shellCache.get(type);
+    const html = await fetchText(type === PAGE_HOME ? "/" : "/project/0");
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const root = doc.getElementById("app");
+    if (!root) throw new Error("页面缺少 #app 容器");
+    const scripts = [];
+    for (const src of [...doc.querySelectorAll("script[src]")]
+      .map(el => el.getAttribute("src"))
+      .filter(src => src && !SHELL_SCRIPTS.has(src))) {
+      if (!scriptCache.has(src)) scriptCache.set(src, await fetchText(src));
+      scripts.push({ src: src, text: scriptCache.get(src) });
+    }
+    const shell = {
+      title: (doc.querySelector("title") || {}).textContent || document.title,
+      appHTML: root.innerHTML,
+      scripts: scripts,
+    };
+    shellCache.set(type, shell);
+    return shell;
+  }
+
+  // 内联脚本插入即同步执行，所以挂完就能立刻判断页面有没有挂载成功
+  function runScriptText(src, text) {
+    const el = document.createElement("script");
+    el.textContent = text + "\n//# sourceURL=" + src;   // 便于 DevTools 里定位
+    document.body.appendChild(el);
+    el.remove();
+  }
+
+  // 「换掉 #app → 执行页面脚本 → 挂载」必须全程同步。
+  // 中间一旦出现 await，浏览器就会插进一帧——那一帧 #app 还带着 v-cloak（display:none），
+  // 内容区会空一下，正是这次要消灭的那种闪烁。所以资源在 loadShell 里就全部备好了。
+  function mountPage(shell) {
+    const prev = document.getElementById("app");
+    if (!prev) throw new Error("找不到 #app 容器");
+    const next = document.createElement("div");
+    next.id = "app";
+    next.setAttribute("v-cloak", "");
+    next.innerHTML = shell.appHTML;
+    prev.replaceWith(next);
+    for (const s of shell.scripts) runScriptText(s.src, s.text);
+    // 页面脚本挂载后会写 window.__lpaPageApp；没写说明它没跑起来
+    if (!window.__lpaPageApp) {
+      throw new Error("页面脚本未完成挂载：" + shell.scripts.map(s => s.src).join("、"));
+    }
+    document.title = shell.title;
+  }
+
+  async function softNavigate(url, opts) {
+    opts = opts || {};
+    if (localStorage.getItem(SOFT_NAV_KEY) === "0") { hardNavigate(url); return; }
+    const type = pageTypeOf(url);
+    if (!type) { hardNavigate(url); return; }
+    const my = ++navToken;
+    try {
+      const shell = await loadShell(type);     // 唯一的 await：只做资源准备，不动 DOM
+      if (my !== navToken) return;             // 期间又点了别的标签，放弃本次
+      if (!opts.fromPop && history.state && history.state.lpa) {
+        // 记下当前页的滚动位置，供浏览器「后退」时恢复
+        history.replaceState({ lpa: 1, scroll: window.scrollY }, "", location.pathname);
+      }
+      const prev = window.__lpaPageApp;
+      window.__lpaPageApp = null;
+      window.LPA_OPEN_SETTINGS = null;         // 首页专属入口，切走后必须失效
+      window.lpaNavigate = softNavigate;       // 详情页 mounted 里会再覆盖成 leaveConfirm
+      if (prev && typeof prev.unmount === "function") {
+        try { prev.unmount(); } catch (e) { /* 已经卸过了 */ }
+      }
+      if (!opts.fromPop) history.pushState({ lpa: 1, scroll: 0 }, "", url);
+      mountPage(shell);
+      window.scrollTo(0, opts.restoreScroll || 0);
+      window.dispatchEvent(new CustomEvent("lpa-route-changed", {
+        detail: { url: url, projectId: projectIdOf(url) },
+      }));
+    } catch (err) {
+      console.warn("[lpa] 软导航失败，回退整页跳转：", err);
+      if (my === navToken) hardNavigate(url);
+    }
+  }
+
+  window.lpaSoftNavigate = softNavigate;
+  // 页面内跳转的统一出口。详情页会把它换成带「未保存内容」确认的版本
+  // （见 project.js 的 leaveConfirm），标签栏与其它共享组件一律走这里，就不会绕过那道确认。
+  window.lpaNavigate = softNavigate;
+  // pushState 只换了地址栏，前进/后退必须自己把内容换回去
+  window.addEventListener("popstate", (e) => {
+    softNavigate(location.pathname, {
+      fromPop: true,
+      restoreScroll: (e.state && e.state.scroll) || 0,
+    });
+  });
 
   // ---------- 顶部项目标签栏（浏览器式：在多个最近项目之间快速切换） ----------
   // 设计口径：
   //   · 第一个标签固定为「首页」（全部项目），不可关闭，相当于浏览器的主页标签；
-  //   · 项目标签在你进入详情页时自动打开并前置（最近访问优先），最多 TAB_MAX 个，
-  //     超出淘汰最久未访问的；中键或 × 关闭（关当前标签时自动切到相邻标签）；
-  //   · 标签只记在本机 localStorage：换浏览器 / 清缓存即重来，不写档案库、不进导出备份；
+  //   · 项目标签在你进入详情页时追加到末尾（不打乱你手动拖出来的顺序），
+  //     顺序完全由你决定：拖动排序、× / 中键关闭，关当前标签时自动切到相邻标签；
+  //   · 顺序存在本机 localStorage["lpa-tabs"]，刷新、重启后都保持；
+  //   · 标签只记在本机：换浏览器 / 清缓存即重来，不写档案库、不进导出备份；
   //   · 首次使用（本机还没有标签记录）时用后端「最近开发」预填，打开就有东西可切。
   const TAB_KEY = "lpa-tabs";
   const TABBAR_HIDDEN_KEY = "lpa-tabbar-hidden";
-  const TAB_MAX = 8;
 
   function tabbarVisible() {
     return localStorage.getItem(TABBAR_HIDDEN_KEY) !== "1";
@@ -655,11 +795,14 @@
     name: "LpaTabbar",
     data() {
       return {
-        tabs: [],                                  // 已打开的项目标签 [{id, name}]
-        recent: [],                                // 后端「最近开发」列表（下拉用）
+        tabs: [],                       // 已打开的项目标签 [{id, name}]，数组顺序 = 显示顺序
+        recent: [],                     // 后端「最近开发」列表（▾ 下拉用）
+        names: {},                      // id → 名称字典（/api/projects/brief）
         visible: tabbarVisible(),
         moreOpen: false,
         curId: currentProjectId(),
+        dragId: null,                   // 正在拖拽的标签 id（null = 没在拖）
+        xPressed: false,                // 从 × 起手 → 本次不启动拖拽
       };
     },
     computed: {
@@ -670,7 +813,8 @@
       openHome() { if (this.curId !== null) this.go("/"); },
       openTab(t) { if (t.id !== this.curId) this.go("/project/" + t.id); },
       hasTab(id) { return this.tabs.some(t => t.id === id); },
-      // 打开「最近项目」下拉里的一项：目标页的标签栏会把它登记成标签并前置
+      nameOf(id) { return this.names[id] || ("项目 #" + id); },
+      // 打开「最近项目」下拉里的一项：目标页会把它登记成标签
       openRecent(p) {
         this.moreOpen = false;
         if (p.id !== this.curId) this.go("/project/" + p.id);
@@ -683,9 +827,17 @@
         if (idx < 0) return;
         this.tabs.splice(idx, 1);
         this.persist();
-        if (t.id !== this.curId) return;
+        if (t.id !== this.curId) { this.afterTabsChange(); return; }
         const next = this.tabs[idx] || this.tabs[idx - 1] || null;
         this.go(next ? "/project/" + next.id : "/");
+      },
+      // 档案被删除后同步摘掉对应标签（详情页删档时调用，见 window.lpaForgetTab）
+      forget(id) {
+        const idx = this.tabs.findIndex(t => t.id === id);
+        if (idx < 0) return;
+        this.tabs.splice(idx, 1);
+        this.persist();
+        this.afterTabsChange();
       },
       async closeAll() {
         this.moreOpen = false;
@@ -695,6 +847,7 @@
         toast("已关闭全部项目标签", "ok");
         if (onProject) this.go("/");
       },
+      afterTabsChange() { this.$nextTick(() => this.scrollActiveIntoView()); },
       // 滚轮直接横向滚动标签条（浏览器标签栏同款手感）；
       // 标签没溢出时不动手，让页面正常滚动。
       onWheel(e) {
@@ -704,6 +857,7 @@
         el.scrollLeft += (e.deltaY || e.deltaX);
       },
       onDocClick(e) { if (!this.$el.contains(e.target)) this.moreOpen = false; },
+      onDocMouseUp() { this.xPressed = false; },
       onPrefsChanged() {
         this.visible = tabbarVisible();
         this.syncOffset();
@@ -729,19 +883,78 @@
         try { localStorage.setItem(TAB_KEY, JSON.stringify(this.tabs)); }
         catch (e) { /* 写不了就算了，标签退化为本次会话有效 */ }
       },
+      // 把当前标签滚进可视区。只动标签条的横向滚动——
+      // scrollIntoView 会把整个页面纵向滚动到顶（标签栏是 sticky 在页面顶部），
+      // 那样每次切标签页面都会自己跳回顶部，必须手算。
       scrollActiveIntoView() {
         const strip = this.$refs.strip;
         const el = strip && strip.querySelector(".tab.on");
-        if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest", inline: "nearest" });
+        if (!el) return;
+        const sr = strip.getBoundingClientRect();
+        const er = el.getBoundingClientRect();
+        if (er.left < sr.left) strip.scrollLeft -= (sr.left - er.left) + 8;
+        else if (er.right > sr.right) strip.scrollLeft += (er.right - sr.right) + 8;
       },
-      async init() {
-        // 1) 名称字典：brief 只查库、不做磁盘校验，开销可忽略；用它同步改名与清理已删档案的标签
-        let names = null;
+      // ---- 软导航后的路由同步（common.js 的 softNavigate 广播 lpa-route-changed）----
+      onRouteChanged(e) {
+        const detail = (e && e.detail) || {};
+        this.curId = detail.projectId != null ? detail.projectId : currentProjectId();
+        if (this.curId !== null && !this.hasTab(this.curId)) {
+          // 新打开的项目追加到末尾：不打乱用户手动拖出来的顺序
+          this.tabs.push({ id: this.curId, name: this.nameOf(this.curId) });
+          this.ensureNames();
+        }
+        this.persist();
+        this.afterTabsChange();
+      },
+      // 名称字典：brief 只查库、不做磁盘校验，开销可忽略
+      async ensureNames() {
         try {
           const b = await api("/api/projects/brief", { silent: true });
-          names = {};
-          (b.projects || []).forEach(p => { names[p.id] = p.name; });
-        } catch (e) { names = null; }
+          const map = {};
+          (b.projects || []).forEach(p => { map[p.id] = p.name; });
+          this.names = map;
+          this.tabs.forEach(t => { if (map[t.id]) t.name = map[t.id]; });
+        } catch (e) { /* 名称拿不到就先用「项目 #id」兜底 */ }
+      },
+      // ---- 拖拽排序：HTML5 DnD，实时换位，未引入任何拖拽库 ----
+      onDragStart(t, ev) {
+        // 用掉即清：鼠标在窗口外松开时 mouseup 收不到，标记会卡住
+        const fromX = this.xPressed;
+        this.xPressed = false;
+        if (fromX) { ev.preventDefault(); return; }   // 从 × 起手不拖标签
+        this.dragId = t.id;
+        if (ev.dataTransfer) {
+          ev.dataTransfer.effectAllowed = "move";
+          ev.dataTransfer.setData("text/plain", String(t.id)); // 少了这行部分浏览器不启动拖拽
+        }
+      },
+      onDragOver(t, ev) {
+        if (this.dragId == null) return;
+        ev.preventDefault();
+        if (ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
+        if (t.id === this.dragId) return;
+        const from = this.tabs.findIndex(x => x.id === this.dragId);
+        const to = this.tabs.findIndex(x => x.id === t.id);
+        if (from < 0 || to < 0) return;
+        // 指针越过目标标签的中线才换位，避免在边界上左右抖动
+        const r = ev.currentTarget.getBoundingClientRect();
+        let target = (ev.clientX - r.left) > r.width / 2 ? to + 1 : to;
+        if (target > from) target -= 1;
+        if (target === from) return;
+        this.tabs.splice(target, 0, this.tabs.splice(from, 1)[0]);
+      },
+      onStripDragOver(ev) { if (this.dragId != null) ev.preventDefault(); },
+      onStripDrop(ev) { ev.preventDefault(); this.onDragEnd(); },
+      onDragEnd() {
+        if (this.dragId == null) return;
+        this.dragId = null;
+        this.persist();     // 拖完立刻落盘，刷新后顺序不变
+      },
+      async init() {
+        // 1) 名称字典：用它同步改名，并清理已删档案留下的标签
+        await this.ensureNames();
+        const hasNames = Object.keys(this.names).length > 0;
 
         // 2) 最近开发列表：既用于「更多」下拉，也用于首次使用的预填
         try {
@@ -754,39 +967,42 @@
           ? this.recent.map(p => ({ id: p.id, name: p.name }))   // 首次使用：预填
           : this.parse(stored);
 
-        if (names) {
-          tabs = tabs.filter(t => names[t.id] != null);          // 档案已删除 → 标签自动清理
-          tabs.forEach(t => { if (names[t.id]) t.name = names[t.id]; });
+        if (hasNames) {
+          tabs = tabs.filter(t => this.names[t.id] != null);      // 档案已删除 → 标签自动清理
+          tabs.forEach(t => { if (this.names[t.id]) t.name = this.names[t.id]; });
         }
 
-        // 3) 当前项目置顶（最近访问优先）
-        if (this.curId !== null) {
-          tabs = tabs.filter(t => t.id !== this.curId);
-          tabs.unshift({
-            id: this.curId,
-            name: (names && names[this.curId]) || ("项目 #" + this.curId),
-          });
+        // 3) 当前项目若还没有标签，追加到末尾。
+        //    刻意不做「置顶」：标签顺序由用户拖拽决定，自动重排会让拖好的顺序在刷新后失效。
+        if (this.curId !== null && !tabs.some(t => t.id === this.curId)) {
+          tabs.push({ id: this.curId, name: this.nameOf(this.curId) });
         }
 
-        this.tabs = tabs.slice(0, TAB_MAX);
+        this.tabs = tabs;
         this.persist();
-        this.$nextTick(() => this.scrollActiveIntoView());
+        this.afterTabsChange();
       },
     },
     async mounted() {
       this.syncOffset();
       document.addEventListener("click", this.onDocClick);
+      document.addEventListener("mouseup", this.onDocMouseUp);
       window.addEventListener("lpa-prefs-changed", this.onPrefsChanged);
+      window.addEventListener("lpa-route-changed", this.onRouteChanged);
       await this.init();
     },
     beforeUnmount() {
       document.removeEventListener("click", this.onDocClick);
+      document.removeEventListener("mouseup", this.onDocMouseUp);
       window.removeEventListener("lpa-prefs-changed", this.onPrefsChanged);
+      window.removeEventListener("lpa-route-changed", this.onRouteChanged);
       document.documentElement.classList.remove("has-tabbar");
     },
     template: `
       <nav class="tabbar" v-if="visible" aria-label="已打开的项目">
-        <div class="tab-strip" ref="strip" role="tablist" @wheel="onWheel">
+        <div class="tab-strip" ref="strip" role="tablist"
+             :class="{ dragging: dragId != null }"
+             @wheel="onWheel" @dragover="onStripDragOver" @drop="onStripDrop">
           <div class="tab tab-home" role="tab" tabindex="0"
                :class="{ on: curId === null }"
                :aria-selected="curId === null ? 'true' : 'false'"
@@ -795,22 +1011,31 @@
             <lpa-icon name="layers" :size="14"></lpa-icon>
             <span class="tab-label">首页</span>
           </div>
-          <div class="tab" role="tab" tabindex="0" v-for="t in tabs" :key="t.id"
-               :class="{ on: t.id === curId }"
-               :aria-selected="t.id === curId ? 'true' : 'false'"
-               :title="t.name + '（中键或 × 关闭标签）'"
-               @click="openTab(t)" @keydown.enter.prevent="openTab(t)"
-               @keydown.space.prevent="openTab(t)"
-               @auxclick.middle.prevent="closeTab(t)">
-            <lpa-icon name="folder" :size="13"></lpa-icon>
-            <span class="tab-label">{{ t.name }}</span>
-            <span class="tab-x" role="button" tabindex="0"
-                  :aria-label="'关闭 ' + t.name + ' 标签'"
-                  @click.stop="closeTab(t)" @keydown.enter.stop.prevent="closeTab(t)"
-                  @keydown.space.stop.prevent="closeTab(t)">
-              <lpa-icon name="x" :size="12"></lpa-icon>
-            </span>
-          </div>
+          <!-- transition-group 不写 tag：不额外包一层元素，标签仍是 .tab-strip 的直接子元素。
+               它的 FLIP 位移就是拖拽时「旁边标签滑开让位」的动画来源（见 .tab-move-move）。 -->
+          <transition-group name="tab-move">
+            <div class="tab" role="tab" tabindex="0" v-for="t in tabs" :key="t.id"
+                 :class="{ on: t.id === curId, dragging: t.id === dragId }"
+                 :aria-selected="t.id === curId ? 'true' : 'false'"
+                 draggable="true"
+                 :title="t.name + '（拖动可排序；中键或 × 关闭）'"
+                 @click="openTab(t)" @keydown.enter.prevent="openTab(t)"
+                 @keydown.space.prevent="openTab(t)"
+                 @auxclick.middle.prevent="closeTab(t)"
+                 @dragstart="onDragStart(t, $event)"
+                 @dragover="onDragOver(t, $event)"
+                 @drop.prevent="onDragEnd" @dragend="onDragEnd">
+              <lpa-icon name="folder" :size="13"></lpa-icon>
+              <span class="tab-label">{{ t.name }}</span>
+              <span class="tab-x" role="button" tabindex="0"
+                    :aria-label="'关闭 ' + t.name + ' 标签'"
+                    @mousedown="xPressed = true"
+                    @click.stop="closeTab(t)" @keydown.enter.stop.prevent="closeTab(t)"
+                    @keydown.space.stop.prevent="closeTab(t)">
+                <lpa-icon name="x" :size="12"></lpa-icon>
+              </span>
+            </div>
+          </transition-group>
         </div>
         <span class="tab-more-wrap">
           <button type="button" class="tab-more" @click.stop="moreOpen = !moreOpen"
@@ -839,4 +1064,20 @@
       </nav>
     `,
   };
+
+  // ---------- 标签栏独立挂载 ----------
+  // 挂在 #app 之外的 .tabbar-slot 上：软导航只替换 #app，标签栏自身不重建，
+  // 所以切项目时顶部完全不动，也不会丢掉「最近项目」下拉等界面状态。
+  (function mountTabbar() {
+    const slot = document.getElementById("tabbar-root");
+    if (!slot) return;                       // 老页面没有挂载点就跳过，不报错
+    const app = Vue.createApp(window.LpaTabbar);
+    app.component("lpa-icon", window.LpaIcon);
+    Object.assign(app.config.globalProperties, window.LPA_HELPERS);
+    const vm = app.mount(slot);
+    // 详情页删档后调用，同步摘掉对应标签（否则会留下一个点不开的死标签）
+    window.lpaForgetTab = function (id) {
+      if (vm && typeof vm.forget === "function") vm.forget(Number(id));
+    };
+  })();
 })();

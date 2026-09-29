@@ -402,12 +402,17 @@ app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 
 @app.middleware("http")
 async def _static_no_cache(request, call_next):
-    """静态资源使用协商缓存（no-cache）。
+    """静态资源与页面外壳使用协商缓存（no-cache）。
 
     no-cache 表示浏览器可以缓存但每次必须向服务器校验：文件没变返回 304
     （快），文件一变立即拿到新版本（避免升级后浏览器仍用旧 JS/CSS）。
+
+    页面外壳（/ 与 /project/N）一并纳入：前端资源与页面结构是配套的，
+    浏览器若拿旧 HTML 配新 JS，会缺少新加的挂载点（如标签栏的 #tabbar-root），
+    表现为界面残缺；这类问题排查成本高，不如每次都校验一次。
     """
     response = await call_next(request)
-    if request.url.path.startswith("/static"):
+    path = request.url.path
+    if path.startswith("/static") or path == "/" or path.startswith("/project/"):
         response.headers["Cache-Control"] = "no-cache"
     return response

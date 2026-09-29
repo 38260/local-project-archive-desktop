@@ -103,6 +103,9 @@ html {
   scroll-behavior: smooth;
   /* 模态框锁滚动时避免滚动条消失造成的横向抖动 */
   scrollbar-gutter: stable;
+  /* 底色铺到根元素：文档切换 / 重排瞬间露出的画布也是应用底色，不会白闪。
+     （两页 <head> 里各有一段同值的兜底 <style>，用于样式表生效前的那一帧，改配色请同步） */
+  background: var(--bg);
 }
 body {
   background: var(--bg);
@@ -164,6 +167,13 @@ a:hover { text-decoration: underline; }
 /* ---- 顶部项目标签栏（浏览器式多标签：在最近打开的项目之间一键切换） ----
    与顶栏同一套玻璃材质，整条高度由 --tabbar-h 固定，
    这样 sticky 偏移可以精确叠加，不会出现顶栏压住标签的情况。 */
+
+/* 标签栏挂载点：位于 #app 之外的常驻容器。
+   display:contents 让 .tabbar 在布局上等同于 body 的直接子元素——
+   否则这层只有 40px 高的包裹元素会把 position:sticky 的可移动范围压成 0，
+   标签栏会跟着页面一起滚走。 */
+.tabbar-slot { display: contents; }
+
 .tabbar {
   position: sticky; top: 0; z-index: 60;
   display: flex; align-items: center; gap: var(--s-2);
@@ -207,6 +217,14 @@ a:hover { text-decoration: underline; }
 }
 .tab:hover .tab-x, .tab.on .tab-x, .tab-x:focus-visible { opacity: 1; }
 .tab-x:hover { background: var(--border); color: var(--text); }
+
+/* ---- 标签拖拽排序（浏览器标签同款手感，未引入任何拖拽库） ----
+   换位是实时发生的：拖动时指针越过某个标签的中线，数组就当场重排，
+   Vue 的 <transition-group> 用 FLIP 把位移补成动画（.tab-move-move），
+   所以看到的是"旁边的标签滑开让位"，而不是一个僵硬的插入线。 */
+.tab.dragging { opacity: .45; }
+.tab-strip.dragging { cursor: grabbing; }
+.tab-move-move { transition: transform .18s cubic-bezier(.2, .7, .3, 1); }
 
 /* 右侧「最近项目」下拉：打开不在标签里的其它最近项目 */
 .tab-more-wrap { position: relative; flex: 0 0 auto; }

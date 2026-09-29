@@ -190,7 +190,8 @@
         await this.loadPrefs();
         this.loadHeatmap();
       },
-      goto(p) { location.href = "/project/" + p.id; },
+      // 走统一出口（common.js 的软导航）：同文档切换，不整页重载
+      goto(p) { window.lpaNavigate("/project/" + p.id); },
       switchTheme() { window.cycleTheme(); this.themeTick++; },
       chooseTheme(v) { window.setThemePref(v); this.themeTick++; },
       statActive(kind) {
@@ -557,6 +558,9 @@
   app.component("lpa-settings-dialog", window.LpaSettingsDialog);
   app.directive("modal", window.LpaModal);
   const root = app.mount("#app");
+  // 软导航切换页面时要卸载本应用（见 common.js 的 softNavigate），
+  // 否则旧实例的事件监听 / 定时器会跟着页面残留下来
+  window.__lpaPageApp = app;
   // 桌面托盘「打开设置」的入口（desktop.py 通过 evaluate_js 调用；
   // 项目详情页没有此方法，托盘侧会回退为跳回首页）
   window.LPA_OPEN_SETTINGS = () => root.openSettings();

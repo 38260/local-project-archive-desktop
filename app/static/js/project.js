@@ -947,13 +947,13 @@
         const hasUnsaved = this.descDirty
           || (this.noteDraft != null && String(this.noteDraft).trim())
           || (this.logDraft != null && String(this.logDraft).trim());
-        if (!hasUnsaved) { location.href = url; return; }
+        if (!hasUnsaved) { window.lpaSoftNavigate(url); return; }
         confirmDialog(
           "当前页面有未保存的内容（描述、笔记或变更日志）。\n\n"
           + "描述草稿会自动保留，下次打开本项目可继续编辑；"
           + "尚未保存的笔记 / 日志离开后将丢失。",
           { title: "离开详情页", okText: "仍然离开" })
-          .then(ok => { if (ok) location.href = url; });
+          .then(ok => { if (ok) window.lpaSoftNavigate(url); });
       },
       switchTheme() { window.cycleTheme(); this.themeTick++; },
       // ---- 开发笔记 ----
@@ -1345,7 +1345,12 @@
           await api(`/api/projects/${this.projectId}`, { method: "DELETE" });
           this.clearDescDraft();
           toast("档案记录已删除", "ok");
-          setTimeout(() => { location.href = "/"; }, 600);
+          const pid = this.projectId;
+          setTimeout(() => {
+            // 标签栏常驻，档案删了要同步摘掉标签，否则会留下点不开的死标签
+            if (window.lpaForgetTab) window.lpaForgetTab(pid);
+            window.lpaSoftNavigate("/");
+          }, 600);
         } catch (e) { /* toast 已提示 */ }
       },
     },
@@ -1388,4 +1393,7 @@
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用
   Object.assign(app.config.globalProperties, window.LPA_HELPERS);
   app.mount("#app");
+  // 软导航切换页面时要卸载本应用（见 common.js 的 softNavigate）：
+  // beforeUnmount 里负责清掉滚动 / 键盘 / 全局点击监听与运行输出轮询
+  window.__lpaPageApp = app;
 })();
