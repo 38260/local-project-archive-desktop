@@ -27,7 +27,7 @@ from app.models import (
     OpenRequest, ProjectCreate, ProjectUpdate,
 )
 from app.services import (duplicates, gitinfo, launcher as launcher_service,
-                          parser, runlog, settings_store)
+                          parser, recent, runlog, settings_store)
 from app.services.paths import (
     PathError, basename, dir_not_exists_hint, is_wsl_path, normalize_input_path,
 )
@@ -216,6 +216,19 @@ def list_projects_brief():
             "updated_at DESC"
         ).fetchall()
     return {"projects": [{"id": r["id"], "name": r["name"]} for r in rows]}
+
+
+@router.get("/recent")
+def list_recent_projects(limit: int = Query(8, ge=1, le=30)):
+    """最近开发的项目（git 最近提交时间优先），供顶部标签栏与「最近项目」下拉使用。
+
+    与托盘菜单共用 app/services/recent.py 的同一套排序口径：只读数据库快照，
+    不调用 git、不做磁盘校验，因此可随页面加载直接调用；失败降级为空列表，
+    前端会退回只展示本机记录的标签。
+    """
+    items = recent.recent_projects(limit)
+    return {"projects": [{"id": p["id"], "name": p["name"], "path": p["path"]}
+                         for p in items]}
 
 
 @router.delete("/all")

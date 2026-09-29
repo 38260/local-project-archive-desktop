@@ -617,4 +617,226 @@
       </span>
     `,
   };
+
+  // ---------- 页面内跳转的统一出口 ----------
+  // 详情页会把它换成带「未保存内容」确认的版本（见 project.js 的 leaveConfirm），
+  // 标签栏与其它共享组件一律走这里，就不会绕过那道确认。
+  window.lpaNavigate = function (url) { location.href = url; };
+
+  // ---------- 顶部项目标签栏（浏览器式：在多个最近项目之间快速切换） ----------
+  // 设计口径：
+  //   · 第一个标签固定为「首页」（全部项目），不可关闭，相当于浏览器的主页标签；
+  //   · 项目标签在你进入详情页时自动打开并前置（最近访问优先），最多 TAB_MAX 个，
+  //     超出淘汰最久未访问的；中键或 × 关闭（关当前标签时自动切到相邻标签）；
+  //   · 标签只记在本机 localStorage：换浏览器 / 清缓存即重来，不写档案库、不进导出备份；
+  //   · 首次使用（本机还没有标签记录）时用后端「最近开发」预填，打开就有东西可切。
+  const TAB_KEY = "lpa-tabs";
+  const TABBAR_HIDDEN_KEY = "lpa-tabbar-hidden";
+  const TAB_MAX = 8;
+
+  function tabbarVisible() {
+    return localStorage.getItem(TABBAR_HIDDEN_KEY) !== "1";
+  }
+  window.lpaTabbarVisible = tabbarVisible;
+  // 设置弹窗里切换标签栏显隐；写 localStorage 后广播事件，标签栏自身即时响应
+  window.setLpaTabbarVisible = function (on) {
+    try { localStorage.setItem(TABBAR_HIDDEN_KEY, on ? "0" : "1"); }
+    catch (e) { /* 隐私模式等写不了，忽略即可 */ }
+    window.dispatchEvent(new Event("lpa-prefs-changed"));
+  };
+
+  // 当前页面对应的项目 id（详情页才有；首页为 null）
+  function currentProjectId() {
+    const m = /^\/project\/(\d+)\/?$/.exec(location.pathname);
+    return m ? Number(m[1]) : null;
+  }
+
+  window.LpaTabbar = {
+    name: "LpaTabbar",
+    data() {
+      return {
+        tabs: [],                                  // 已打开的项目标签 [{id, name}]
+        recent: [],                                // 后端「最近开发」列表（下拉用）
+        visible: tabbarVisible(),
+        moreOpen: false,
+        curId: currentProjectId(),
+      };
+    },
+    computed: {
+      hasTabs() { return this.tabs.length > 0; },
+    },
+    methods: {
+      go(url) { window.lpaNavigate(url); },
+      openHome() { if (this.curId !== null) this.go("/"); },
+      openTab(t) { if (t.id !== this.curId) this.go("/project/" + t.id); },
+      hasTab(id) { return this.tabs.some(t => t.id === id); },
+      // 打开「最近项目」下拉里的一项：目标页的标签栏会把它登记成标签并前置
+      openRecent(p) {
+        this.moreOpen = false;
+        if (p.id !== this.curId) this.go("/project/" + p.id);
+      },
+      // 关闭标签：关掉当前标签时按浏览器习惯切到相邻标签（没有就回首页），
+      // 而不是把人留在一个已经没有标签的页面上。
+      closeTab(t, ev) {
+        if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+        const idx = this.tabs.findIndex(x => x.id === t.id);
+        if (idx < 0) return;
+        this.tabs.splice(idx, 1);
+        this.persist();
+        if (t.id !== this.curId) return;
+        const next = this.tabs[idx] || this.tabs[idx - 1] || null;
+        this.go(next ? "/project/" + next.id : "/");
+      },
+      async closeAll() {
+        this.moreOpen = false;
+        const onProject = this.curId !== null;
+        this.tabs = [];
+        this.persist();
+        toast("已关闭全部项目标签", "ok");
+        if (onProject) this.go("/");
+      },
+      // 滚轮直接横向滚动标签条（浏览器标签栏同款手感）；
+      // 标签没溢出时不动手，让页面正常滚动。
+      onWheel(e) {
+        const el = this.$refs.strip;
+        if (!el || el.scrollWidth <= el.clientWidth) return;
+        e.preventDefault();
+        el.scrollLeft += (e.deltaY || e.deltaX);
+      },
+      onDocClick(e) { if (!this.$el.contains(e.target)) this.moreOpen = false; },
+      onPrefsChanged() {
+        this.visible = tabbarVisible();
+        this.syncOffset();
+      },
+      // 标签栏占位高度同步给 CSS 变量：顶栏、目录树、toast 的 sticky 偏移都据此下移
+      syncOffset() {
+        document.documentElement.classList.toggle("has-tabbar", this.visible);
+      },
+      parse(raw) {
+        try {
+          const arr = JSON.parse(raw);
+          if (!Array.isArray(arr)) return [];
+          const seen = new Set();
+          return arr.filter(t => {
+            const id = Number(t && t.id);
+            if (!Number.isInteger(id) || id <= 0 || seen.has(id)) return false;
+            seen.add(id);
+            return true;
+          }).map(t => ({ id: Number(t.id), name: String(t.name || ("项目 #" + t.id)) }));
+        } catch (e) { return []; }
+      },
+      persist() {
+        try { localStorage.setItem(TAB_KEY, JSON.stringify(this.tabs)); }
+        catch (e) { /* 写不了就算了，标签退化为本次会话有效 */ }
+      },
+      scrollActiveIntoView() {
+        const strip = this.$refs.strip;
+        const el = strip && strip.querySelector(".tab.on");
+        if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest", inline: "nearest" });
+      },
+      async init() {
+        // 1) 名称字典：brief 只查库、不做磁盘校验，开销可忽略；用它同步改名与清理已删档案的标签
+        let names = null;
+        try {
+          const b = await api("/api/projects/brief", { silent: true });
+          names = {};
+          (b.projects || []).forEach(p => { names[p.id] = p.name; });
+        } catch (e) { names = null; }
+
+        // 2) 最近开发列表：既用于「更多」下拉，也用于首次使用的预填
+        try {
+          const r = await api("/api/projects/recent?limit=8", { silent: true });
+          this.recent = r.projects || [];
+        } catch (e) { this.recent = []; }
+
+        const stored = localStorage.getItem(TAB_KEY);
+        let tabs = stored === null
+          ? this.recent.map(p => ({ id: p.id, name: p.name }))   // 首次使用：预填
+          : this.parse(stored);
+
+        if (names) {
+          tabs = tabs.filter(t => names[t.id] != null);          // 档案已删除 → 标签自动清理
+          tabs.forEach(t => { if (names[t.id]) t.name = names[t.id]; });
+        }
+
+        // 3) 当前项目置顶（最近访问优先）
+        if (this.curId !== null) {
+          tabs = tabs.filter(t => t.id !== this.curId);
+          tabs.unshift({
+            id: this.curId,
+            name: (names && names[this.curId]) || ("项目 #" + this.curId),
+          });
+        }
+
+        this.tabs = tabs.slice(0, TAB_MAX);
+        this.persist();
+        this.$nextTick(() => this.scrollActiveIntoView());
+      },
+    },
+    async mounted() {
+      this.syncOffset();
+      document.addEventListener("click", this.onDocClick);
+      window.addEventListener("lpa-prefs-changed", this.onPrefsChanged);
+      await this.init();
+    },
+    beforeUnmount() {
+      document.removeEventListener("click", this.onDocClick);
+      window.removeEventListener("lpa-prefs-changed", this.onPrefsChanged);
+      document.documentElement.classList.remove("has-tabbar");
+    },
+    template: `
+      <nav class="tabbar" v-if="visible" aria-label="已打开的项目">
+        <div class="tab-strip" ref="strip" role="tablist" @wheel="onWheel">
+          <div class="tab tab-home" role="tab" tabindex="0"
+               :class="{ on: curId === null }"
+               :aria-selected="curId === null ? 'true' : 'false'"
+               title="首页：全部项目" @click="openHome"
+               @keydown.enter.prevent="openHome" @keydown.space.prevent="openHome">
+            <lpa-icon name="layers" :size="14"></lpa-icon>
+            <span class="tab-label">首页</span>
+          </div>
+          <div class="tab" role="tab" tabindex="0" v-for="t in tabs" :key="t.id"
+               :class="{ on: t.id === curId }"
+               :aria-selected="t.id === curId ? 'true' : 'false'"
+               :title="t.name + '（中键或 × 关闭标签）'"
+               @click="openTab(t)" @keydown.enter.prevent="openTab(t)"
+               @keydown.space.prevent="openTab(t)"
+               @auxclick.middle.prevent="closeTab(t)">
+            <lpa-icon name="folder" :size="13"></lpa-icon>
+            <span class="tab-label">{{ t.name }}</span>
+            <span class="tab-x" role="button" tabindex="0"
+                  :aria-label="'关闭 ' + t.name + ' 标签'"
+                  @click.stop="closeTab(t)" @keydown.enter.stop.prevent="closeTab(t)"
+                  @keydown.space.stop.prevent="closeTab(t)">
+              <lpa-icon name="x" :size="12"></lpa-icon>
+            </span>
+          </div>
+        </div>
+        <span class="tab-more-wrap">
+          <button type="button" class="tab-more" @click.stop="moreOpen = !moreOpen"
+                  :class="{ on: moreOpen }" aria-haspopup="menu"
+                  :aria-expanded="moreOpen ? 'true' : 'false'"
+                  title="最近项目：快速打开其它项目">
+            <lpa-icon name="chevron-down" :size="14"></lpa-icon>
+          </button>
+          <span class="tab-more-list" v-if="moreOpen" role="menu">
+            <span class="tm-head">最近项目</span>
+            <button type="button" class="tm-item" role="menuitem" v-for="p in recent"
+                    :key="'r' + p.id" :class="{ open: hasTab(p.id) }"
+                    :title="p.path" @click="openRecent(p)">
+              <span class="tm-name">{{ p.name }}</span>
+              <span class="tm-path">{{ shortPath(p.path, 42) }}</span>
+              <span class="tm-flag" v-if="hasTab(p.id)">已打开</span>
+            </button>
+            <span class="tm-empty" v-if="!recent.length">暂无最近项目</span>
+            <span class="tm-sep" v-if="hasTabs"></span>
+            <button type="button" class="tm-item tm-close-all" role="menuitem"
+                    v-if="hasTabs" @click="closeAll">
+              <lpa-icon name="x" :size="13"></lpa-icon>关闭全部项目标签
+            </button>
+          </span>
+        </span>
+      </nav>
+    `,
+  };
 })();

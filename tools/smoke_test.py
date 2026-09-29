@@ -494,6 +494,19 @@ def main():
         prio = {"进行中": 0, "已完成": 1, "暂停": 2, "归档": 3, "废弃": 4}
         seq = [prio.get(p["status"], 5) for p in lst["projects"]]
         check("列表按状态优先级排序", seq == sorted(seq), f"实际顺序 {seq}")
+        # ---- 最近项目（顶部标签栏 / 托盘「最近项目」的数据源）----
+        st, rec = req("GET", "/api/projects/recent?limit=2")
+        check("最近项目接口返回列表且不超过 limit",
+              st == 200 and len(rec["projects"]) == 2, str(rec)[:200])
+        check("最近项目条目含 id/name/path",
+              all({"id", "name", "path"} <= set(p) for p in rec["projects"]),
+              str(rec)[:200])
+        # 已废弃项目不参与「最近开发」排序（与托盘菜单口径一致）
+        req("PUT", f"/api/projects/{p1['id']}", {"status": "废弃"})
+        st, rec2 = req("GET", "/api/projects/recent?limit=30")
+        check("最近项目不含已废弃项目",
+              all(p["id"] != p1["id"] for p in rec2["projects"]), str(rec2)[:200])
+        req("PUT", f"/api/projects/{p1['id']}", {"status": "进行中"})
 
         # ---- 丢失项目检测与路径更新 ----
         shutil.rmtree(py)

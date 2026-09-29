@@ -403,55 +403,16 @@ def _setting_true(key: str) -> bool:
         return False
 
 
-def _sort_key(value) -> float:
-    """把 ISO 时间串转成时间戳用于排序；无法解析时排到最后。"""
-    if not value:
-        return 0.0
-    try:
-        from datetime import datetime
-        return datetime.fromisoformat(str(value)).timestamp()
-    except (TypeError, ValueError):
-        return 0.0
-
-
 def recent_projects(limit: int = 3) -> list[dict]:
     """最近开发的 N 个项目（托盘「最近项目」用）。
 
-    「最近开发」取 git 最近提交时间（解析时已写入 auto_meta 的快照），
-    没有 git 则退回磁盘最后修改时间、再退回档案更新时间。
-
-    刻意**不调用 git**：托盘菜单必须瞬间弹出，任何外部命令都会造成可见卡顿；
-    快照最多滞后到上次解析，对「最近在做哪几个项目」这个用途足够。
+    排序口径（git 最近提交时间 → 磁盘最后修改时间 → 档案更新时间）与实现已抽到
+    app/services/recent.py，供托盘与前端顶部标签栏共用，避免两处口径各自漂移；
+    这里保留同名薄封装，调用方与既有引用不受影响。
     只读、失败一律降级为空列表，绝不让托盘功能拖垮桌面壳。
     """
-    import json as _json
-    import logging
-
-    try:
-        from app.db import get_db
-        with get_db() as conn:
-            rows = conn.execute(
-                "SELECT id, name, path, status, is_lost, fs_modified, updated_at, "
-                "auto_meta FROM projects "
-                "WHERE is_lost=0 AND status<>'废弃'").fetchall()
-    except Exception as exc:
-        logging.getLogger("lpa").debug("读取最近项目失败：%s", exc)
-        return []
-
-    items = []
-    for r in rows:
-        git_date = None
-        try:
-            meta = _json.loads(r["auto_meta"] or "{}")
-            git_date = ((meta.get("git") or {}).get("last_commit") or {}).get("date")
-        except (ValueError, AttributeError):
-            git_date = None
-        stamp = _sort_key(git_date) or _sort_key(r["fs_modified"]) \
-            or _sort_key(r["updated_at"])
-        items.append({"id": r["id"], "name": r["name"], "path": r["path"],
-                      "stamp": stamp})
-    items.sort(key=lambda x: x["stamp"], reverse=True)
-    return items[:max(1, int(limit or 3))]
+    from app.services.recent import recent_projects as _impl
+    return _impl(limit)
 
 
 def start_tray(window, server, logger):

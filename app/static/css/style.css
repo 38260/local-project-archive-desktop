@@ -57,7 +57,11 @@
 
   /* 顶栏高度：锚点滚动与 sticky 定位共用 */
   --topbar-h: 60px;
+  /* 顶部项目标签栏高度：默认 0（不占位），页面挂载标签栏后由 html.has-tabbar 打开。
+     顶栏 / 目录树 / toast 的 sticky 偏移都按「标签栏 + 顶栏」两段算，见下文。 */
+  --tabbar-h: 0px;
 }
+html.has-tabbar { --tabbar-h: 40px; }
 [data-theme="dark"] {
   --bg: #0a0d12;
   --panel: #11151c;
@@ -149,17 +153,102 @@ a:hover { text-decoration: underline; }
 }
 /* 偏好减弱透明度：玻璃退为实色 */
 @media (prefers-reduced-transparency: reduce) {
-  .topbar, .modal-mask { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
-  .topbar { background: var(--panel); }
+  .topbar, .tabbar, .modal-mask { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+  .topbar, .tabbar { background: var(--panel); }
 }
 /* 偏好更高对比度：实色表面 + 明确描边 */
 @media (prefers-contrast: more) {
-  .topbar, .panel, .card, .stat { background: var(--panel); border-color: var(--muted); }
+  .topbar, .tabbar, .panel, .card, .stat { background: var(--panel); border-color: var(--muted); }
 }
+
+/* ---- 顶部项目标签栏（浏览器式多标签：在最近打开的项目之间一键切换） ----
+   与顶栏同一套玻璃材质，整条高度由 --tabbar-h 固定，
+   这样 sticky 偏移可以精确叠加，不会出现顶栏压住标签的情况。 */
+.tabbar {
+  position: sticky; top: 0; z-index: 60;
+  display: flex; align-items: center; gap: var(--s-2);
+  height: var(--tabbar-h);
+  padding: 0 16px;
+  background: var(--panel-glass);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 var(--edge);
+}
+/* 标签条：横向滚动，溢出时滚轮可推；滚动条隐藏（浏览器标签栏同款观感） */
+.tab-strip {
+  display: flex; align-items: center; gap: 4px;
+  flex: 1; min-width: 0;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+}
+.tab-strip::-webkit-scrollbar { height: 0; display: none; }
+
+.tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  flex: 0 0 auto; max-width: 190px;
+  padding: 5px 9px;
+  border: 1px solid transparent; border-radius: var(--r-md);
+  background: transparent; color: var(--muted);
+  font-size: 13.5px; line-height: 1.15;
+  cursor: pointer; user-select: none; white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.tab:hover { background: var(--panel-2); color: var(--text); }
+.tab.on { background: var(--panel); border-color: var(--border); color: var(--text); }
+.tab.on .licon { color: var(--accent); }
+.tab-label { overflow: hidden; text-overflow: ellipsis; }
+/* 关闭按钮：平时让位给标签文字，悬停 / 当前标签 / 键盘聚焦时出现 */
+.tab-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto; width: 16px; height: 16px;
+  border-radius: var(--r-sm); color: var(--muted);
+  opacity: 0; transition: opacity .15s, background .15s, color .15s;
+}
+.tab:hover .tab-x, .tab.on .tab-x, .tab-x:focus-visible { opacity: 1; }
+.tab-x:hover { background: var(--border); color: var(--text); }
+
+/* 右侧「最近项目」下拉：打开不在标签里的其它最近项目 */
+.tab-more-wrap { position: relative; flex: 0 0 auto; }
+.tab-more {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 26px;
+  border: 1px solid transparent; border-radius: var(--r-md);
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.tab-more:hover, .tab-more.on { background: var(--panel-2); color: var(--text); }
+.tab-more-list {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 80;
+  width: max-content; min-width: 260px;
+  max-width: min(380px, calc(100vw - 40px));
+  display: flex; flex-direction: column; gap: 1px;
+  padding: var(--s-1);
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow);
+}
+.tm-head {
+  padding: 5px var(--s-3) 6px; font-size: 12px; font-weight: 700;
+  color: var(--muted); letter-spacing: .02em;
+}
+.tm-item {
+  display: flex; align-items: center; gap: var(--s-2);
+  padding: 7px var(--s-3); border: none; border-radius: 6px;
+  background: none; color: var(--text); font: inherit; font-size: 13.5px;
+  text-align: left; cursor: pointer;
+}
+.tm-item:hover { background: var(--accent-soft); }
+.tm-name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-path { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; color: var(--muted); font-size: 12px; font-family: var(--mono); }
+.tm-flag { flex: 0 0 auto; font-size: 11.5px; color: var(--accent); }
+.tm-empty { padding: 8px var(--s-3); color: var(--muted); font-size: 13px; }
+.tm-sep { height: 1px; margin: var(--s-1) 0; background: var(--border); }
+.tm-close-all { color: var(--muted); }
+.tm-close-all:hover { color: var(--danger); background: var(--lost-bg); }
 
 /* ---- 顶栏（毛玻璃材质：模糊 + 提亮上沿 + 饱和补偿） ---- */
 .topbar {
-  position: sticky; top: 0; z-index: 50;
+  position: sticky; top: var(--tabbar-h); z-index: 50;
   display: flex; align-items: center; gap: var(--s-3);
   flex-wrap: wrap;                 /* P0-4：窄屏允许换行，避免挤压溢出 */
   padding: 13px 28px;
@@ -959,9 +1048,9 @@ body.modal-open { overflow: hidden; }
   gap: 14px;
   align-items: start;
 }
-/* 锚点跳转时为 sticky 顶栏留出空间 */
-.detail-main section.panel { scroll-margin-top: calc(var(--topbar-h) + 12px); }
-.toc-nav { position: sticky; top: var(--topbar-h); display: flex; flex-direction: column; gap: 1px; }
+/* 锚点跳转时为 sticky 顶栏留出空间（标签栏 + 顶栏两段高度） */
+.detail-main section.panel { scroll-margin-top: calc(var(--tabbar-h) + var(--topbar-h) + 12px); }
+.toc-nav { position: sticky; top: calc(var(--tabbar-h) + var(--topbar-h)); display: flex; flex-direction: column; gap: 1px; }
 .toc-nav .toc-title {
   font-size: 16px; font-weight: 800; color: var(--muted);
   padding: 0 var(--s-3) var(--s-2);
@@ -1590,7 +1679,7 @@ body.modal-open { overflow: hidden; }
 
 /* ---- 打印（P3）：隐藏交互件，单栏展开，避免面板被切断 ---- */
 @media print {
-  .topbar, .toc-nav, .action-row, .more-wrap, .detail-side,
+  .topbar, .tabbar, .toc-nav, .action-row, .more-wrap, .detail-side,
   .foot-note, .md-toolbar, .editor-actions, .upload-veil, .toasts { display: none !important; }
   body { background: #fff; }
   .container { padding: 0; max-width: none; }

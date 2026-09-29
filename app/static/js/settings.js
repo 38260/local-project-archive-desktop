@@ -19,6 +19,7 @@
         tab: "general",   // general | desktop | data | danger
         prefs: {},        // 通用设置键值（来自 /api/settings）
         themeTick: 0,     // 主题按钮响应 window.themePref() 的开关
+        tabbarVisible: window.lpaTabbarVisible(),  // 顶部标签栏显隐（纯界面偏好，走 localStorage）
         editorOptions: [],
         autostart: { enabled: false, available: false, saving: false },
         importingBackup: false,
@@ -74,6 +75,11 @@
         window.setThemePref(v);
         this.themeTick++;
         this.$emit("changed", "prefs", "theme");
+      },
+      // 顶部标签栏显隐：与主题一样是纯界面偏好（localStorage），改完广播事件让标签栏即时响应
+      toggleTabbar(on) {
+        this.tabbarVisible = !!on;
+        window.setLpaTabbarVisible(this.tabbarVisible);
       },
       // 编辑器下拉选项：后端探测 PATH 上可用的命令（带友好显示名）
       async loadEditors() {
@@ -267,6 +273,17 @@
                           :class="{ primary: currentThemePref === t.v }"
                           @click="chooseTheme(t.v)">{{ t.l }}</button>
                 </span>
+              </div>
+              <div class="setting-row" style="margin-top:10px">
+                <div>
+                  <span class="setting-title">顶部项目标签栏</span>
+                  <span class="setting-desc">在顶栏上方显示浏览器式标签条，一键切换最近打开的项目；标签只记在本机，可随时关闭</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" :checked="tabbarVisible"
+                         @change="toggleTabbar($event.target.checked)" aria-label="顶部项目标签栏">
+                  <span class="switch-slider"></span>
+                </label>
               </div>
               <div class="setting-row" style="margin-top:10px">
                 <div>

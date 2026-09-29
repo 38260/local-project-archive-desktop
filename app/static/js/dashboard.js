@@ -549,6 +549,7 @@
   Object.assign(app.config.globalProperties, window.LPA_HELPERS);
   app.component("lpa-select", window.LpaSelect);
   app.component("lpa-icon", window.LpaIcon);
+  app.component("lpa-tabbar", window.LpaTabbar);
   app.component("lpa-settings-dialog", window.LpaSettingsDialog);
   app.directive("modal", window.LpaModal);
   const root = app.mount("#app");

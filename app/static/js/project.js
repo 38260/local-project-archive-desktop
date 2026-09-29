@@ -1351,6 +1351,8 @@
     },
     mounted() {
       this.load();
+      // 顶部标签栏 / 其它共享组件的跳转统一走 lpaNavigate，避免绕过「未保存内容」确认
+      window.lpaNavigate = (url) => this.leaveConfirm(url);
       window.addEventListener("scroll", this.onScroll, { passive: true });
       // 有未保存内容时的离开确认改用应用内弹窗（leaveConfirm），见 gotoSibling/返回首页：
       // 原生 beforeunload 在 pywebview(WebView2) 桌面壳里确认框可能不可见，导致「退不出来」。
@@ -1380,6 +1382,7 @@
   app.component("tree-node", TreeNode);
   app.component("lpa-select", window.LpaSelect);
   app.component("lpa-icon", window.LpaIcon);
+  app.component("lpa-tabbar", window.LpaTabbar);
   app.component("lpa-settings-dialog", window.LpaSettingsDialog);
   app.directive("modal", window.LpaModal);
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用
