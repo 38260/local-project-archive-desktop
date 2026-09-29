@@ -207,15 +207,16 @@ def list_projects():
 
 @router.get("/brief")
 def list_projects_brief():
-    """轻量列表（仅 id/name），详情页左右切换用，不做磁盘校验。"""
+    """轻量列表（仅 id/name/alias），详情页左右切换与顶部标签栏悬浮提示用，不做磁盘校验。"""
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT id, name FROM projects ORDER BY pinned DESC, "
+            "SELECT id, name, alias FROM projects ORDER BY pinned DESC, "
             "CASE status WHEN '进行中' THEN 0 WHEN '已完成' THEN 1 "
             "WHEN '暂停' THEN 2 WHEN '归档' THEN 3 WHEN '废弃' THEN 4 ELSE 5 END ASC, "
             "updated_at DESC"
         ).fetchall()
-    return {"projects": [{"id": r["id"], "name": r["name"]} for r in rows]}
+    return {"projects": [{"id": r["id"], "name": r["name"], "alias": r["alias"]}
+                         for r in rows]}
 
 
 @router.get("/recent")

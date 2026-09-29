@@ -795,9 +795,9 @@
     name: "LpaTabbar",
     data() {
       return {
-        tabs: [],                       // 已打开的项目标签 [{id, name}]，数组顺序 = 显示顺序
+        tabs: [],                       // 已打开的项目标签 [{id, name, alias}]，数组顺序 = 显示顺序
         recent: [],                     // 后端「最近开发」列表（▾ 下拉用）
-        names: {},                      // id → 名称字典（/api/projects/brief）
+        names: {},                      // id → {name, alias} 字典（/api/projects/brief）
         visible: tabbarVisible(),
         moreOpen: false,
         curId: currentProjectId(),
@@ -813,7 +813,10 @@
       openHome() { if (this.curId !== null) this.go("/"); },
       openTab(t) { if (t.id !== this.curId) this.go("/project/" + t.id); },
       hasTab(id) { return this.tabs.some(t => t.id === id); },
-      nameOf(id) { return this.names[id] || ("项目 #" + id); },
+      nameOf(id) { return (this.names[id] && this.names[id].name) || ("项目 #" + id); },
+      aliasOf(id) { return (this.names[id] && this.names[id].alias) || ""; },
+      // 标签悬浮提示：项目名称 + 别名（别名只在有值时出现，不再夹带拖拽/关闭说明）
+      tabTitle(t) { return t.alias ? t.name + "\n别名：" + t.alias : t.name; },
       // 打开「最近项目」下拉里的一项：目标页会把它登记成标签
       openRecent(p) {
         this.moreOpen = false;
@@ -876,7 +879,11 @@
             if (!Number.isInteger(id) || id <= 0 || seen.has(id)) return false;
             seen.add(id);
             return true;
-          }).map(t => ({ id: Number(t.id), name: String(t.name || ("项目 #" + t.id)) }));
+          }).map(t => ({
+            id: Number(t.id),
+            name: String(t.name || ("项目 #" + t.id)),
+            alias: String(t.alias || ""),
+          }));
         } catch (e) { return []; }
       },
       persist() {
@@ -901,22 +908,33 @@
         this.curId = detail.projectId != null ? detail.projectId : currentProjectId();
         if (this.curId !== null && !this.hasTab(this.curId)) {
           // 新打开的项目追加到末尾：不打乱用户手动拖出来的顺序
-          this.tabs.push({ id: this.curId, name: this.nameOf(this.curId) });
-          this.ensureNames();
+          this.tabs.push({
+            id: this.curId,
+            name: this.nameOf(this.curId),
+            alias: this.aliasOf(this.curId),
+          });
         }
+        // 每次切页都刷一遍字典（只查库、开销可忽略），保证悬浮提示的名称/别名不是旧值
+        this.ensureNames();
         this.persist();
         this.afterTabsChange();
       },
-      // 名称字典：brief 只查库、不做磁盘校验，开销可忽略
+      // 名称与别名字典：brief 只查库、不做磁盘校验，开销可忽略
       async ensureNames() {
         try {
           const b = await api("/api/projects/brief", { silent: true });
           const map = {};
-          (b.projects || []).forEach(p => { map[p.id] = p.name; });
+          (b.projects || []).forEach(p => { map[p.id] = { name: p.name, alias: p.alias || "" }; });
           this.names = map;
-          this.tabs.forEach(t => { if (map[t.id]) t.name = map[t.id]; });
+          this.tabs.forEach(t => {
+            if (!map[t.id]) return;
+            t.name = map[t.id].name;
+            t.alias = map[t.id].alias;
+          });
         } catch (e) { /* 名称拿不到就先用「项目 #id」兜底 */ }
       },
+      // 详情页保存档案（改名 / 改别名）后刷新字典，标签悬浮提示不留旧值
+      onProjectUpdated() { this.ensureNames(); },
       // ---- 拖拽排序：HTML5 DnD，实时换位，未引入任何拖拽库 ----
       onDragStart(t, ev) {
         // 用掉即清：鼠标在窗口外松开时 mouseup 收不到，标记会卡住
@@ -964,18 +982,22 @@
 
         const stored = localStorage.getItem(TAB_KEY);
         let tabs = stored === null
-          ? this.recent.map(p => ({ id: p.id, name: p.name }))   // 首次使用：预填
+          ? this.recent.map(p => ({ id: p.id, name: p.name, alias: this.aliasOf(p.id) }))  // 首次使用：预填
           : this.parse(stored);
 
         if (hasNames) {
           tabs = tabs.filter(t => this.names[t.id] != null);      // 档案已删除 → 标签自动清理
-          tabs.forEach(t => { if (this.names[t.id]) t.name = this.names[t.id]; });
+          tabs.forEach(t => {
+            if (!this.names[t.id]) return;
+            t.name = this.names[t.id].name;
+            t.alias = this.names[t.id].alias;
+          });
         }
 
         // 3) 当前项目若还没有标签，追加到末尾。
         //    刻意不做「置顶」：标签顺序由用户拖拽决定，自动重排会让拖好的顺序在刷新后失效。
         if (this.curId !== null && !tabs.some(t => t.id === this.curId)) {
-          tabs.push({ id: this.curId, name: this.nameOf(this.curId) });
+          tabs.push({ id: this.curId, name: this.nameOf(this.curId), alias: this.aliasOf(this.curId) });
         }
 
         this.tabs = tabs;
@@ -989,6 +1011,7 @@
       document.addEventListener("mouseup", this.onDocMouseUp);
       window.addEventListener("lpa-prefs-changed", this.onPrefsChanged);
       window.addEventListener("lpa-route-changed", this.onRouteChanged);
+      window.addEventListener("lpa-project-updated", this.onProjectUpdated);
       await this.init();
     },
     beforeUnmount() {
@@ -996,6 +1019,7 @@
       document.removeEventListener("mouseup", this.onDocMouseUp);
       window.removeEventListener("lpa-prefs-changed", this.onPrefsChanged);
       window.removeEventListener("lpa-route-changed", this.onRouteChanged);
+      window.removeEventListener("lpa-project-updated", this.onProjectUpdated);
       document.documentElement.classList.remove("has-tabbar");
     },
     template: `
@@ -1018,7 +1042,7 @@
                  :class="{ on: t.id === curId, dragging: t.id === dragId }"
                  :aria-selected="t.id === curId ? 'true' : 'false'"
                  draggable="true"
-                 :title="t.name + '（拖动可排序；中键或 × 关闭）'"
+                 :title="tabTitle(t)"
                  @click="openTab(t)" @keydown.enter.prevent="openTab(t)"
                  @keydown.space.prevent="openTab(t)"
                  @auxclick.middle.prevent="closeTab(t)"

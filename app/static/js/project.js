@@ -1326,6 +1326,8 @@
           });
           this.reloadMeta(p);
           this.showEdit = false;
+          // 标签栏常驻：改名 / 改别名后刷新标签的悬浮提示，避免显示旧值
+          window.dispatchEvent(new Event("lpa-project-updated"));
           toast("档案信息已保存", "ok");
         } catch (e) { /* toast 已提示 */ }
         finally { this.savingEdit = false; }
