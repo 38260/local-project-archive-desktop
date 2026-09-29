@@ -22,9 +22,9 @@ from app.config import (
 )
 from app.db import get_db
 from app.models import (
-    ChangelogCreate, ChangelogUpdate, LaunchNoteUpdate, LaunchRequest,
-    LauncherCreate, LauncherUpdate, NoteCreate, NoteUpdate, OpenFileRequest,
-    OpenRequest, ProjectCreate, ProjectUpdate,
+    ChangelogCreate, ChangelogUpdate, LaunchNoteUpdate, LaunchPrefsUpdate,
+    LaunchRequest, LauncherCreate, LauncherUpdate, NoteCreate, NoteUpdate,
+    OpenFileRequest, OpenRequest, ProjectCreate, ProjectUpdate,
 )
 from app.services import (duplicates, gitinfo, launcher as launcher_service,
                           parser, recent, runlog, settings_store)
@@ -737,9 +737,26 @@ def _launchers_row_dict(r) -> dict:
             "created_at": r["created_at"], "updated_at": r["updated_at"]}
 
 
+def _parse_launch_prefs(raw) -> dict:
+    """解析启动面板偏好；任何异常都降级为空偏好，不让脏数据拖垮详情页。"""
+    try:
+        data = json.loads(raw or "{}")
+    except (TypeError, ValueError):
+        return {"order": [], "primary": None}
+    if not isinstance(data, dict):
+        return {"order": [], "primary": None}
+    order = data.get("order")
+    order = [k.strip() for k in order
+             if isinstance(k, str) and k.strip()] if isinstance(order, list) else []
+    primary = data.get("primary")
+    if not isinstance(primary, str) or not primary.strip():
+        primary = None
+    return {"order": order, "primary": primary}
+
+
 @router.get("/{project_id}/launch")
 def get_launch(project_id: int):
-    """启动面板数据：说明（服务端渲染 HTML）+ 自动检测建议 + 自定义启动项。
+    """启动面板数据：说明（服务端渲染 HTML）+ 自动检测建议 + 自定义启动项 + 展示偏好。
 
     检测按需进行（打开面板时才扫），漏斗式：先找项目内可执行文件，
     一个没有才做构建配置推断；任何检测失败都降级为空建议。
@@ -749,6 +766,7 @@ def get_launch(project_id: int):
         rows = conn.execute(
             "SELECT * FROM launchers WHERE project_id=? ORDER BY sort, id",
             (project_id,)).fetchall()
+    prefs = _parse_launch_prefs(row["launch_prefs"])
     path = row["path"]
     if not os.path.isdir(path):
         raise HTTPException(409, dir_not_exists_hint(path))
@@ -766,7 +784,25 @@ def get_launch(project_id: int):
         "detect_kind": kind,
         "suggestions": suggestions,
         "launchers": [_launchers_row_dict(r) for r in rows],
+        "order": prefs["order"],       # 入口展示顺序（用户拖拽决定）
+        "primary": prefs["primary"],   # 顶部「启动」按钮的默认项键；None=取顺序第一项
     }
+
+
+@router.put("/{project_id}/launch-prefs")
+def update_launch_prefs(project_id: int, body: LaunchPrefsUpdate):
+    """保存启动面板偏好（入口顺序 + 顶部「启动」按钮的默认项）。
+
+    刻意不更新 updated_at：拖一下入口顺序只是界面偏好，
+    不该让这个档案在列表里跳到「最近更新」的最前面。
+    """
+    payload = json.dumps({"order": body.order, "primary": body.primary},
+                         ensure_ascii=False)
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+        conn.execute("UPDATE projects SET launch_prefs=? WHERE id=?",
+                     (payload, project_id))
+    return {"ok": True, "order": body.order, "primary": body.primary}
 
 
 @router.put("/{project_id}/launch-note")

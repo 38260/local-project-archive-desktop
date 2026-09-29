@@ -161,6 +161,13 @@
         launchFormSaving: false,
         launchBusyKey: null,    // 启动中防连点
         launchForm: { id: null, name: "", command: "", cwd: "", mode: "console" },
+        // 启动面板展示偏好（随 GET /launch 一起回来，落库在 projects.launch_prefs）：
+        //   launchOrder   入口展示顺序（键数组，见 entryKey）
+        //   launchPrimary 顶部「启动」按钮默认跑哪个入口；null = 取顺序里的第一项
+        launchOrder: [],
+        launchPrimary: null,
+        launchMenuOpen: false,  // 顶栏「启动」按钮的下拉是否展开
+        launchDragKey: null,    // 正在拖拽的入口键（null = 没在拖）
         // 捕获运行与运行历史：勾选后后台执行并采集输出/退出码（记忆上次选择）
         runCapture: localStorage.getItem("lpa-run-capture") === "1",
         runs: [],               // 运行历史列表（不含输出正文）
@@ -402,12 +409,39 @@
         return (this.launch.suggestions || [])
           .filter(s => !saved.has(`${s.mode}|${(s.cwd || "").trim()}|${s.command.trim()}`));
       },
-      // 顶栏「启动」主按钮的默认入口：自定义优先，其次自动检测第一条
+      // 全部入口（自定义 + 自动检测混排）按用户拖出来的顺序排好。
+      // 顺序里没出现过的入口一律排在最后、保持各自原有次序：
+      // 这样新检测出来的入口只会追加到末尾，不会打乱用户已经拖好的位置。
+      orderedEntries() {
+        if (!this.launch) return [];
+        const all = [];
+        (this.launch.launchers || []).forEach((e, i) =>
+          all.push({ key: this.entryKey(e), kind: "l", entry: e, nat: i }));
+        this.visibleSuggestions.forEach((e, i) =>
+          all.push({ key: this.entryKey(e), kind: "s", entry: e, nat: i }));
+        const pos = new Map();
+        this.launchOrder.forEach((k, i) => { if (!pos.has(k)) pos.set(k, i); });
+        return all
+          .map(x => ({ ...x, at: pos.has(x.key) ? pos.get(x.key) : Infinity }))
+          .sort((a, b) => (a.at - b.at) || (a.nat - b.nat));
+      },
+      orderedLaunchers() {
+        return this.orderedEntries.filter(x => x.kind === "l").map(x => x.entry);
+      },
+      orderedSuggestions() {
+        return this.orderedEntries.filter(x => x.kind === "s").map(x => x.entry);
+      },
+      // 顶部「启动」主按钮跑哪一个：优先用下拉里显式指定的那个；
+      // 没指定（或指定的入口已不存在）就取顺序里的第一项。
       primaryLaunchEntry() {
         if (!this.launch || !this.launch.supported) return null;
-        return (this.launch.launchers && this.launch.launchers[0])
-          || (this.visibleSuggestions && this.visibleSuggestions[0])
-          || null;
+        const all = this.orderedEntries;
+        if (!all.length) return null;
+        if (this.launchPrimary) {
+          const hit = all.find(x => x.key === this.launchPrimary);
+          if (hit) return hit.entry;
+        }
+        return all[0].entry;
       },
       // 有运行中的记录时，面板标题显示数量提示
       runningCount() {
@@ -681,10 +715,77 @@
         if (this.p && this.p.is_lost) { this.launch = null; return; }
         this.launchLoading = true;
         try {
-          this.launch = await api(`/api/projects/${this.projectId}/launch`, { silent: true });
+          const d = await api(`/api/projects/${this.projectId}/launch`, { silent: true });
+          this.launch = d;
+          this.launchOrder = Array.isArray(d.order) ? d.order : [];
+          this.launchPrimary = d.primary || null;
         } catch (e) {
           this.launch = null;   // 检测失败不影响详情页其他面板
         } finally { this.launchLoading = false; }
+      },
+      // ---- 启动面板：入口键 / 排序 / 顶部默认项 ----
+      // 入口的唯一键：自定义项用数据库 id（改名改命令都不影响）；
+      // 自动检测项不落库，用「模式|子目录|命令」指纹当键，重新检测后仍能对上。
+      entryKey(e) {
+        if (e && e.id != null) return "l:" + e.id;
+        return "s:" + (e.mode || "console") + "|" + ((e.cwd || "").trim())
+          + "|" + ((e.command || "").trim());
+      },
+      isPrimaryEntry(e) { return this.primaryLaunchEntry === e; },
+      // 下拉里选中某一项 = 把它设为顶部「启动」按钮的默认项（不改动列表顺序）
+      setPrimaryEntry(e) {
+        this.launchMenuOpen = false;
+        this.launchPrimary = this.entryKey(e);
+        this.saveLaunchPrefs();
+      },
+      async saveLaunchPrefs() {
+        if (!this.launch) return;
+        try {
+          await api(`/api/projects/${this.projectId}/launch-prefs`, {
+            method: "PUT", silent: true,
+            body: { order: this.launchOrder, primary: this.launchPrimary },
+          });
+        } catch (e) {
+          toast("启动项顺序没能保存，刷新后会恢复原样", "err");
+        }
+      },
+      // ---- 拖拽排序：HTML5 DnD，实时换位，未引入任何拖拽库 ----
+      onLaunchDragStart(e, ev) {
+        this.launchDragKey = this.entryKey(e);
+        if (ev.dataTransfer) {
+          ev.dataTransfer.effectAllowed = "move";
+          ev.dataTransfer.setData("text/plain", this.launchDragKey); // 少了这行部分浏览器不启动拖拽
+        }
+      },
+      onLaunchDragOver(e, ev) {
+        if (this.launchDragKey == null) return;
+        ev.preventDefault();
+        if (ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
+        const key = this.entryKey(e);
+        if (key === this.launchDragKey) return;
+        const keys = this.orderedEntries.map(y => y.key);
+        const from = keys.indexOf(this.launchDragKey);
+        const to = keys.indexOf(key);
+        if (from < 0 || to < 0) return;
+        // 布局是 flex-wrap（可能多行）：指针落在目标同一行就比横坐标中线，
+        // 落在别的行就比纵坐标中线。只依赖指针与目标自身的位置，
+        // 不用被拖元素的矩形——它每换一次位就会动，容易来回抖。
+        const r = ev.currentTarget.getBoundingClientRect();
+        const inRow = ev.clientY >= r.top && ev.clientY <= r.bottom;
+        const after = inRow
+          ? (ev.clientX - r.left) > r.width / 2
+          : (ev.clientY - r.top) > r.height / 2;
+        let target = after ? to + 1 : to;
+        if (target > from) target -= 1;
+        if (target === from) return;
+        keys.splice(target, 0, keys.splice(from, 1)[0]);
+        this.launchOrder = keys;
+      },
+      onLaunchGridDragOver(ev) { if (this.launchDragKey != null) ev.preventDefault(); },
+      onLaunchDragEnd() {
+        if (this.launchDragKey == null) return;
+        this.launchDragKey = null;
+        this.saveLaunchPrefs();   // 拖完立刻落盘，刷新后顺序不变
       },
       // 执行一个入口：entry 带 id 走已保存启动项，否则按完整命令直跑（自动检测）
       // 确认框内可勾选「捕获输出并记录」：勾选后走后台捕获运行（可看退出码与日志），
@@ -1376,6 +1477,7 @@
         if (this.$refs.settings && this.$refs.settings.visible) { this.$refs.settings.close(); return; }
         if (this.previewShot) { this.previewShot = null; return; }
         if (this.showLaunchForm) { this.showLaunchForm = false; return; }
+        if (this.launchMenuOpen) { this.launchMenuOpen = false; return; }
         if (this.moreOpen) { this.moreOpen = false; return; }
         if (this.showEdit) this.showEdit = false;
       };

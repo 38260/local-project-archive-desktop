@@ -462,6 +462,26 @@ def main():
         st, _ = req("DELETE", f"/api/projects/{p1['id']}/launchers/{lc['id']}")
         check("删除自定义启动项", st == 200)
 
+        # ---- 启动面板偏好：入口顺序 + 顶部「启动」按钮默认项 ----
+        check("launch 返回顺序与默认项字段（初始为空）",
+              l2.get("order") == [] and l2.get("primary") is None)
+        _s = l["suggestions"][0]
+        sug_key = (f"s:{_s['mode']}|{(_s.get('cwd') or '').strip()}"
+                   f"|{_s['command'].strip()}")
+        st, lp = req("PUT", f"/api/projects/{p1['id']}/launch-prefs",
+                     {"order": ["l:999", sug_key], "primary": sug_key})
+        check("保存启动面板偏好", st == 200 and lp["order"] == ["l:999", sug_key]
+              and lp["primary"] == sug_key)
+        st, l3 = req("GET", f"/api/projects/{p1['id']}/launch")
+        check("启动面板偏好已持久化",
+              l3.get("order") == ["l:999", sug_key] and l3.get("primary") == sug_key)
+        st, _ = req("PUT", f"/api/projects/{p1['id']}/launch-prefs", {"order": ["   "]})
+        check("空白入口键被拒绝", st == 422)
+        st, _ = req("PUT", f"/api/projects/{p1['id']}/launch-prefs", {"order": "abc"})
+        check("非数组顺序被拒绝", st == 422)
+        st, _ = req("PUT", "/api/projects/999999/launch-prefs", {"order": []})
+        check("不存在项目的启动偏好返回 404", st == 404)
+
         # ---- 捕获运行与运行历史（启动执行反馈）----
         st, r = req("POST", f"/api/projects/{p1['id']}/launch",
                     {"command": "echo smoke-capture", "mode": "console", "capture": True})
@@ -562,6 +582,26 @@ def main():
               and len(node_item.get("notes", [])) >= 1
               and len(node_item.get("changelogs", [])) >= 1
               and "window" in node_item["notes"][0]["content"])
+
+        # ---- 启动面板偏好的备份往返 ----
+        # 导入按路径去重，所以这里造一个新目录，验证它确实被写进库里（而不是被静默丢弃）
+        check("导出包含启动面板偏好字段",
+              all("launch_prefs" in p for p in exp["projects"]))
+        imp_dir = os.path.join(_temp_root, "imp-prefs")
+        os.makedirs(imp_dir, exist_ok=True)
+        st, imp_res = req("POST", "/api/import", {"projects": [{
+            "path": imp_dir, "name": "imp-prefs",
+            "launch_prefs": {"order": ["l:1", "s:open||x.bat"], "primary": "l:1"},
+        }]})
+        check("导入接受启动面板偏好", st == 200 and imp_res.get("imported") == 1)
+        st, all_p = req("GET", "/api/projects")
+        _imp = next((p for p in all_p["projects"] if p["name"] == "imp-prefs"), None)
+        check("导入的档案已落库", _imp is not None)
+        if _imp:
+            _created_ids.append(_imp["id"])
+            st, li = req("GET", f"/api/projects/{_imp['id']}/launch")
+            check("导入的启动面板偏好可读回",
+                  li.get("order") == ["l:1", "s:open||x.bat"] and li.get("primary") == "l:1")
         st, md = req("POST", "/api/render-md", {"text": "# 标题\n**加粗**", "mode": "notes"})
         check("Markdown 渲染", st == 200 and "<h1" in md["html"] and "<strong>" in md["html"])
         st, md2 = req("POST", "/api/render-md",

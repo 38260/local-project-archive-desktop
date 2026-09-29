@@ -232,6 +232,8 @@ def export_all():
                 "is_lost": bool(r["is_lost"]), "lost_reason": r["lost_reason"],
                 "pinned": bool(r["pinned"]) if "pinned" in r.keys() else False,
                 "launch_note": r["launch_note"] if "launch_note" in r.keys() else "",
+                "launch_prefs": json.loads(r["launch_prefs"] or "{}")
+                if "launch_prefs" in r.keys() else {},
                 "fs_created": r["fs_created"], "fs_modified": r["fs_modified"],
                 "created_at": r["created_at"], "updated_at": r["updated_at"],
                 "launchers": [
@@ -303,12 +305,16 @@ def import_backup(payload: dict):
                 status = "归档"
             else:
                 status = "进行中"
+            # 启动面板偏好（入口顺序 / 顶部默认项）：只认对象，其余一律空偏好
+            raw_prefs = item.get("launch_prefs")
+            launch_prefs = json.dumps(raw_prefs if isinstance(raw_prefs, dict) else {},
+                                      ensure_ascii=False)
             try:
                 cur = conn.execute(
                     "INSERT INTO projects (path, name, alias, category, status, tags, "
                     "description, auto_meta, is_lost, lost_reason, pinned, launch_note, "
-                    "fs_created, fs_modified, created_at, updated_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "launch_prefs, fs_created, fs_modified, created_at, updated_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (path, name,
                      str(item.get("alias") or ""), str(item.get("category") or ""),
                      status,
@@ -319,6 +325,7 @@ def import_backup(payload: dict):
                      str(item.get("lost_reason") or ""),
                      1 if item.get("pinned") else 0,
                      str(item.get("launch_note") or ""),
+                     launch_prefs,
                      str(item.get("fs_created") or ""), str(item.get("fs_modified") or ""),
                      str(item.get("created_at") or now), str(item.get("updated_at") or now)),
                 )

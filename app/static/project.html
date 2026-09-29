@@ -84,11 +84,31 @@
         </span>
       </div>
       <div class="action-row">
-        <button class="btn primary" v-if="launch && launch.supported && primaryLaunchEntry"
-                @click="quickLaunch" :disabled="!!launchBusyKey"
-                :title="'启动：' + primaryLaunchEntry.command">
-          <lpa-icon name="zap" :size="15"></lpa-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
-        </button>
+        <span class="launch-split" v-if="launch && launch.supported && primaryLaunchEntry">
+          <button class="btn primary split-main" @click="quickLaunch" :disabled="!!launchBusyKey"
+                  :title="'启动：' + primaryLaunchEntry.command">
+            <lpa-icon name="zap" :size="15"></lpa-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
+          </button>
+          <button class="btn primary split-caret" type="button" :disabled="!!launchBusyKey"
+                  @click.stop="launchMenuOpen = !launchMenuOpen"
+                  :aria-expanded="launchMenuOpen ? 'true' : 'false'" aria-haspopup="menu"
+                  title="选择「启动」按钮默认跑哪个入口" aria-label="选择「启动」按钮默认跑哪个入口">
+            <lpa-icon name="chevron-down" :size="13"></lpa-icon>
+          </button>
+          <span class="more-mask" v-if="launchMenuOpen" @click="launchMenuOpen = false"></span>
+          <span class="more-list launch-menu" v-if="launchMenuOpen" role="menu">
+            <span class="lm-head">「启动」按钮跑哪一个</span>
+            <button v-for="x in orderedEntries" :key="x.key" class="btn" role="menuitemradio"
+                    :aria-checked="isPrimaryEntry(x.entry) ? 'true' : 'false'"
+                    :class="{ on: isPrimaryEntry(x.entry) }"
+                    :title="x.entry.command"
+                    @click="setPrimaryEntry(x.entry)">
+              <lpa-icon :name="isPrimaryEntry(x.entry) ? 'check' : 'zap'" :size="13"></lpa-icon>
+              <span class="lm-name">{{ x.entry.name }}</span>
+              <span class="lb-tag" v-if="x.kind === 's'">自动</span>
+            </button>
+          </span>
+        </span>
         <button class="btn primary" @click="openIn('explorer')" :disabled="p.is_lost">
           <lpa-icon name="folder-open" :size="15"></lpa-icon>资源管理器
         </button>
@@ -263,16 +283,22 @@
         </div>
       </div>
 
-      <!-- 自定义启动项 -->
-      <template v-if="launch && launch.launchers.length">
+      <!-- 自定义启动项（可拖动调整前后顺序；第一项即顶部「启动」按钮默认跑的入口） -->
+      <template v-if="orderedLaunchers.length">
         <div class="launch-group-label">自定义启动项</div>
-        <div class="launch-grid">
-          <div class="launch-entry" v-for="l in launch.launchers" :key="l.id">
+        <div class="launch-grid" @dragover="onLaunchGridDragOver" @drop.prevent="onLaunchDragEnd">
+          <div class="launch-entry" v-for="l in orderedLaunchers" :key="entryKey(l)"
+               draggable="true"
+               :class="{ dragging: launchDragKey === entryKey(l) }"
+               @dragstart="onLaunchDragStart(l, $event)"
+               @dragover="onLaunchDragOver(l, $event)"
+               @dragend="onLaunchDragEnd">
             <button type="button" class="launch-btn" @click="runEntry(l)" :disabled="!!launchBusyKey"
                     :title="l.command + (l.cwd ? '（子目录 ' + l.cwd + '）' : '')">
               <lpa-icon name="zap" :size="15" class="lb-ico"></lpa-icon>
               <span class="lb-body">
-                <b>{{ l.name }}
+                <b>{{ l.name }}<span class="lb-primary" v-if="isPrimaryEntry(l)"
+                     title="顶部「启动」按钮跑的就是这个">顶部启动</span>
                   <lpa-icon :name="l.mode === 'open' ? 'external' : 'terminal'" :size="11" class="lb-mode"
                             :title="l.mode === 'open' ? '直接运行' : '新终端窗口'"></lpa-icon>
                 </b>
@@ -291,8 +317,8 @@
         </div>
       </template>
 
-      <!-- 自动检测入口 -->
-      <template v-if="launch && visibleSuggestions.length">
+      <!-- 自动检测入口（同样可拖动调序，与自定义项共用一个顺序） -->
+      <template v-if="orderedSuggestions.length">
         <div class="launch-group-label">
           自动检测
           <span class="section-note">
@@ -300,13 +326,19 @@
             · 点击即运行，可转存为自定义
           </span>
         </div>
-        <div class="launch-grid">
-          <div class="launch-entry" v-for="(s, i) in visibleSuggestions" :key="i">
+        <div class="launch-grid" @dragover="onLaunchGridDragOver" @drop.prevent="onLaunchDragEnd">
+          <div class="launch-entry" v-for="s in orderedSuggestions" :key="entryKey(s)"
+               draggable="true"
+               :class="{ dragging: launchDragKey === entryKey(s) }"
+               @dragstart="onLaunchDragStart(s, $event)"
+               @dragover="onLaunchDragOver(s, $event)"
+               @dragend="onLaunchDragEnd">
             <button type="button" class="launch-btn" @click="runEntry(s)" :disabled="!!launchBusyKey"
                     :title="s.command + '（' + s.source + '）'">
               <lpa-icon name="zap" :size="15" class="lb-ico"></lpa-icon>
               <span class="lb-body">
-                <b>{{ s.name }}<span class="lb-tag">自动</span>
+                <b>{{ s.name }}<span class="lb-primary" v-if="isPrimaryEntry(s)"
+                     title="顶部「启动」按钮跑的就是这个">顶部启动</span><span class="lb-tag">自动</span>
                   <lpa-icon :name="s.mode === 'open' ? 'external' : 'terminal'" :size="11" class="lb-mode"
                             :title="s.mode === 'open' ? '直接运行' : '新终端窗口'"></lpa-icon>
                 </b>

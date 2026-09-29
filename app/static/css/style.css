@@ -1372,11 +1372,30 @@ body.modal-open { overflow: hidden; }
   color: var(--muted); max-width: 320px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
 }
-.lb-tag {
+.lb-tag, .lb-primary {
   margin-left: 6px; font-size: 10px; font-weight: 600; color: var(--accent);
   border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; vertical-align: 1px;
 }
 .lb-ops { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+/* 拖动调序：整张入口卡片可拖（与顶部标签栏同款手感，未引入拖拽库）。
+   cursor: grab 是这里唯一的「可拖动」提示——不再往 tooltip 里塞操作说明。 */
+.launch-entry { cursor: grab; }
+.launch-entry.dragging { opacity: .45; cursor: grabbing; }
+
+/* ---- 顶部「启动」分体按钮：主按钮直接跑默认入口，右侧箭头用来换默认项 ---- */
+.launch-split { position: relative; display: inline-flex; }
+.launch-split .split-main { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.launch-split .split-caret {
+  border-top-left-radius: 0; border-bottom-left-radius: 0;
+  padding: 8px 8px; margin-left: -1px;   /* 与主按钮共用一条边线，避免出现双线 */
+}
+.launch-menu { min-width: 240px; max-width: 340px; }
+.launch-menu .lm-head {
+  padding: 4px 10px 6px; font-size: 12px; color: var(--muted); white-space: nowrap;
+}
+.launch-menu .lm-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.launch-menu .btn.on { color: var(--accent); font-weight: 600; }
+.launch-menu .btn .licon { flex: none; }
 /* ---- 运行历史（捕获运行）：状态 / 退出码 / 耗时 / 输出 ----
    状态一律「文字色 + 边框」表达，不用彩色底块：亮色主题下底块配色容易低于
    WCAG AA 对比度（见 .ct-* 的历史问题），这里从设计上规避。 */

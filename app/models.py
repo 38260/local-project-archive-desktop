@@ -120,6 +120,27 @@ class LauncherUpdate(LauncherCreate):
     pass
 
 
+class LaunchPrefsUpdate(BaseModel):
+    """启动面板的展示偏好：入口顺序 + 顶部「启动」按钮默认跑哪一个。
+
+    order 里放的是入口键——自定义项用 ``l:<id>``，自动检测项用
+    ``s:<mode>|<cwd>|<command>``（自动检测结果不落库，所以用内容指纹当键，
+    重新检测后仍能对上）。primary 为 None 表示「按顺序取第一项」。
+    """
+    order: list[str] = Field(default_factory=list, max_length=100)
+    primary: Optional[str] = Field(None, max_length=320)
+
+    @field_validator("order")
+    @classmethod
+    def _order_items_ok(cls, v):
+        for key in v:
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError("入口键不能为空")
+            if len(key) > 320:
+                raise ValueError("入口键过长")
+        return [key.strip() for key in v]
+
+
 class LaunchRequest(BaseModel):
     """执行启动：要么指定 launcher_id，要么给完整 command+mode（自动检测直跑用）。
 
