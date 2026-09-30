@@ -1277,7 +1277,7 @@
         }
       },
       loadMoreCommits() {
-        if (!this.hasMoreCommits) return;
+        if (!this.hasMoreCommits || this.commitLoadingMore || this.commitLoading) return;
         this.commitLimit = Math.min(this.commitLimit + 50, 200);
         this.loadCommits(true);
       },
