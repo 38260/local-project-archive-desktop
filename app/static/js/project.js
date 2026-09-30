@@ -123,11 +123,13 @@
         newPath: "",
         // 开发笔记（多条）
         notes: [],
+        notesError: false,        // 加载失败标记：失败与「真没有笔记」分开显示
         noteDraft: null,          // null=收起编辑器，否则为草稿内容
         editingNoteId: null,
         editingNoteContent: "",
         // 变更日志
         changelogs: [],
+        logsError: false,
         logDraft: null,
         logDraftTitle: "",
         logDraftDate: "",
@@ -174,6 +176,7 @@
         runCapture: localStorage.getItem("lpa-run-capture") === "1",
         runs: [],               // 运行历史列表（不含输出正文）
         runsLoading: false,
+        runsError: false,
         runOpenId: null,        // 当前展开输出查看的运行 id
         runDetail: null,        // 展开运行的详情（状态/退出码/耗时）
         runLines: [],           // 已拉取到的输出行
@@ -181,6 +184,7 @@
         runStopping: false,
         // 截图
         screenshots: [],
+        shotsError: false,
         previewShot: null,
         uploadingShots: false,
         uploadCount: 0,
@@ -836,11 +840,12 @@
       async loadRuns() {
         if (!this.p || this.p.is_lost) { this.runs = []; return; }
         this.runsLoading = true;
+        this.runsError = false;
         try {
           const r = await api(`/api/projects/${this.projectId}/runs?limit=10`,
             { silent: true });
           this.runs = r.runs || [];
-        } catch (e) { this.runs = []; }              // 历史读取失败不影响启动面板
+        } catch (e) { this.runs = []; this.runsError = true; }   // 失败与「无记录」分开显示
         finally { this.runsLoading = false; }
       },
       runStatusMeta(run) {
@@ -1083,10 +1088,11 @@
       switchTheme() { window.cycleTheme(); this.themeTick++; },
       // ---- 开发笔记 ----
       async loadNotes() {
+        this.notesError = false;
         try {
           const r = await api(`/api/projects/${this.projectId}/notes`, { silent: true });
           this.notes = r.notes;
-        } catch (e) { this.notes = []; }
+        } catch (e) { this.notes = []; this.notesError = true; }
       },
       async saveNewNote() {
         try {
@@ -1123,10 +1129,11 @@
       },
       // ---- 变更日志 ----
       async loadChangelogs() {
+        this.logsError = false;
         try {
           const r = await api(`/api/projects/${this.projectId}/changelogs`, { silent: true });
           this.changelogs = r.changelogs;
-        } catch (e) { this.changelogs = []; }
+        } catch (e) { this.changelogs = []; this.logsError = true; }
       },
       openLogDraft() {
         this.logDraft = "";
@@ -1175,7 +1182,8 @@
         try {
           const r = await api(`/api/projects/${this.projectId}/screenshots`, { silent: true });
           this.screenshots = r.screenshots;
-        } catch (e) { this.screenshots = []; }
+          this.shotsError = false;
+        } catch (e) { this.screenshots = []; this.shotsError = true; }
       },
       async uploadShots(e) {
         const files = [...(e.target.files || [])];

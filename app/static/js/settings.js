@@ -24,6 +24,7 @@
         autostart: { enabled: false, available: false, saving: false },
         importingBackup: false,
         backups: [],
+        backupsError: false,     // 备份列表加载失败标记：失败与「暂无备份」分开显示
         backupEnabled: true,
         backupKeep: 10,
         backupSaving: false,
@@ -170,12 +171,13 @@
 
       // ---- 数据库备份 ----
       async loadBackups() {
+        this.backupsError = false;
         try {
           const r = await api("/api/settings/backups", { silent: true });
           this.backups = r.backups || [];
           this.backupEnabled = !!r.auto_enabled;
           this.backupKeep = r.keep || 10;
-        } catch (e) { /* 静默 */ }
+        } catch (e) { this.backupsError = true; }
       },
       async saveBackupPrefs() {
         this.backupSaving = true;
@@ -493,6 +495,12 @@
                     <lpa-icon name="trash" :size="13"></lpa-icon>
                   </button>
                 </div>
+              </div>
+              <div class="hint" v-else-if="backupsError">
+                备份列表加载失败
+                <button class="btn sm" @click="loadBackups" style="margin-left:6px">
+                  <lpa-icon name="refresh" :size="13"></lpa-icon>重试
+                </button>
               </div>
               <div class="hint" v-else>暂无备份（启动服务时自动创建，或点下方按钮立即备份）</div>
               <div style="margin-top:8px">

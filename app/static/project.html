@@ -361,7 +361,14 @@
       </div>
 
       <!-- 运行历史：捕获运行的状态 / 退出码 / 耗时 / 输出 -->
-      <div class="run-history" v-if="runs.length">
+      <div class="panel-compact-bar" v-if="runsError">
+        运行历史加载失败，记录未丢失，可重试
+        <span class="fill"></span>
+        <button class="btn sm" @click="loadRuns" :disabled="runsLoading">
+          <lpa-icon name="refresh" :size="13"></lpa-icon>重试
+        </button>
+      </div>
+      <div class="run-history" v-else-if="runs.length">
         <div class="run-head">
           <span class="run-head-title">运行历史
             <span class="run-running-tip" v-if="runningCount">{{ runningCount }} 个运行中</span>
@@ -532,7 +539,14 @@
         <span class="count">{{ notes.length }} 条</span>
         <span class="right section-note">开发体会 / 思考心得 / 踩坑点 / 解决方案</span>
       </h2>
-      <div class="panel-compact-bar" v-if="!notes.length && noteDraft === null">
+      <div class="panel-compact-bar" v-if="notesError">
+        笔记加载失败，数据未丢失，可重试
+        <span class="fill"></span>
+        <button class="btn sm" @click="loadNotes">
+          <lpa-icon name="refresh" :size="13"></lpa-icon>重试
+        </button>
+      </div>
+      <div class="panel-compact-bar" v-else-if="!notes.length && noteDraft === null">
         暂无笔记，随手记录开发体会与踩坑
         <span class="fill"></span>
         <button class="btn sm primary" @click="noteDraft = ''">
@@ -598,7 +612,14 @@
         <span class="count">{{ changelogs.length }} 条</span>
         <span class="right section-note">手动记录版本改动 / 功能新增 / 重大调整，独立于 git 提交</span>
       </h2>
-      <div class="panel-compact-bar" v-if="!changelogs.length && logDraft === null">
+      <div class="panel-compact-bar" v-if="logsError">
+        变更日志加载失败，数据未丢失，可重试
+        <span class="fill"></span>
+        <button class="btn sm" @click="loadChangelogs">
+          <lpa-icon name="refresh" :size="13"></lpa-icon>重试
+        </button>
+      </div>
+      <div class="panel-compact-bar" v-else-if="!changelogs.length && logDraft === null">
         暂无变更日志，记录人为的版本改动
         <span class="fill"></span>
         <button class="btn sm primary" @click="openLogDraft">
@@ -852,6 +873,13 @@
           </button>
           <span class="shot-size">{{ fmtSize(s.size) }}</span>
         </div>
+      </div>
+      <div class="panel-compact-bar" v-else-if="shotsError">
+        截图加载失败，可重试
+        <span class="fill"></span>
+        <button class="btn sm" @click="loadShots">
+          <lpa-icon name="refresh" :size="13"></lpa-icon>重试
+        </button>
       </div>
       <label class="shots-empty" v-else :class="{ on: shotsDrag }">
         <input type="file" accept="image/png,image/jpeg,image/webp" multiple
