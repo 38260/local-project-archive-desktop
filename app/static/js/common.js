@@ -930,6 +930,8 @@
         el.scrollLeft += (e.deltaY || e.deltaX);
       },
       onDocClick(e) { if (!this.$el.contains(e.target)) this.moreOpen = false; },
+      // Esc 关闭「最近项目」下拉：与弹窗/菜单的 Esc 语义保持一致（此前只认外部点击）
+      onDocKey(e) { if (e.key === "Escape" && this.moreOpen) { this.moreOpen = false; e.stopPropagation(); } },
       onDocMouseUp() { this.xPressed = false; },
       onPrefsChanged() {
         this.visible = tabbarVisible();
@@ -1079,6 +1081,7 @@
     async mounted() {
       this.syncOffset();
       document.addEventListener("click", this.onDocClick);
+      document.addEventListener("keydown", this.onDocKey);
       document.addEventListener("mouseup", this.onDocMouseUp);
       window.addEventListener("lpa-prefs-changed", this.onPrefsChanged);
       window.addEventListener("lpa-route-changed", this.onRouteChanged);
@@ -1087,6 +1090,7 @@
     },
     beforeUnmount() {
       document.removeEventListener("click", this.onDocClick);
+      document.removeEventListener("keydown", this.onDocKey);
       document.removeEventListener("mouseup", this.onDocMouseUp);
       window.removeEventListener("lpa-prefs-changed", this.onPrefsChanged);
       window.removeEventListener("lpa-route-changed", this.onRouteChanged);

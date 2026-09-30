@@ -536,6 +536,7 @@
           return;
         }
         if (e.key === "Escape") {
+          if (this.toolsOpen) { this.toolsOpen = false; return; }
           if (this.$refs.settings && this.$refs.settings.visible) {
             this.$refs.settings.close();
             return;
