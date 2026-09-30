@@ -324,6 +324,41 @@
     }
   };
 
+  // ---------- 文件下载（fetch + blob） ----------
+  // 不用 location.href 触发下载：接口报错（500 等）时浏览器会把整个 WebView
+  // 导航到错误 JSON 页，应用界面被替换且没有返回入口。先 fetch 验证响应，
+  // 成功再以 blob + a[download] 落盘，失败只弹 toast。
+  window.downloadFile = async function (url, fallbackName) {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        let detail = "";
+        try { const j = await resp.json(); detail = j.detail || ""; } catch (e) { /* 非 JSON 错误体 */ }
+        throw new Error(detail || ("HTTP " + resp.status));
+      }
+      const blob = await resp.blob();
+      // 文件名优先取后端 Content-Disposition，取不到用调用方给的兜底名
+      let name = fallbackName || "download";
+      const cd = resp.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+      if (m) {
+        try { name = decodeURIComponent(m[1].replace(/"/g, "")); }
+        catch (e) { name = m[1].replace(/"/g, ""); }
+      }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      return true;
+    } catch (e) {
+      toast("导出失败：" + (e.message || "未知错误"), "error");
+      return false;
+    }
+  };
+
   // ---------- 通用状态徽标样式 ----------
   function statusBadgeClass(s) { return "badge s-" + s; }
 

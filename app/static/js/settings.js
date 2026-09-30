@@ -125,7 +125,7 @@
       // ---- 数据维护 ----
       exportJson() {
         toast("正在生成导出文件…", "ok");
-        location.href = "/api/export";
+        window.downloadFile("/api/export", "tracelight-backup.json");
       },
       async importBackup(e) {
         const file = e.target.files && e.target.files[0];

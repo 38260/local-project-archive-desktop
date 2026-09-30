@@ -1223,9 +1223,10 @@
       },
       // ---- 导出 HTML 档案 ----
       exportHtml() {
-        // location.href 触发下载不会有页面反馈，先 toast 一声避免误以为没反应
+        // 下载无页面反馈，先 toast 一声避免误以为没反应；失败由 downloadFile 报错
         toast("正在生成导出文件…", "ok");
-        location.href = `/api/projects/${this.projectId}/export-html`;
+        window.downloadFile(`/api/projects/${this.projectId}/export-html`,
+          (this.p ? this.p.name : "project") + "-archive.html");
       },
       // ---- Markdown 工具栏：在光标处包裹/插入 ----
       mdWrap(refName, before, after) {

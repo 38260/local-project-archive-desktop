@@ -237,7 +237,7 @@
       },
       exportJson() {
         toast("正在生成导出文件…", "ok");
-        location.href = "/api/export";
+        window.downloadFile("/api/export", "tracelight-backup.json");
       },
       // 原生「选择文件夹」对话框（仅桌面窗口模式有 pywebview 桥）
       async browseFolder(target) {
