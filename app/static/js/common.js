@@ -304,10 +304,12 @@
   };
 
   // ---------- 剪贴板 ----------
-  window.copyText = async function (text) {
+  // label：提示文案中的内容名（默认「路径」），复制 README 原文等非路径内容时传入
+  window.copyText = async function (text, label) {
+    const what = label || "路径";
     try {
       await navigator.clipboard.writeText(text);
-      toast("路径已复制到剪贴板", "ok");
+      toast(what + "已复制到剪贴板", "ok");
     } catch (e) {
       // 降级方案：临时 textarea + execCommand
       const ta = document.createElement("textarea");
@@ -316,7 +318,7 @@
       ta.select();
       try {
         document.execCommand("copy");
-        toast("路径已复制到剪贴板", "ok");
+        toast(what + "已复制到剪贴板", "ok");
       } catch (e2) {
         toast("复制失败，请手动复制：" + text, "error");
       }

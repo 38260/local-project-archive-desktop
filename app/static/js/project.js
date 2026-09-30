@@ -551,7 +551,7 @@
     methods: {
       // 复制 README 原文（Markdown 源码）；正文本身可自由拖选复制
       async copyReadme() {
-        if (this.readme && this.readme.raw) await this.copyText(this.readme.raw);
+        if (this.readme && this.readme.raw) await this.copyText(this.readme.raw, "README 原文");
       },
       // ---- 引用文档：Markdown 里的链接统一在应用内处理，杜绝整页跳走白屏 ----
       // 事件委托捕获阶段拦截：只处理 Markdown 渲染区（.md-body）里的 <a>，
