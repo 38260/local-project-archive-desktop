@@ -920,6 +920,9 @@
         finally { this.runStopping = false; }
       },
       async deleteRun(run) {
+        if (!await confirmDialog(
+          "确定删除这条运行记录吗？\n\n记录含完整的命令输出日志，删除后不可恢复。",
+          { title: "删除运行记录", okText: "删除", danger: true })) return;
         try {
           await api(`/api/projects/${this.projectId}/runs/${run.id}`, { method: "DELETE" });
           if (this.runOpenId === run.id) this.closeRun();
@@ -992,7 +995,7 @@
         finally { this.launchFormSaving = false; }
       },
       async deleteLauncher(l) {
-        if (!await confirmDialog(`删除启动项「${l.name}」？`,
+        if (!await confirmDialog(`删除启动项「${l.name}」？删除后不可恢复。`,
           { title: "删除启动项", okText: "删除", danger: true })) return;
         try {
           await api(`/api/projects/${this.projectId}/launchers/${l.id}`, { method: "DELETE" });
@@ -1159,7 +1162,7 @@
         } catch (e) { /* toast 已提示 */ }
       },
       async deleteLog(c) {
-        if (!await confirmDialog(`确定删除变更日志「${c.title || "未命名条目"}」吗？`,
+        if (!await confirmDialog(`确定删除变更日志「${c.title || "未命名条目"}」吗？删除后不可恢复。`,
           { title: "删除变更日志", okText: "删除", danger: true })) return;
         try {
           await api(`/api/projects/${this.projectId}/changelogs/${c.id}`, { method: "DELETE" });
@@ -1209,7 +1212,7 @@
         }
       },
       async deleteShot(s) {
-        if (!await confirmDialog("确定删除这张截图吗？",
+        if (!await confirmDialog("确定删除这张截图吗？删除后不可恢复。",
           { title: "删除截图", okText: "删除", danger: true })) return;
         try {
           await api(`/api/projects/${this.projectId}/screenshots/${encodeURIComponent(s.file)}`,
