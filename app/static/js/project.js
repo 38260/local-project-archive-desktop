@@ -103,6 +103,8 @@
         readme: null,
         tree: undefined, // undefined=加载中, null=失败
         notFound: false,
+        // 非 404 的加载失败（500/网络断）：显示错误态+重试，避免永远停在骨架屏
+        loadError: "",
         themeTick: 0,
         // 相邻项目（详情页左右切换）。
         // 初值取 common.js 的共享缓存（外壳脚本常驻，软导航不重跑）：
@@ -661,6 +663,7 @@
         return this.docView.relDir || "";
       },
       async load() {
+        this.loadError = "";
         try {
           const p = await api(`/api/projects/${this.projectId}`);
           this.p = p;
@@ -685,6 +688,7 @@
           this.loadCommitStats();
         } catch (e) {
           if (e.status === 404) this.notFound = true;
+          else this.loadError = e.message || "加载失败";
         }
       },
       // 读取通用设置：提交记录加载数 / 热力图范围（设置里改了立即生效于下次加载）

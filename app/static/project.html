@@ -938,6 +938,20 @@
       </a>
     </div>
   </main>
+  <main class="container" v-else-if="loadError">
+    <div class="empty-tip">
+      项目数据加载失败{{ loadError ? "：" + loadError : "" }}<br>
+      <span class="section-note">服务可能暂时不可用，稍后再试</span>
+      <div class="empty-actions">
+        <button class="btn primary" @click="load">
+          <lpa-icon name="refresh" :size="15"></lpa-icon>重试
+        </button>
+        <a class="btn" href="/">
+          <lpa-icon name="arrow-left" :size="15"></lpa-icon>返回首页
+        </a>
+      </div>
+    </div>
+  </main>
   <div class="container" v-else>
     <div class="skel-stack" style="padding:24px 0">
       <span class="skel" style="width:260px;height:30px"></span>
