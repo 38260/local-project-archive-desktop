@@ -964,11 +964,11 @@
   <div class="lightbox" v-if="previewShot" @click="previewShot = null" role="dialog" aria-modal="true" aria-label="截图预览">
     <img :src="previewShot.url" alt="截图预览">
     <button class="lb-nav lb-prev" v-if="screenshots.length > 1"
-            aria-label="上一张" @click.stop="navShot(-1)">
+            aria-label="上一张" title="上一张（←）" @click.stop="navShot(-1)">
       <lpa-icon name="chevron-left" :size="22"></lpa-icon>
     </button>
     <button class="lb-nav lb-next" v-if="screenshots.length > 1"
-            aria-label="下一张" @click.stop="navShot(1)">
+            aria-label="下一张" title="下一张（→）" @click.stop="navShot(1)">
       <lpa-icon name="chevron-right" :size="22"></lpa-icon>
     </button>
     <span class="lb-count">{{ screenshots.indexOf(previewShot) + 1 }} / {{ screenshots.length }}</span>

@@ -1491,6 +1491,9 @@
       // 原生 beforeunload 在 pywebview(WebView2) 桌面壳里确认框可能不可见，导致「退不出来」。
       // Esc 依次关闭：文档查看器 → 设置弹窗 → 截图灯箱 → 启动表单 → 更多菜单 → 编辑弹窗
       this._onKey = (e) => {
+        // 灯箱打开时 ←/→ 切图（与按钮 navShot 同一逻辑，键盘用户也能翻页）
+        if (this.previewShot && e.key === "ArrowLeft") { this.navShot(-1); return; }
+        if (this.previewShot && e.key === "ArrowRight") { this.navShot(1); return; }
         if (e.key !== "Escape") return;
         if (this.docView) { this.docView = null; return; }
         if (this.$refs.settings && this.$refs.settings.visible) { this.$refs.settings.close(); return; }
