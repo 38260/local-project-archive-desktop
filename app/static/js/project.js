@@ -1471,7 +1471,7 @@
         try {
           await api(`/api/projects/${this.projectId}`, { method: "DELETE" });
           this.clearDescDraft();
-          toast("档案记录已删除", "ok");
+          toast("档案记录已删除；如误删，可在 设置 → 数据 中从自动备份恢复", "ok");
           const pid = this.projectId;
           setTimeout(() => {
             // 标签栏常驻，档案删了要同步摘掉标签，否则会留下点不开的死标签
