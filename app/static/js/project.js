@@ -1055,14 +1055,25 @@
       // 描述草稿本身会落 localStorage（下次进入自动恢复），笔记/日志草稿离开即丢，
       // 提示文案如实区分，让用户自己决定。
       leaveConfirm(url) {
+        // 编辑中的既有笔记/日志也算未保存：与原内容比对，只在真改过时才拦
+        // （只打开编辑框没动字，不弹确认，避免打扰）
+        const editingNote = this.editingNoteId != null
+          && this.notes.some(n => n.id === this.editingNoteId
+            && n.content !== this.editingNoteContent);
+        const editingLog = this.editingLogId != null
+          && this.changelogs.some(c => c.id === this.editingLogId
+            && (c.title !== this.editLogForm.title
+              || c.content !== this.editLogForm.content
+              || c.entry_date !== this.editLogForm.entry_date));
         const hasUnsaved = this.descDirty
           || (this.noteDraft != null && String(this.noteDraft).trim())
-          || (this.logDraft != null && String(this.logDraft).trim());
+          || (this.logDraft != null && String(this.logDraft).trim())
+          || editingNote || editingLog;
         if (!hasUnsaved) { window.lpaSoftNavigate(url); return; }
         confirmDialog(
           "当前页面有未保存的内容（描述、笔记或变更日志）。\n\n"
           + "描述草稿会自动保留，下次打开本项目可继续编辑；"
-          + "尚未保存的笔记 / 日志离开后将丢失。",
+          + "尚未保存的笔记 / 日志（含正在编辑的修改）离开后将丢失。",
           { title: "离开详情页", okText: "仍然离开" })
           .then(ok => { if (ok) window.lpaSoftNavigate(url); });
       },
