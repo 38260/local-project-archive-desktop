@@ -279,10 +279,15 @@
         } catch (e) { this.rescanningAll = false; }
       },
       async pollRescan() {
+        // 进度文案/按钮禁用态由 rescanningAll 维持：仅在轮询真正结束时复位。
+        // 原先 finally 无条件复位，running 中提前 return 的那次也复位，
+        // 导致「解析中 x/y」一闪即没、按钮提前恢复可点。
+        let keepPolling = false;
         try {
           const p = await api("/api/projects/rescan-all/progress", { silent: true });
           this.rescanProgress = p;
           if (p.running) {
+            keepPolling = true;
             setTimeout(() => this.pollRescan(), 800);
             return;
           }
@@ -293,7 +298,7 @@
           toast(msg, p.failed && p.failed.length ? "error" : "ok");
           this.load();
         } catch (e) { /* toast 已提示 */ }
-        finally { this.rescanningAll = false; }
+        finally { if (!keepPolling) this.rescanningAll = false; }
       },
 
       async loadPrefs() {
