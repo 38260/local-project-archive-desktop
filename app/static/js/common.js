@@ -188,7 +188,7 @@
     try {
       resp = await fetch(path, opt);
     } catch (e) {
-      toast("无法连接本地服务，请确认 run.py 正在运行", "error");
+      toast("无法连接本地服务，请尝试重启应用", "error");
       throw e;
     }
     let data = null;
