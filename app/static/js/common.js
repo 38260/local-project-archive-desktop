@@ -155,7 +155,10 @@
       okBtn.onclick = () => done(confirmValue());
       mask.addEventListener("mousedown", e => { if (e.target === mask) done(false); });
       document.body.appendChild(mask);
-      (needText ? input : okBtn).focus();
+      // 默认焦点：危险操作聚焦「取消」，防止用户随手回车直接执行删除；
+      // 输入确认模式聚焦输入框，普通确认聚焦「确定」保持高效
+      const cancelBtn = mask.querySelector(".c-cancel");
+      (needText ? input : (opts.danger ? cancelBtn : okBtn)).focus();
     });
   };
 
