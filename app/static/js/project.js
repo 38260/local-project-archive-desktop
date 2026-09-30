@@ -750,7 +750,7 @@
             body: { order: this.launchOrder, primary: this.launchPrimary },
           });
         } catch (e) {
-          toast("启动项顺序没能保存，刷新后会恢复原样", "err");
+          toast("启动项顺序没能保存，刷新后会恢复原样", "error");
         }
       },
       // ---- 拖拽排序：HTML5 DnD，实时换位，未引入任何拖拽库 ----
