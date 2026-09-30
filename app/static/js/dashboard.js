@@ -225,7 +225,7 @@
       async quickOpen(p, target) {
         try {
           await api(`/api/projects/${p.id}/open`, { method: "POST", body: { target } });
-          toast(target === "vscode" ? "已在 VS Code 打开" : "已在资源管理器打开", "ok");
+          toast(target === "vscode" ? `已在 ${this.editorName()} 打开` : "已在资源管理器打开", "ok");
         } catch (e) { /* toast 已提示 */ }
       },
       async togglePin(p) {

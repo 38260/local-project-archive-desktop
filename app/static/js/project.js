@@ -1375,7 +1375,7 @@
           await api(`/api/projects/${this.projectId}/open`, {
             method: "POST", body: { target },
           });
-          toast(target === "vscode" ? "已在 VS Code 中打开" : "已在资源管理器中打开", "ok");
+          toast(target === "vscode" ? `已在 ${window.editorName(this.editorCmd)} 中打开` : "已在资源管理器中打开", "ok");
         } catch (e) { /* toast 已提示 */ }
       },
       async togglePin() {
