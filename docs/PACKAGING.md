@@ -405,8 +405,16 @@ rem 产物：dist\Tracelight\（目录版）+ dist\installer\Tracelight-Setup-<�
 - **per-user 安装**（`PrivilegesRequired=lowest`）：不弹 UAC，装到
   `%LOCALAPPDATA%\Programs\Tracelight`；数据在 `%LOCALAPPDATA%\Tracelight`，与安装目录分离；
 - 开始菜单快捷方式必有，桌面快捷方式可选（默认不建）；
-- 安装/卸载前自动 `taskkill Tracelight.exe`，避免文件占用；
-- 卸载**默认保留用户数据**，卸载向导末尾可选「同时删除」；
+- **覆盖安装自动关掉旧程序**：`taskkill /F /T /IM Tracelight.exe` 按镜像名结束（连
+  pywebview 的 WebView2 子进程一起，从 `dist` 直接运行的绿色版同样命中），再用应用自己
+  创建的命名互斥体 `Tracelight_SingleInstanceMutex` 轮询等它真正退出、文件句柄释放干净；
+- **直接替换成新版本文件**：`CloseApplications=no` 关掉 Inno 自带的 Restart Manager
+  （它只给主窗口发 WM_CLOSE，会被本应用「关闭时最小化到托盘」拦下，必然关不掉），
+  关闭逻辑全由上面的 taskkill 负责；`[InstallDelete]` 先清 `{app}\_internal`，避免旧版
+  dll/pyd 混进新版本；
+- 关不掉时（多为旧进程以管理员身份启动）停在「准备安装」页报错并允许重试，而不是装到一半失败；
+- 卸载**默认保留用户数据**，卸载向导末尾可选「同时删除」；覆盖安装时由 Setup 静默调用的
+  那次卸载**不弹任何框**（靠 `UninstallSilent` 主动判断，而不是只依赖 `SuppressibleMsgBox`）；
 - 固定 `AppId` GUID：覆盖安装靠它识别同一应用，升级不丢配置。
 
 踩过的坑（都已处理）：
@@ -415,7 +423,12 @@ rem 产物：dist\Tracelight\（目录版）+ dist\installer\Tracelight-Setup-<�
 2. `[Code]` 段是 Pascal 语法，注释用 `//`（`;` 只用于其他段）；
 3. `PrepareToInstall` 是 **function**（返回 String），写成 procedure 编译不过；
 4. `EstimatedSize` 不是 Inno 指令（那是 MSI 的），别加；
-5. bat 里写中文注释会在 GBK 代码页下乱码炸行，保持纯 ASCII。
+5. bat 里写中文注释会在 GBK 代码页下乱码炸行，保持纯 ASCII；
+6. `CloseApplications` 默认 `yes`：会弹「是否自动关闭这些程序」的询问框，而本应用
+   （托盘常驻、拦截 WM_CLOSE）永远关不掉它，只会走到死路 —— 必须置 `no` 并自己 taskkill；
+7. 覆盖安装时 Setup 会在后台静默调用旧版卸载程序，其 `usPostUninstall` 里的 `MsgBox`
+   仍可能弹出、把升级流程卡住 —— 要用 `UninstallSilent` 主动判断（Inno 调用旧卸载程序时
+   未必带 `/SUPPRESSMSGBOXES`，只把 `MsgBox` 换成 `SuppressibleMsgBox` 不够稳）。
 
 分发提示：无代码签名时首跑会触发 SmartScreen「未知发布者」警告，属预期；
 自用加 Defender 排除项，对外分发考虑 OV 代码签名（见 §5.1）。
