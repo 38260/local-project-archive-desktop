@@ -319,14 +319,34 @@ def load_geometry(logger):
     return None
 
 
+def window_maximized(window) -> bool:
+    """窗口当前是否处于最大化。
+
+    pywebview 只暴露尺寸/坐标，没有窗口状态，只能问后端窗体：WinForms 的
+    FormWindowState 枚举里 2 = Maximized（见 pywebview/platforms/winforms.py）。
+    探测失败一律返回 False —— 宁可偶尔把最大化尺寸记进设置，也不要因为
+    探测失败让「记住窗口大小」整个失效。
+    """
+    try:
+        return int(window.native.WindowState) == 2
+    except Exception:
+        return False
+
+
 def save_geometry(window, logger):
-    """记录窗口大小/位置；窗口处于最小化/隐藏等异常状态时跳过。
+    """记录窗口大小/位置；窗口处于最小化/隐藏/最大化等异常状态时跳过。
 
     返回 True 表示已写入。pywebview 在窗口销毁或最小化时读尺寸会
     返回 None / 屏幕外坐标（-25600），这类值写入会导致下次启动还原出坏窗口。
+
+    最大化时同样不记：此时读到的是整块工作区尺寸，写进去会让用户下次点
+    「还原」得到一个铺满屏幕的普通窗口（看起来像没还原成功）。
+    保留上一次的普通尺寸，还原才有意义。
     """
     try:
         from app.services import settings_store
+        if window_maximized(window):
+            return False
         w, h = int(window.width), int(window.height)
         x, y = int(window.x), int(window.y)
         if w < 300 or h < 300 or x < -20000 or y < -20000:
@@ -336,6 +356,31 @@ def save_geometry(window, logger):
     except Exception as exc:
         logger.warning("保存窗口尺寸失败：%s", exc)
         return False
+
+
+def drop_stale_maximized_geometry(window, logger) -> None:
+    """清掉「最大化尺寸被当成普通窗口尺寸记下来」的历史脏数据（启动时自愈）。
+
+    历史版本在窗口最大化时照样记录几何，存进去的就是最大化范围：比屏幕还宽、
+    坐标是负的。之后每次启动都按这个尺寸造窗口，于是得到一个「铺满屏幕但其实
+    没最大化」的窗口 —— 点「还原」没反应，标题栏还贴在最顶端。
+
+    判定：记录下来的尺寸与**当前最大化窗口**的实际范围几乎重合。允许 24px 误差，
+    因为最大化范围本身会随任务栏/DPI 取整而抖几像素（实测记录 2060×1108、
+    实际 2062×1118）。只在本次启动确实最大化的前提下调用：拿普通窗口的尺寸去
+    比没有意义，反而可能误删用户真正想要的尺寸。
+    """
+    try:
+        from app.services import settings_store
+        g = settings_store.get("window.geometry")
+        if not isinstance(g, dict):
+            return
+        w, h = int(g.get("w") or 0), int(g.get("h") or 0)
+        if abs(w - int(window.width)) <= 24 and abs(h - int(window.height)) <= 24:
+            settings_store.set("window.geometry", None)
+            logger.info("已清理与最大化范围重合的窗口尺寸记录：%s", g)
+    except Exception as exc:
+        logger.warning("清理窗口尺寸记录失败：%s", exc)
 
 
 def track_geometry(window, logger):
@@ -535,6 +580,9 @@ def start_tray(window, server, logger):
             pystray.MenuItem("启动时静默（不弹窗口）",
                              toggle_setting("app.start_minimized", "「启动时静默」"),
                              checked=lambda item: bool(settings_store.get("app.start_minimized"))),
+            pystray.MenuItem("启动时最大化窗口",
+                             toggle_setting("app.start_maximized", "「启动时最大化窗口」"),
+                             checked=lambda item: bool(settings_store.get("app.start_maximized"))),
             pystray.MenuItem("启动时自动检查项目路径",
                              toggle_setting("scan.refresh_on_start", "「启动时自动检查项目路径」"),
                              checked=lambda item: bool(settings_store.get("scan.refresh_on_start"))),
@@ -725,7 +773,9 @@ def main() -> int:
         open_browser_window(url, server)
         return 0
 
-    # 窗口大小/位置：还原上次的（无效或缺失时用默认）
+    # 窗口大小/位置：还原上次的（无效或缺失时用默认）。
+    # 即使要最大化也照常传尺寸/位置：WinForms 会把「最大化前的尺寸」当作还原尺寸，
+    # 用户点窗口右上角「还原」才会回到上次的普通大小，而不是铺满整屏的假最大化窗口。
     geo = load_geometry(logger)
     width, height = 1440, 900
     pos_kwargs = {}
@@ -737,10 +787,12 @@ def main() -> int:
     # 托盘行为：关闭=隐藏到托盘；配合「静默启动」可开机不弹窗
     tray_enabled = _tray_available() and _setting_true("tray.close_to_tray")
     start_hidden = tray_enabled and _setting_true("app.start_minimized")
+    # 启动即最大化：默认开，可在「设置 → 桌面」或托盘菜单里关掉
+    start_maximized = _setting_true("app.start_maximized")
 
     window = webview.create_window(
         WINDOW_TITLE, url, width=width, height=height, min_size=(1024, 700),
-        hidden=start_hidden, **pos_kwargs)
+        hidden=start_hidden, maximized=start_maximized, **pos_kwargs)
     if window is None:
         # 极少数环境下创建窗口会返回 None，不能让用户干等
         logger.error("pywebview 创建窗口失败，回退到系统浏览器")
@@ -758,6 +810,11 @@ def main() -> int:
 
     # 窗口大小/位置：变化时防抖持久化（closing/closed 时机窗口已不可读，见 track_geometry）
     track_geometry(window, logger)
+
+    if start_maximized:
+        # 启动时自愈一次：清掉历史上被误记成窗口尺寸的最大化范围，
+        # 否则用户以后关掉「启动时最大化」，点「还原」会得到一个铺满屏幕的普通窗口。
+        window.events.shown += lambda *_: drop_stale_maximized_geometry(window, logger)
 
     if tray_enabled:
         # 有托盘时，关闭按钮 = 隐藏到托盘而不是退出（托盘菜单点退出才真退出）

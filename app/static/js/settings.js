@@ -420,6 +420,17 @@
                   <span class="switch-slider"></span>
                 </label>
               </div>
+              <div class="setting-row" style="margin-top:10px">
+                <div>
+                  <span class="setting-title">启动时最大化窗口</span>
+                  <span class="setting-desc">双击打开程序时窗口直接铺满屏幕；关掉后按上次记住的窗口大小与位置打开</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" v-model="prefs['app.start_maximized']"
+                         @change="savePref('app.start_maximized')" aria-label="启动时最大化窗口">
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
             </div>
           </div>
 
