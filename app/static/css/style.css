@@ -1706,7 +1706,7 @@ body.modal-open { overflow: hidden; }
 .tree .f-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 2px; vertical-align: 1px; }
 .tree .t-file.clickable .t-name { cursor: copy; }
 .tree .t-file.clickable:hover .t-name { text-decoration: underline; filter: brightness(1.15); }
-/* 可双击打开的文件（.md / .txt）：点状下划线常驻，提示「这里还能打开」；
+/* 可双击打开的文件（文档 / 网页 / 图片）：点状下划线常驻，提示「这里还能打开」；
    光标改 pointer。单击仍是复制路径，两种行为都写在 title 文案里。 */
 .tree .t-file.clickable.openable .t-name {
   cursor: pointer;

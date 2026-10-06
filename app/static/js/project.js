@@ -7,8 +7,23 @@
   // 描述预览防抖定时器（非响应式，放组件外即可）
   let descTimer = null;
 
+  // 目录树中「双击可用系统默认应用打开」的文件类型。
+  // 文档（.md/.txt）、网页（.html/.htm）、图片三类；图片扩展名与后端
+  // _DOC_IMAGE_EXTS（app/routers/projects.py）保持一致，避免两边口径漂移。
+  const OPENABLE_EXTS = new Set([
+    "md", "markdown", "txt",
+    "html", "htm",
+    "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico",
+    "avif", "jfif", "apng",
+  ]);
+
+  function isOpenableFile(name) {
+    const dot = String(name || "").lastIndexOf(".");
+    return dot >= 0 && OPENABLE_EXTS.has(String(name).slice(dot + 1).toLowerCase());
+  }
+
   // 递归目录树组件
-  // 文件节点交互：单击复制相对路径，双击在应用内打开（.md / .txt）。
+  // 文件节点交互：单击复制相对路径，双击用系统默认应用打开（文档 / 网页 / 图片）。
   // 浏览器在 dblclick 之前必定先派发两次 click，若不做区分就会「打开前先复制一次」，
   // 因此单击延迟一小段再执行、双击到来时取消它。延迟取 300ms：比系统双击间隔略短，
   // 单击手感可接受；极慢的双击最多多出一次复制（无副作用）。
@@ -30,9 +45,9 @@
         const base = this.node.rel || "";
         return base ? `${base}/${this.node.name}` : this.node.name;
       },
-      // 可在应用内打开的类型（当前支持 Markdown 与纯文本）
+      // 可在应用外打开的类型（文档 / 网页 / 图片 → 交给系统默认应用）
       canOpen() {
-        return !this.isDir && /\.(md|markdown|txt)$/i.test(this.node.name || "");
+        return !this.isDir && isOpenableFile(this.node.name);
       },
       fileTitle() {
         return this.canOpen
@@ -54,7 +69,7 @@
           this._clickTimer = null;
         }
         if (!this.canOpen) {
-          toast("当前仅 .md / .txt 支持用默认应用打开，已复制该文件路径", "error");
+          toast("该类型暂不支持双击打开（当前支持文档、网页、图片），已复制该文件路径", "error");
           copyText(this.fileRel);
           return;
         }
