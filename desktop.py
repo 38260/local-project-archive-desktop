@@ -417,6 +417,7 @@ class JsBridge:
     """暴露给前端 JS 的桌面能力（通过 pywebview js_api，仅桌面窗口模式存在）。
 
     前端调用：await window.pywebview.api.select_folder()
+              await window.pywebview.api.select_file(项目根目录)
     """
 
     def __init__(self, window):
@@ -426,6 +427,28 @@ class JsBridge:
         """打开原生「选择文件夹」对话框，返回绝对路径字符串；取消返回空串。"""
         import webview
         result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+        if not result:
+            return ""
+        return result[0] if isinstance(result, (list, tuple)) else str(result)
+
+    def select_file(self, directory: str = ""):
+        """打开原生「选择文件」对话框，返回绝对路径字符串；取消返回空串。
+
+        「添加启动项」弹窗的「浏览…」按钮调用：在系统对话框里进文件夹、双击文件
+        即选中，把该文件作为启动入口。directory 传项目根目录时对话框默认就打开在
+        该项目里；不是有效目录（浏览器模式传空、项目已丢失）则退回系统默认位置。
+        """
+        import webview
+        start_dir = directory if directory and os.path.isdir(directory) else ""
+        result = self._window.create_file_dialog(
+            webview.OPEN_DIALOG,
+            directory=start_dir,
+            allow_multiple=False,
+            # 第一项即默认筛选器：默认「所有文件」，避免用户找不到自己的文件类型。
+            # 注意 pywebview 只接受「说明 (*.ext;*.ext)」这种纯 ASCII 括号格式。
+            file_types=("所有文件 (*.*)",
+                        "启动脚本与程序 (*.exe;*.bat;*.cmd;*.ps1)"),
+        )
         if not result:
             return ""
         return result[0] if isinstance(result, (list, tuple)) else str(result)
@@ -839,10 +862,12 @@ def main() -> int:
                 pass
     window.events.closed += _on_closed
 
-    # 暴露桌面能力给前端：原生「选择文件夹」对话框（手动录入/批量扫描用）。
+    # 暴露桌面能力给前端：原生「选择文件夹」（手动录入/批量扫描）与
+    # 「选择文件」（详情页添加启动项）对话框。
     # 浏览器模式没有这个桥，前端按钮点击时降级为提示。
     # expose 是运行时注册（js_api 需在 create_window 时传入，彼时窗口引用还不存在）
-    window.expose(JsBridge(window).select_folder)
+    _bridge = JsBridge(window)
+    window.expose(_bridge.select_folder, _bridge.select_file)
     webview.start(icon=icon_path(), debug=False)
     return 0
 

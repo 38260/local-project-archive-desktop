@@ -1137,10 +1137,14 @@
       </div>
       <div class="field">
         <label for="lf-cmd">命令（完整命令行）</label>
-        <input type="text" id="lf-cmd" v-model="launchForm.command" maxlength="500"
-               placeholder="如：.venv\Scripts\python.exe main.py 或 npm run dev"
-               @keyup.enter="saveLaunchForm">
-        <div class="hint">「直接运行」模式需要可执行文件的完整路径（如 D:\code\x\start.bat）。</div>
+        <div class="path-row">
+          <input type="text" id="lf-cmd" v-model="launchForm.command" maxlength="500"
+                 placeholder="如：.venv\Scripts\python.exe main.py 或 npm run dev"
+                 @keyup.enter="saveLaunchForm">
+          <button type="button" class="btn" @click="browseLaunchFile"
+                  title="打开系统文件选择对话框，进文件夹后双击文件即选中（桌面窗口模式可用）">浏览…</button>
+        </div>
+        <div class="hint">「直接运行」模式需要可执行文件的完整路径（如 D:\code\x\start.bat）。点「浏览…」可直接进文件夹双击选中文件；选中 .exe/.bat/.cmd/.ps1 会自动切到「直接运行」。</div>
       </div>
       <div class="field">
         <label for="lf-cwd">子目录（可选，相对项目根，monorepo 分仓时用）</label>

@@ -982,6 +982,38 @@
         finally { this.launchNoteSaving = false; }
       },
       // 编辑弹窗：entry=已保存项；suggestion=自动检测建议（转存预填）
+      // 「添加启动项」里点「浏览…」：弹系统文件选择框（默认就打开在该项目根目录），
+      // 进文件夹后双击文件即选中，把该文件作为启动入口填进「命令」。
+      // 与录入页选文件夹共用同一套 pywebview 桥，浏览器模式没有桥 → 降级为提示。
+      async browseLaunchFile() {
+        const bridge = window.pywebview && window.pywebview.api;
+        if (!bridge || typeof bridge.select_file !== "function") {
+          toast("浏览器模式下不支持文件选择，请直接粘贴完整路径", "error");
+          return;
+        }
+        let file;
+        try {
+          const root = (this.p && !this.p.is_lost && this.p.path) || "";
+          file = await bridge.select_file(root);
+        } catch (e) {
+          toast("选择文件失败：" + (e.message || e), "error");
+          return;
+        }
+        if (!file) return;                       // 用户取消
+        if (file.length > 500) {
+          toast("文件路径过长（超过 500 字符），无法作为启动命令", "error");
+          return;
+        }
+        const f = this.launchForm;
+        // 与后端 LAUNCH_DIRECT_EXTS 口径一致：可直接双击运行的类型默认「直接运行」；
+        // 其余类型（.py / .sh 等需要解释器）保持用户当前的运行方式，由用户补参数。
+        if (/\.(exe|bat|cmd|ps1)$/i.test(file)) f.mode = "open";
+        // 引号口径随运行方式走，两种模式不能混：
+        //   「直接运行」走 os.startfile，路径必须原样（带引号会被当成路径的一部分）；
+        //   「新终端窗口」是把命令拼进 cmd /k，路径含空格必须加引号。
+        f.command = (f.mode === "open" || !/\s/.test(file)) ? file : `"${file}"`;
+        if (!f.name.trim()) f.name = file.replace(/^.*[\\/]/, "").replace(/\.[^.]+$/, "");
+      },
       openLaunchForm(entry, suggestion) {
         if (entry) {
           this.launchForm = { id: entry.id, name: entry.name, command: entry.command,
