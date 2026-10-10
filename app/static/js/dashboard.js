@@ -4,7 +4,7 @@
   const { createApp } = Vue;
 
   // 排序下拉的中文标签 → 内部排序键
-  const SORT_LABELS = ["最近更新", "最近修改", "名称", "创建时间", "状态"];
+  const SORT_LABELS = ["手动排序", "最近更新", "最近修改", "名称", "创建时间", "状态"];
   const SORT_KEYS = {
     "最近更新": "updated", "最近修改": "modified", "名称": "name",
     "创建时间": "created", "状态": "status",
@@ -34,6 +34,10 @@
         quickFilter: null,   // null | "active" | "lost"（统计卡下钻用）
         sortBy: "最近更新",
         sortOptions: SORT_LABELS,
+        projectOrder: [],
+        orderSaving: false,
+        dragProjectId: null,
+        dropProjectId: null,
         // 首页总热力图（全部项目提交聚合）
         heat: null,
         heatWeeks: 53,
@@ -123,8 +127,13 @@
                             || byTime("updated_at")(a, b),
         }[key];
         // 置顶项目优先，其余按所选排序
+        const positions = new Map(this.projectOrder.map((id, index) => [id, index]));
         return this.projects.slice().sort(
-          (a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || cmp(a, b));
+          (a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
+            || (this.sortBy === "手动排序"
+              ? (positions.get(a.id) ?? Infinity) - (positions.get(b.id) ?? Infinity)
+                || cmp(a, b)
+              : cmp(a, b)));
       },
       filtered() {
         const q = this.q.toLowerCase();
@@ -163,6 +172,12 @@
       },
       // 有搜索或筛选时合成单个"搜索结果"组（平铺），默认视图按状态分组
       displayGroups() {
+        if (this.sortBy === "手动排序") {
+          return [
+            { status: "置顶项目", items: this.filtered.filter(p => p.pinned) },
+            { status: "项目", items: this.filtered.filter(p => !p.pinned) },
+          ].filter(g => g.items.length);
+        }
         if (this.q || this.statusFilter || this.tagFilter || this.catFilter || this.quickFilter) {
           return [{ status: "搜索结果", items: this.filtered }];
         }
@@ -192,6 +207,69 @@
       },
       // 走统一出口（common.js 的软导航）：同文档切换，不整页重载
       goto(p) { window.lpaNavigate("/project/" + p.id); },
+      async saveSort(value) {
+        if (this.orderSaving) return;
+        const previous = this.sortBy;
+        this.sortBy = value;
+        this.orderSaving = true;
+        try {
+          await api("/api/settings", { method: "PUT", body: { "ui.project_sort": value } });
+        } catch (e) { this.sortBy = previous; }
+        finally { this.orderSaving = false; }
+      },
+      onProjectDragStart(p, ev) {
+        if (this.orderSaving) { ev.preventDefault(); return; }
+        this.dragProjectId = p.id;
+        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.setData("text/plain", String(p.id));
+      },
+      onProjectDragOver(p, ev) {
+        const source = this.projects.find(item => item.id === this.dragProjectId);
+        if (!source || source.id === p.id || !!source.pinned !== !!p.pinned) return;
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = "move";
+        this.dropProjectId = p.id;
+      },
+      onProjectDragEnd() { this.dragProjectId = null; this.dropProjectId = null; },
+      async onProjectDrop(p, ev) {
+        const id = this.dragProjectId;
+        const rect = ev.currentTarget.getBoundingClientRect();
+        this.onProjectDragEnd();
+        await this.moveProject(id, p.id, ev.clientX >= rect.left + rect.width / 2);
+      },
+      moveProjectByKey(p, direction) {
+        const items = this.filtered.filter(item => !!item.pinned === !!p.pinned);
+        const target = items[items.findIndex(item => item.id === p.id) + direction];
+        if (target) return this.moveProject(p.id, target.id, direction > 0);
+      },
+      async moveProject(id, targetId, after) {
+        if (this.orderSaving || id === targetId) return;
+        const source = this.projects.find(p => p.id === id);
+        const target = this.projects.find(p => p.id === targetId);
+        if (!source || !target || !!source.pinned !== !!target.pinned) return;
+        // 从完整列表移动，筛选隐藏的项目仍保留在顺序中。
+        const grouped = this.sortBy !== "手动排序" && !this.q && !this.statusFilter
+          && !this.tagFilter && !this.catFilter && !this.quickFilter;
+        const all = grouped
+          ? STATUS_ORDER.flatMap(status => this.sorted.filter(p => p.status === status)) : this.sorted;
+        const order = all.map(p => p.id).filter(key => key !== id);
+        order.splice(order.indexOf(targetId) + (after ? 1 : 0), 0, id);
+        const previousOrder = this.projectOrder;
+        const previousSort = this.sortBy;
+        this.projectOrder = order;
+        this.sortBy = "手动排序";
+        this.orderSaving = true;
+        try {
+          await api("/api/settings", { method: "PUT", body: {
+            "ui.project_order": order, "ui.project_sort": "手动排序",
+          } });
+          toast("项目顺序已保存", "ok");
+        } catch (e) {
+          this.projectOrder = previousOrder;
+          this.sortBy = previousSort;
+          toast("顺序保存失败，已恢复原顺序", "error");
+        } finally { this.orderSaving = false; }
+      },
       switchTheme() { window.cycleTheme(); this.themeTick++; },
       chooseTheme(v) { window.setThemePref(v); this.themeTick++; },
       statActive(kind) {
@@ -304,6 +382,10 @@
       async loadPrefs() {
         try {
           this.prefs = await api("/api/settings", { silent: true });
+          this.projectOrder = Array.isArray(this.prefs["ui.project_order"])
+            ? this.prefs["ui.project_order"].filter(id => Number.isSafeInteger(id) && id > 0) : [];
+          this.sortBy = SORT_LABELS.includes(this.prefs["ui.project_sort"])
+            ? this.prefs["ui.project_sort"] : "最近更新";
           this.editorCmd = this.prefs["editor.command"] || "code";
           const w = Number(this.prefs["ui.heatmap_weeks"]);
           if (w && w !== this.heatWeeks) {

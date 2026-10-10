@@ -178,13 +178,17 @@
       <lpa-select v-model="statusFilter" :options="statuses" all-label="全部状态"></lpa-select>
       <lpa-select v-model="tagFilter" :options="allTags" all-label="全部标签"></lpa-select>
       <lpa-select v-model="catFilter" :options="allCategories" all-label="全部分类"></lpa-select>
-      <lpa-select v-model="sortBy" :options="sortOptions" all-label=""></lpa-select>
+      <lpa-select :model-value="sortBy" :options="sortOptions" all-label=""
+                  @update:model-value="saveSort"></lpa-select>
       <label class="check-label">
         <input type="checkbox" v-model="showDiscarded"> 显示废弃项目
       </label>
       <span class="spacer"></span>
       <span class="section-note">共 {{ filtered.length }} 个项目</span>
     </div>
+    <p class="section-note order-hint" v-if="filtered.length > 1">
+      {{ orderSaving ? "正在保存顺序…" : "拖动卡片右上角调整顺序，自动保存；置顶项目与其他项目分别排序。" }}
+    </p>
 
     <!-- 已生效的筛选条件（可单个移除） -->
     <div class="active-filters" v-if="activeFilters.length">
@@ -207,8 +211,12 @@
         </div>
         <div class="card-grid">
           <div v-for="p in g.items" :key="p.id" class="card"
-               :class="{'is-lost': p.is_lost, 'is-archived': p.status === '归档' || p.status === '废弃'}"
+               :class="{'is-lost': p.is_lost, 'is-archived': p.status === '归档' || p.status === '废弃',
+                        'is-dragging': dragProjectId === p.id, 'drop-target': dropProjectId === p.id}"
+               :data-project-id="p.id"
                :data-status="p.status"
+               @dragover="onProjectDragOver(p, $event)" @dragleave="dropProjectId === p.id && (dropProjectId = null)"
+               @drop.prevent.stop="onProjectDrop(p, $event)"
                role="link" tabindex="0"
                :aria-label="p.name + '，' + p.status + (p.is_lost ? '，路径丢失' : '')"
                @click="goto(p)" @keydown.enter.prevent="goto(p)" @keydown.space.prevent="goto(p)">
@@ -219,6 +227,14 @@
               <span class="spacer"></span>
               <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
               <span :class="statusBadgeClass(p.status)">{{ p.status }}</span>
+              <button type="button" class="icon-btn project-drag" :draggable="!orderSaving" :disabled="orderSaving"
+                      title="拖动调整顺序；也可按 Alt + 方向键移动" :aria-label="'调整' + p.name + '的顺序'"
+                      @click.stop @keydown.stop
+                      @keydown.alt.up.prevent="moveProjectByKey(p, -1)" @keydown.alt.left.prevent="moveProjectByKey(p, -1)"
+                      @keydown.alt.down.prevent="moveProjectByKey(p, 1)" @keydown.alt.right.prevent="moveProjectByKey(p, 1)"
+                      @dragstart.stop="onProjectDragStart(p, $event)" @dragend="onProjectDragEnd">
+                <lpa-icon name="arrow-up-down" :size="18"></lpa-icon>
+              </button>
             </div>
             <div class="alias-row" v-if="p.alias">
               <span class="alias-chip" :title="'别名：' + p.alias">{{ p.alias }}</span>
@@ -226,11 +242,11 @@
             <div class="path-row" :title="p.path">
               <span class="path">{{ shortPath(p.path) }}</span>
               <span class="row-actions">
-                <button class="icon-btn" :class="{'pin-on': p.pinned}"
+                <button class="icon-btn project-pin" :class="{'pin-on': p.pinned}"
                         :title="p.pinned ? '取消置顶' : '置顶（列表中优先展示）'"
                         :aria-label="p.pinned ? '取消置顶' : '置顶'"
                         @click.stop="togglePin(p)">
-                  <lpa-icon name="pin" :size="15"></lpa-icon>
+                  <lpa-icon name="pin" :size="21"></lpa-icon>
                 </button>
                 <button class="icon-btn" title="资源管理器打开" aria-label="资源管理器打开" :disabled="p.is_lost"
                         @click.stop="quickOpen(p, 'explorer')">

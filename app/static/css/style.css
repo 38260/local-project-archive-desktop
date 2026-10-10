@@ -631,6 +631,13 @@ input[type="search"] { width: 320px; }
 .icon-btn.pin-on { color: var(--warn); opacity: 1; }
 .icon-btn.pin-on:hover { color: var(--warn); background: var(--c-amber-bg); }
 .icon-btn:active { transform: scale(.92); }
+.project-pin { min-width: 34px; min-height: 34px; justify-content: center; }
+.card .path-row .row-actions { flex: none; align-items: center; }
+.project-drag { cursor: grab; flex: none; min-width: 32px; min-height: 32px; justify-content: center; }
+.project-drag:active { cursor: grabbing; }
+.card.is-dragging { opacity: .45; }
+.card.drop-target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.order-hint { margin: -4px 0 16px; }
 
 .empty-tip {
   text-align: center; color: var(--muted);

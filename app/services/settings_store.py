@@ -35,6 +35,8 @@ DEFAULTS: dict = {
     "add.default_category": "",
     # 列表偏好（废弃=彻底不要的项目，默认隐藏；归档始终展示）
     "ui.show_discarded_default": False,
+    "ui.project_order": [],         # 首页手动排序，保存项目 ID 顺序
+    "ui.project_sort": "最近更新",  # 首页当前排序方式
     # 详情页
     "commits.limit": 200,            # 提交记录单次加载数（后端上限 200）
     "ui.heatmap_weeks": 53,          # 提交热力图范围（26=半年 / 53=一年）
