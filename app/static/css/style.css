@@ -516,7 +516,7 @@ input[type="search"] { width: 320px; }
   border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px;
   padding: 0 5px; background: var(--panel-2);
 }
-.path-link { cursor: pointer; border-bottom: 1px dotted var(--border); }
+.path-link { cursor: pointer; border-bottom: 1px dotted var(--border); overflow-wrap: anywhere; }
 .path-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
 .filter-bar {
