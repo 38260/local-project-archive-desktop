@@ -860,12 +860,12 @@ body.modal-open { overflow: hidden; }
 }
 .info-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
 /* 时间线内容长（两个完整时间戳），占两格宽避免折行 */
-.info-tile.tile-wide { grid-column: span 2; }
+.info-tile.tile-wide { grid-column: 1 / -1; }
 .info-tile {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -977,7 +977,7 @@ body.modal-open { overflow: hidden; }
 .dirty-dot { color: var(--warn); font-weight: 700; margin-right: var(--s-2); }
 
 .meta-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 9px var(--s-6);
 }
 .meta-grid .kv { display: flex; gap: 10px; font-size: 14px; align-items: baseline; }
@@ -985,6 +985,9 @@ body.modal-open { overflow: hidden; }
 .meta-grid .v { font-family: var(--mono); font-size: 14px; font-weight: 500; word-break: break-all; }
 /* 关键数值强调 */
 .meta-grid .v strong { color: var(--accent); font-weight: 700; }
+.config-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+.meta-grid .kv { min-width: 0; }
+.meta-grid .v { min-width: 0; }
 
 /* ---- Markdown 编辑区 ---- */
 .md-editor { width: 100%; min-height: 200px; font-size: 14px; }
@@ -1064,14 +1067,16 @@ body.modal-open { overflow: hidden; }
 .toast.ok { border-left-color: var(--ok); }
 @keyframes slide-in { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 
-/* ---- 详情页三栏布局：左侧目录导航 + 主内容 + 右侧目录树 ----
-   三列宽恒定（220 / 自适应 / 430），收起目录树也不改列宽，见下方 tree-collapsed 规则 */
+/* 辅助栏收窄，主要空间留给正文；收起目录树时释放右栏宽度 */
+.project-container { max-width: 1680px; }
 .detail-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 430px;
-  gap: 14px;
+  grid-template-columns: 180px minmax(0, 1fr) clamp(260px, 22vw, 340px);
+  gap: 20px;
   align-items: start;
 }
+.detail-layout.tree-collapsed { grid-template-columns: 180px minmax(0, 1fr) 156px; }
+.detail-main, .detail-side { min-width: 0; }
 /* 锚点跳转时为 sticky 顶栏留出空间（标签栏 + 顶栏两段高度） */
 .detail-main section.panel { scroll-margin-top: calc(var(--tabbar-h) + var(--topbar-h) + 12px); }
 .toc-nav { position: sticky; top: calc(var(--tabbar-h) + var(--topbar-h)); display: flex; flex-direction: column; gap: 1px; }
@@ -1122,11 +1127,10 @@ body.modal-open { overflow: hidden; }
   border-left: none;
 }
 .toc-group.collapsed .toc-group-body { display: none; }
-.detail-side { position: sticky; top: var(--topbar-h); }
-.tree-panel { max-height: calc(100vh - 72px); display: flex; flex-direction: column; }
+.detail-side { position: sticky; top: calc(var(--tabbar-h) + var(--topbar-h) + 12px); }
+.tree-panel { max-height: calc(100dvh - var(--tabbar-h) - var(--topbar-h) - 24px); display: flex; flex-direction: column; }
 .tree-panel .tree-scroll { overflow-y: auto; min-height: 60px; }
-/* 树收起时：第三栏宽度保持不变（三栏 grid 恒定），只隐藏树体并把标题行
-   收成右上角的小胶囊条——避免收起/展开把中间内容区挤宽挤窄（版面跳动） */
+/* 收起后保留可展开的胶囊按钮 */
 .detail-layout.tree-collapsed .tree-panel {
   background: transparent; border: none; box-shadow: none;
   padding: 0; max-height: none;
@@ -1139,6 +1143,10 @@ body.modal-open { overflow: hidden; }
   font-size: 13px; font-weight: 600; color: var(--muted);
 }
 .detail-layout.tree-collapsed .tree-panel > h2 .right { font-size: 12px; }
+@media (min-width: 1025px) and (max-width: 1280px) {
+  .detail-layout { grid-template-columns: 160px minmax(0, 1fr) 260px; gap: 16px; }
+  .detail-layout.tree-collapsed { grid-template-columns: 160px minmax(0, 1fr) 156px; }
+}
 @media (max-width: 1024px) {
   .detail-layout, .detail-layout.tree-collapsed { grid-template-columns: 1fr; }
   .detail-layout.tree-collapsed .tree-panel > h2 { margin-left: 0; }

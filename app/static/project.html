@@ -62,7 +62,7 @@
     </button>
   </header>
 
-  <main class="container" v-if="p">
+  <main class="container project-container" v-if="p">
     <!-- 项目名片：标题 / 路径 / 徽章 / 主操作收成一块 -->
     <div class="proj-card">
       <div class="proj-card-top">
@@ -425,7 +425,7 @@
     <!-- 构建配置与依赖 -->
     <section class="panel" id="sec-configs" v-if="meta && meta.configs.length">
       <h2>构建配置与依赖</h2>
-      <div class="meta-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+      <div class="meta-grid config-grid">
         <div v-for="c in meta.configs" :key="c.file"
              style="border:1px solid var(--border);border-radius:8px;padding:10px 12px">
           <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:6px">
