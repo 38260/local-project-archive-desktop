@@ -1116,10 +1116,10 @@
       // 原建议进 hidden（重新检测不再出现）；三份偏好一次 PUT 落库
       async applyAutoOverride(sourceKey, launcherId) {
         const key = "l:" + launcherId;
+        const order = this.orderedEntries.map(x => x.key);
         if (!this.launchHidden.includes(sourceKey)) {
           this.launchHidden = this.launchHidden.concat(sourceKey);
         }
-        const order = this.launchOrder.slice();
         const idx = order.indexOf(sourceKey);
         if (idx >= 0) order.splice(idx, 1, key);
         else order.push(key);
