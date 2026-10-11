@@ -106,7 +106,8 @@ const
   // 改名前旧版本的互斥体名：旧版进程还在跑时同样要被识别并关闭
   LegacyMutexNames = 'Tracelight_SingleInstanceMutex,LocalProjectArchive_SingleInstanceMutex';
   // 改名前旧版本的 exe 镜像名：覆盖安装时一并 taskkill
-  LegacyExeImages: Array of String = ['Tracelight.exe', 'LocalProjectArchive.exe'];
+  // （PascalScript 不支持 Array of String 常量初始化，按 LegacyMutexNames 同款逗号串写法）
+  LegacyExeImages = 'Tracelight.exe,LocalProjectArchive.exe';
 
 // 任一版本（新旧）的实例互斥体仍存在
 function AnyInstanceRunning(): Boolean;
@@ -135,6 +136,7 @@ procedure KillRunningApp();
 var
   ResultCode, I: Integer;
   Exe: String;
+  Exes: TStringList;
 begin
   // 不做「先判断再杀」：没在跑时 taskkill 只报「找不到进程」，没有副作用；
   // 反倒是「检测不到却仍在运行」才会留下文件被占用的坑。
@@ -142,10 +144,16 @@ begin
   // 按镜像名匹配，所以从 dist 目录直接运行的绿色版同样会被关掉。
   // 新旧 exe 名都要杀：升级场景里正在跑的往往是旧名的 Tracelight.exe。
   Exec('taskkill', '/F /T /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  for I := 0 to GetArrayLength(LegacyExeImages) - 1 do
-  begin
-    Exe := LegacyExeImages[I];
-    Exec('taskkill', '/F /T /IM ' + Exe, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exes := TStringList.Create;
+  try
+    Exes.CommaText := LegacyExeImages;
+    for I := 0 to Exes.Count - 1 do
+    begin
+      Exe := Exes[I];
+      Exec('taskkill', '/F /T /IM ' + Exe, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    end;
+  finally
+    Exes.Free;
   end;
   // 进程退出后内核对象与文件映射的释放有延迟，轮询等互斥体消失（最多 10 秒）
   for I := 1 to 40 do

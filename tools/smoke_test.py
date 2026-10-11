@@ -21,6 +21,7 @@ import urllib.request
 PASS, FAIL = 0, 0
 _created_ids = []       # 测试创建的档案 id，结束时清理
 _temp_root = None
+_flow_dir_check = None  # 流程图上传目录（档案删除后应级联清理），cleanup 后断言
 
 
 def check(name: str, cond: bool, detail: str = ""):
@@ -144,6 +145,18 @@ def cleanup():
     if _temp_root and os.path.isdir(_temp_root):
         shutil.rmtree(_temp_root, ignore_errors=True)
     print(f"\n已清理 {len(_created_ids)} 条测试档案记录与临时目录。")
+
+
+def _upload_flow(pid: int, fname: str, data: bytes):
+    """上传流程图（含失败路径：4xx 返回 (status, body)。"""
+    body, ctype = multipart_body([], [("file", fname, data)])
+    r = urllib.request.Request(f"{BASE}/api/projects/{pid}/flowchart/upload",
+                               data=body, method="POST", headers={"Content-Type": ctype})
+    try:
+        with urllib.request.urlopen(r) as resp:
+            return resp.status, json.load(resp)
+    except urllib.error.HTTPError as e:
+        return e.code, json.load(e)
 
 
 def main():
@@ -424,6 +437,59 @@ def main():
         st, sl2 = req("GET", f"/api/projects/{p1['id']}/screenshots")
         check("删除后剩 1 张", len(sl2["screenshots"]) == 1)
 
+        # ---- 流程图（自动识别 / 选择候选 / 上传替换 / 恢复自动识别） ----
+        fc_main = os.path.join(node, "flowchart.png")
+        with open(fc_main, "wb") as f:
+            f.write(PNG_1PX)
+        os.makedirs(os.path.join(node, "docs"), exist_ok=True)
+        fc_svg = os.path.join(node, "docs", "workflow.svg")
+        with open(fc_svg, "w", encoding="utf-8") as f:
+            f.write("<svg xmlns='http://www.w3.org/2000/svg'></svg>")
+        st, fc = req("GET", f"/api/projects/{p1['id']}/flowchart")
+        check("流程图自动识别（根目录 flowchart.png 排最前）",
+              st == 200 and [c["rel"] for c in fc["candidates"]]
+              == ["flowchart.png", "docs/workflow.svg"]
+              and fc["current"]["kind"] == "auto" and fc["current"]["rel"] == "flowchart.png"
+              and fc["choice"] is None and fc["custom_files"] == [],
+              str(fc)[:240])
+        st, _ = req("PUT", f"/api/projects/{p1['id']}/flowchart-prefs",
+                    {"choice": {"kind": "auto", "rel": "docs/workflow.svg"}})
+        _, fc2 = req("GET", f"/api/projects/{p1['id']}/flowchart")
+        check("选择候选后 current 切换并记录 choice",
+              fc2["current"]["rel"] == "docs/workflow.svg"
+              and fc2["choice"] == {"kind": "auto", "rel": "docs/workflow.svg"})
+        st, _ = req("PUT", f"/api/projects/{p1['id']}/flowchart-prefs",
+                    {"choice": {"kind": "auto", "rel": "../outside.png"}})
+        check("流程图候选越界路径被拒绝", st == 422)
+        st, _ = req("PUT", f"/api/projects/{p1['id']}/flowchart-prefs",
+                    {"choice": {"kind": "bogus"}})
+        check("流程图非法选择类型被拒绝", st == 422)
+        st, _ = req("PUT", f"/api/projects/{p1['id']}/flowchart-prefs", {"choice": None})
+        _, fc3 = req("GET", f"/api/projects/{p1['id']}/flowchart")
+        check("恢复自动识别（choice 清空、回落第一张）",
+              fc3["choice"] is None and fc3["current"]["rel"] == "flowchart.png")
+        st, _ = _upload_flow(p1["id"], "fake.png", b"<html>not png</html>")
+        check("伪造扩展名的流程图被魔数校验拒绝", st == 422)
+        st, up = _upload_flow(p1["id"], "custom.png", PNG_1PX)
+        check("上传流程图成功并自动启用", st == 201 and up["choice"]["kind"] == "custom",
+              str(up)[:200])
+        _, fc4 = req("GET", f"/api/projects/{p1['id']}/flowchart")
+        check("上传图成为当前展示并列出历史",
+              fc4["current"]["kind"] == "custom" and len(fc4["custom_files"]) == 1)
+        with urllib.request.urlopen(f"{BASE}{fc4['current']['url']}") as img_resp:
+            check("上传流程图 URL 可访问且为图片", img_resp.status == 200
+                  and img_resp.read()[:4] == bytes([0x89]) + b"PNG")
+        r = urllib.request.Request(f"{BASE}/api/projects/{p1['id']}/export-html")
+        with urllib.request.urlopen(r) as resp:
+            html_text = resp.read().decode()
+        check("导出 HTML 内嵌当前流程图（base64）",
+              "data:image/png;base64," in html_text and "流程图" in html_text)
+        # 记录上传目录：档案删除后应级联清理（finally 之后断言）
+        flow_root = os.path.join(os.path.dirname(actual_db), "flowcharts", str(p1["id"]))
+        globals()["_flow_dir_check"] = flow_root
+        os.remove(fc_main)
+        os.remove(fc_svg)
+
         # ---- 导出单项目静态 HTML ----
         r = urllib.request.Request(f"{BASE}/api/projects/{p1['id']}/export-html")
         with urllib.request.urlopen(r) as resp:
@@ -475,6 +541,18 @@ def main():
         st, l3 = req("GET", f"/api/projects/{p1['id']}/launch")
         check("启动面板偏好已持久化",
               l3.get("order") == ["l:999", sug_key] and l3.get("primary") == sug_key)
+        # 移除自动检测入口（hidden 记录）：重复键去重；恢复=清空
+        st, lh = req("PUT", f"/api/projects/{p1['id']}/launch-prefs",
+                     {"order": ["l:999", sug_key], "primary": sug_key,
+                      "hidden": [sug_key, sug_key]})
+        check("保存移除的自动检测入口（去重）", st == 200 and lh["hidden"] == [sug_key],
+              str(lh))
+        st, l4 = req("GET", f"/api/projects/{p1['id']}/launch")
+        check("移除记录已持久化（重新检测不再展示由前端过滤）",
+              l4.get("hidden") == [sug_key], str(l4.get("hidden")))
+        st, _ = req("PUT", f"/api/projects/{p1['id']}/launch-prefs",
+                    {"order": ["l:999", sug_key], "primary": sug_key, "hidden": []})
+        check("恢复自动检测入口（hidden 清空）", st == 200)
         st, _ = req("PUT", f"/api/projects/{p1['id']}/launch-prefs", {"order": ["   "]})
         check("空白入口键被拒绝", st == 422)
         st, _ = req("PUT", f"/api/projects/{p1['id']}/launch-prefs", {"order": "abc"})
@@ -587,6 +665,8 @@ def main():
         # 导入按路径去重，所以这里造一个新目录，验证它确实被写进库里（而不是被静默丢弃）
         check("导出包含启动面板偏好字段",
               all("launch_prefs" in p for p in exp["projects"]))
+        check("导出包含流程图选择记录字段",
+              all("flowchart_prefs" in p for p in exp["projects"]))
         imp_dir = os.path.join(_temp_root, "imp-prefs")
         os.makedirs(imp_dir, exist_ok=True)
         st, imp_res = req("POST", "/api/import", {"projects": [{
@@ -616,6 +696,11 @@ def main():
 
     finally:
         cleanup()
+
+    # 流程图上传目录随档案删除级联清理（T4）
+    if _flow_dir_check:
+        check("删除档案级联清理流程图上传目录", not os.path.exists(_flow_dir_check),
+              _flow_dir_check)
 
     print(f"\n===== 结果：{PASS} 通过，{FAIL} 失败 =====")
     return 1 if FAIL else 0
