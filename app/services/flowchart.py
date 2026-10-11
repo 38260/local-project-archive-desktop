@@ -8,8 +8,13 @@
   - 不跟随符号链接 / 目录联接：识别结果全部落在项目真实路径内，防止越界读取。
 """
 import os
+from io import BytesIO
+import warnings
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
+
+from PIL import Image
 
 from app.config import JUNK_DIRS
 
@@ -103,19 +108,28 @@ def detect_flowcharts(project_path: str) -> list[dict]:
 
 
 def sniff_image(data: bytes, ext: str) -> bool:
-    """按魔数校验图片内容与扩展名一致（伪造扩展名的文件一律拒绝）。"""
+    """验证图片格式与解码，拒绝损坏数据、伪造类型和像素炸弹。"""
     ext = ext.lower()
-    if ext == ".png":
-        return data.startswith(b"\x89PNG\r\n\x1a\n")
-    if ext in (".jpg", ".jpeg"):
-        return data.startswith(b"\xff\xd8\xff")
-    if ext == ".gif":
-        return data.startswith((b"GIF87a", b"GIF89a"))
-    if ext == ".bmp":
-        return data.startswith(b"BM")
-    if ext == ".webp":
-        return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
     if ext == ".svg":
-        head = data[:4096].lstrip().lower()
-        return head.startswith(b"<?xml") or head.startswith(b"<svg")
-    return False
+        try:
+            root = ET.fromstring(data)
+            return root.tag in ("svg", "{http://www.w3.org/2000/svg}svg")
+        except (ET.ParseError, ValueError):
+            return False
+    expected = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".gif": "GIF",
+                ".bmp": "BMP", ".webp": "WEBP"}.get(ext)
+    if expected is None:
+        return False
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(BytesIO(data)) as image:
+                if image.format != expected:
+                    return False
+                image.verify()
+            with Image.open(BytesIO(data)) as image:
+                image.load()
+        return True
+    except (OSError, SyntaxError, ValueError, EOFError,
+            Image.DecompressionBombError, Image.DecompressionBombWarning):
+        return False

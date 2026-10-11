@@ -1,5 +1,6 @@
 """升级问题回归：使用真实 API 和独立源码/数据库，不接触正式档案。"""
 import json
+from io import BytesIO
 import os
 from pathlib import Path
 import shutil
@@ -277,6 +278,42 @@ class UpgradeApiTests(unittest.TestCase):
         _, launch, _ = self.request("GET", f"/api/projects/{self.pid}/launch")
         self.assertEqual(launch["launchers"], [])
         self.assertEqual({k: launch[k] for k in original}, original)
+
+    def test_invalid_upload_keeps_previous_picture(self):
+        from tools.smoke_test import PNG_1PX
+        status, saved, _ = self.upload("valid.png", PNG_1PX)
+        self.assertEqual(status, 201, saved)
+        current = saved["saved"]["file"]
+        bad_crc = bytearray(PNG_1PX)
+        bad_crc[PNG_1PX.index(b"IDAT") + 4] ^= 1
+        for filename, data in (
+                ("header.png", b"\x89PNG\r\n\x1a\n"),
+                ("wrong.jpg", PNG_1PX), ("crc.png", bytes(bad_crc)),
+                ("not-svg.svg", b'<?xml version="1.0"?><html/>'),
+                ("broken.svg", b'<svg xmlns="http://www.w3.org/2000/svg">')):
+            with self.subTest(filename=filename):
+                status, _, _ = self.upload(filename, data)
+                self.assertEqual(status, 422)
+                _, flow, _ = self.request("GET", f"/api/projects/{self.pid}/flowchart")
+                self.assertEqual(flow["current"]["file"], current)
+                self.assertEqual(len(flow["custom_files"]), 1)
+
+
+class ImageValidationTests(unittest.TestCase):
+    def test_supported_formats_and_pixel_limit(self):
+        from PIL import Image
+        from app.services.flowchart import sniff_image
+        for ext, fmt in ((".png", "PNG"), (".jpg", "JPEG"), (".jpeg", "JPEG"),
+                         (".gif", "GIF"), (".bmp", "BMP"), (".webp", "WEBP")):
+            with self.subTest(ext=ext):
+                buffer = BytesIO()
+                Image.new("RGB", (8, 8), "white").save(buffer, format=fmt)
+                self.assertTrue(sniff_image(buffer.getvalue(), ext))
+        buffer = BytesIO()
+        Image.new("RGB", (8, 8), "white").save(buffer, format="PNG")
+        with patch.object(Image, "MAX_IMAGE_PIXELS", 40):
+            self.assertFalse(sniff_image(buffer.getvalue(), ".png"))
+        self.assertTrue(sniff_image(b'<svg xmlns="http://www.w3.org/2000/svg"/>', ".svg"))
 
 
 class AutostartTests(unittest.TestCase):
