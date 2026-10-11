@@ -90,11 +90,11 @@
       </div>
       <div class="action-row">
         <span class="launch-split" v-if="launch && launch.supported && primaryLaunchEntry">
-          <button class="btn primary split-main" @click="quickLaunch" :disabled="!!launchBusyKey"
+          <button class="btn primary split-main" @click="quickLaunch" :disabled="!!launchBusyKey || launchPrefsSaving"
                   :title="'启动：' + primaryLaunchEntry.command">
             <tl-icon name="zap" :size="15"></tl-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
           </button>
-          <button class="btn primary split-caret" type="button" :disabled="!!launchBusyKey"
+          <button class="btn primary split-caret" type="button" :disabled="!!launchBusyKey || launchPrefsSaving"
                   @click.stop="launchMenuOpen = !launchMenuOpen"
                   :aria-expanded="launchMenuOpen ? 'true' : 'false'" aria-haspopup="menu"
                   title="选择「启动」按钮默认跑哪个入口" aria-label="选择「启动」按钮默认跑哪个入口">
@@ -107,7 +107,7 @@
                     :aria-checked="isPrimaryEntry(x.entry) ? 'true' : 'false'"
                     :class="{ on: isPrimaryEntry(x.entry) }"
                     :title="x.entry.command"
-                    @click="setPrimaryEntry(x.entry)">
+                    @click="setPrimaryEntry(x.entry)" :disabled="launchPrefsSaving">
               <tl-icon :name="isPrimaryEntry(x.entry) ? 'check' : 'zap'" :size="13"></tl-icon>
               <span class="lm-name">{{ x.entry.name }}</span>
               <span class="lb-tag" v-if="x.kind === 's'">自动</span>
@@ -347,7 +347,7 @@
       <h2>启动
         <span class="count" v-if="launchEntryCount">{{ launchEntryCount }} 个入口</span>
         <span class="right">
-          <button class="btn sm" @click="loadLaunch" :disabled="launchLoading"
+          <button class="btn sm" @click="loadLaunch" :disabled="launchLoading || launchPrefsSaving"
                   title="重新扫描项目内的启动入口">
             <tl-icon name="refresh" :size="13" :class="{spin: launchLoading}"></tl-icon>重新检测
           </button>
@@ -390,7 +390,7 @@
           <div class="launch-row" v-for="x in orderedEntries" :key="x.key"
                :class="{ dragging: launchDragKey === x.key }"
                @dragover="onLaunchDragOver(x.entry, $event)">
-            <span class="launch-handle" draggable="true" tabindex="0" role="button"
+            <span class="launch-handle" :draggable="!launchPrefsSaving" tabindex="0" role="button"
                   :aria-label="'拖动调整「' + x.entry.name + '」的顺序'"
                   title="拖动调整顺序"
                   @dragstart="onLaunchDragStart(x.entry, $event)"
@@ -415,7 +415,7 @@
               </div>
             </div>
             <span class="lb-ops launch-ops">
-              <button class="btn sm" @click="runEntry(x.entry)" :disabled="!!launchBusyKey"
+              <button class="btn sm" @click="runEntry(x.entry)" :disabled="!!launchBusyKey || launchPrefsSaving"
                       :title="'启动：' + x.entry.command">
                 <tl-icon name="zap" :size="12"></tl-icon>启动
               </button>
@@ -433,7 +433,8 @@
                   <tl-icon name="pencil" :size="13"></tl-icon>
                 </button>
                 <button class="icon-btn" title="从此列表移除（不删除脚本，可在下方恢复）"
-                        aria-label="移除自动检测入口" @click="removeSuggestion(x.entry)">
+                         aria-label="移除自动检测入口" @click="removeSuggestion(x.entry)"
+                         :disabled="launchPrefsSaving">
                   <tl-icon name="x" :size="13"></tl-icon>
                 </button>
               </template>
@@ -448,7 +449,8 @@
           已移除 {{ hiddenSuggestions.length }} 个自动检测入口（脚本未删除，重新检测不会再出现）：
         </span>
         <button class="btn sm" v-for="s in hiddenSuggestions" :key="entryKey(s)"
-                @click="restoreSuggestion(s)" :title="'恢复「' + s.name + '」到列表'">
+                @click="restoreSuggestion(s)" :title="'恢复「' + s.name + '」到列表'"
+                :disabled="launchPrefsSaving">
           <tl-icon name="refresh" :size="12"></tl-icon>恢复 {{ s.name }}
         </button>
       </div>
@@ -1269,7 +1271,7 @@
       </div>
       <div class="actions">
         <button class="btn" @click="closeLaunchForm">取消</button>
-        <button class="btn primary" @click="saveLaunchForm" :disabled="launchFormSaving">
+        <button class="btn primary" @click="saveLaunchForm" :disabled="launchFormSaving || launchPrefsSaving">
           {{ launchFormSaving ? "保存中…" : "保存" }}
         </button>
       </div>

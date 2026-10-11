@@ -253,6 +253,31 @@ class UpgradeApiTests(unittest.TestCase):
         self.assertEqual(launch["order"], expected)
         self.assertEqual(launch["primary"], expected[0])
 
+    def test_auto_override_is_atomic_and_keeps_position(self):
+        first, second = "s:console||echo first", "s:console||echo second"
+        for primary in (None, first, second):
+            status, created, _ = self.request("POST", f"/api/projects/{self.pid}/launchers", {
+                "name": "edited", "command": "echo edited", "cwd": "", "mode": "console",
+                "source_key": second,
+                "override_prefs": {"order": [first, second], "primary": primary, "hidden": []}})
+            self.assertEqual(status, 200, created)
+            key = f"l:{created['id']}"
+            _, launch, _ = self.request("GET", f"/api/projects/{self.pid}/launch")
+            self.assertEqual(launch["order"], [first, key])
+            self.assertEqual(launch["primary"], key if primary == second else primary)
+            self.assertEqual(launch["hidden"], [second])
+            self.request("DELETE", f"/api/projects/{self.pid}/launchers/{created['id']}")
+        original = {"order": [first, second], "primary": first, "hidden": []}
+        self.request("PUT", f"/api/projects/{self.pid}/launch-prefs", original)
+        status, _, _ = self.request("POST", f"/api/projects/{self.pid}/launchers", {
+            "name": "must-rollback", "command": "echo no-partial-save", "source_key": second,
+            "override_prefs": {"order": [first, second], "primary": first,
+                               "hidden": [f"s:console||echo hidden-{i}" for i in range(100)]}})
+        self.assertEqual(status, 422)
+        _, launch, _ = self.request("GET", f"/api/projects/{self.pid}/launch")
+        self.assertEqual(launch["launchers"], [])
+        self.assertEqual({k: launch[k] for k in original}, original)
+
 
 class AutostartTests(unittest.TestCase):
     def test_enable_disable_and_legacy_names(self):

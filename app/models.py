@@ -111,6 +111,8 @@ class LauncherCreate(BaseModel):
     command: str = Field(..., min_length=1, max_length=500)
     cwd: str = Field("", max_length=260)
     mode: str = Field("console", pattern="^(console|open)$")
+    source_key: Optional[str] = Field(None, min_length=1, max_length=320)
+    override_prefs: Optional["LaunchPrefsUpdate"] = None
     _not_blank = field_validator("name", "command")(
         lambda cls, v: _reject_blank(v))
 
@@ -142,6 +144,10 @@ class LaunchPrefsUpdate(BaseModel):
             if len(key) > 320:
                 raise ValueError("入口键过长")
         return [key.strip() for key in v]
+
+
+LauncherCreate.model_rebuild()
+LauncherUpdate.model_rebuild()
 
 
 class FlowchartPrefsUpdate(BaseModel):

@@ -178,6 +178,7 @@
         launchNoteSaving: false,
         showLaunchForm: false,
         launchFormSaving: false,
+        launchPrefsSaving: false,
         launchBusyKey: null,    // 启动中防连点
         launchForm: { id: null, name: "", command: "", cwd: "", mode: "console" },
         // 启动面板展示偏好（随 GET /launch 一起回来，落库在 projects.launch_prefs）：
@@ -810,6 +811,7 @@
       },
       // ---- 快速启动（检测/说明/自定义项/执行） ----
       async loadLaunch() {
+        if (this.launchPrefsSaving) return;
         if (this.p && this.p.is_lost) { this.launch = null; return; }
         this.launchLoading = true;
         try {
@@ -833,24 +835,37 @@
       isPrimaryEntry(e) { return this.primaryLaunchEntry === e; },
       // 下拉里选中某一项 = 把它设为顶部「启动」按钮的默认项（不改动列表顺序）
       setPrimaryEntry(e) {
+        if (this.launchPrefsSaving) return;
         this.launchMenuOpen = false;
         this.launchPrimary = this.entryKey(e);
-        this.saveLaunchPrefs();
+        return this.saveLaunchPrefs();
       },
       async saveLaunchPrefs() {
-        if (!this.launch) return;
+        if (!this.launch || this.launchPrefsSaving) return false;
+        this.launchPrefsSaving = true;
         try {
-          await api(`/api/projects/${this.projectId}/launch-prefs`, {
+          const saved = await api(`/api/projects/${this.projectId}/launch-prefs`, {
             method: "PUT", silent: true,
             body: { order: this.launchOrder, primary: this.launchPrimary,
                     hidden: this.launchHidden },
           });
+          Object.assign(this.launch, { order: saved.order, primary: saved.primary,
+                                      hidden: saved.hidden });
+          this.launchOrder = saved.order.slice();
+          this.launchPrimary = saved.primary;
+          this.launchHidden = saved.hidden.slice();
+          return true;
         } catch (e) {
-          toast("启动项顺序没能保存，刷新后会恢复原样", "error");
-        }
+          this.launchOrder = (this.launch.order || []).slice();
+          this.launchPrimary = this.launch.primary || null;
+          this.launchHidden = (this.launch.hidden || []).slice();
+          toast("启动项偏好保存失败，已恢复原状态", "error");
+          return false;
+        } finally { this.launchPrefsSaving = false; }
       },
       // ---- 拖拽排序：HTML5 DnD，实时换位，未引入任何拖拽库 ----
       onLaunchDragStart(e, ev) {
+        if (this.launchPrefsSaving) { ev.preventDefault(); return; }
         this.launchDragKey = this.entryKey(e);
         if (ev.dataTransfer) {
           ev.dataTransfer.effectAllowed = "move";
@@ -885,7 +900,7 @@
       onLaunchDragEnd() {
         if (this.launchDragKey == null) return;
         this.launchDragKey = null;
-        this.saveLaunchPrefs();   // 拖完立刻落盘，刷新后顺序不变
+        return this.saveLaunchPrefs();   // 拖完立刻落盘，刷新后顺序不变
       },
       // 执行一个入口：entry 带 id 走已保存启动项，否则按完整命令直跑（自动检测）
       // 确认框内可勾选「捕获输出并记录」：勾选后走后台捕获运行（可看退出码与日志），
@@ -1098,7 +1113,7 @@
           this.editSourceKey = null;          // 编辑自定义项：与自动项无关
         } else if (suggestion) {
           // 编辑自动检测入口：预填后保存为自定义覆盖项，并记住原建议的指纹，
-          // 避免「改了命令、原建议又冒出来」——覆盖关系见 applyAutoOverride
+          // 新建和覆盖关系由后端在同一事务保存。
           this.launchForm = { id: null, name: suggestion.name, command: suggestion.command,
                               cwd: suggestion.cwd || "", mode: suggestion.mode || "console" };
           this.editSourceKey = this.entryKey(suggestion);
@@ -1112,38 +1127,26 @@
         this.showLaunchForm = false;
         this.editSourceKey = null;
       },
-      // 编辑自动检测入口后的落库：新建的自定义项接管原建议的位置与默认项关系，
-      // 原建议进 hidden（重新检测不再出现）；三份偏好一次 PUT 落库
-      async applyAutoOverride(sourceKey, launcherId) {
-        const key = "l:" + launcherId;
-        const order = this.orderedEntries.map(x => x.key);
-        if (!this.launchHidden.includes(sourceKey)) {
-          this.launchHidden = this.launchHidden.concat(sourceKey);
-        }
-        const idx = order.indexOf(sourceKey);
-        if (idx >= 0) order.splice(idx, 1, key);
-        else order.push(key);
-        this.launchOrder = order;
-        if (this.launchPrimary === sourceKey) this.launchPrimary = key;
-        await this.saveLaunchPrefs();
-      },
       // 移除自动检测入口：只从列表隐藏（launch_prefs.hidden），不删除任何脚本；
       // 重新检测不会再次出现，列表下方提供恢复入口
       async removeSuggestion(s) {
+        if (this.launchPrefsSaving) return;
         const key = this.entryKey(s);
         if (!this.launchHidden.includes(key)) {
           this.launchHidden = this.launchHidden.concat(key);
         }
         if (this.launchPrimary === key) this.launchPrimary = null;   // 回落到顺序第一项
-        await this.saveLaunchPrefs();
-        toast(`已移除自动检测入口「${s.name}」，脚本未删除，可随时恢复`, "ok");
+        if (await this.saveLaunchPrefs()) {
+          toast(`已移除自动检测入口「${s.name}」，脚本未删除，可随时恢复`, "ok");
+        }
       },
       async restoreSuggestion(s) {
+        if (this.launchPrefsSaving) return;
         this.launchHidden = this.launchHidden.filter(k => k !== this.entryKey(s));
-        await this.saveLaunchPrefs();
-        toast(`已恢复「${s.name}」`, "ok");
+        if (await this.saveLaunchPrefs()) toast(`已恢复「${s.name}」`, "ok");
       },
       async saveLaunchForm() {
+        if (this.launchPrefsSaving || this.launchFormSaving) return;
         const f = this.launchForm;
         if (!f.name.trim()) { toast("请填写启动项名称", "error"); return; }
         if (!f.command.trim()) { toast("请填写启动命令", "error"); return; }
@@ -1155,17 +1158,17 @@
             await api(`/api/projects/${this.projectId}/launchers/${f.id}`,
               { method: "PUT", body });
           } else {
-            const created = await api(`/api/projects/${this.projectId}/launchers`,
-              { method: "POST", body });
-            // 来自「编辑自动检测入口」：新建项接管原建议的位置与默认项关系
             if (this.editSourceKey) {
-              await this.applyAutoOverride(this.editSourceKey, created.id);
+              body.source_key = this.editSourceKey;
+              body.override_prefs = { order: this.orderedEntries.map(x => x.key),
+                primary: this.launchPrimary, hidden: this.launchHidden };
             }
+            await api(`/api/projects/${this.projectId}/launchers`, { method: "POST", body });
           }
           this.showLaunchForm = false;
           this.editSourceKey = null;
           toast(f.id ? "启动项已更新" : "启动项已添加", "ok");
-          this.loadLaunch();
+          await this.loadLaunch();
         } catch (e) { /* toast 已提示 */ }
         finally { this.launchFormSaving = false; }
       },

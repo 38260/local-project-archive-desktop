@@ -857,6 +857,10 @@ def create_launcher(project_id: int, body: LauncherCreate):
     with get_db() as conn:
         row = _get_row_or_404(conn, project_id)
     command = _validate_launcher_payload(body, row["path"])
+    if (body.source_key is None) != (body.override_prefs is None):
+        raise HTTPException(422, "自动项覆盖需要同时提供原入口与偏好")
+    if body.source_key is not None and not body.source_key.startswith("s:"):
+        raise HTTPException(422, "原入口必须是自动检测启动项")
     with get_db() as conn:
         n = conn.execute("SELECT COUNT(*) FROM launchers WHERE project_id=?",
                          (project_id,)).fetchone()[0]
@@ -870,6 +874,21 @@ def create_launcher(project_id: int, body: LauncherCreate):
             "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
             (project_id, body.name.strip(), command, body.cwd.strip(), body.mode,
              nxt, _now(), _now()))
+        if body.source_key is not None:
+            key = f"l:{cur.lastrowid}"
+            prefs = body.override_prefs
+            order = [key if item == body.source_key else item for item in prefs.order]
+            if body.source_key not in prefs.order:
+                order.append(key)
+            hidden = list(dict.fromkeys(prefs.hidden + [body.source_key]))
+            try:
+                saved = LaunchPrefsUpdate(order=order, hidden=hidden,
+                    primary=key if prefs.primary == body.source_key else prefs.primary)
+            except ValueError:
+                raise HTTPException(422, "覆盖后的启动偏好超过限制，请先整理已移除入口")
+            # 新建项与覆盖关系同时提交，偏好失败时插入也回滚。
+            conn.execute("UPDATE projects SET launch_prefs=? WHERE id=?",
+                         (saved.model_dump_json(), project_id))
         row = conn.execute("SELECT * FROM launchers WHERE id=?",
                            (cur.lastrowid,)).fetchone()
     return _launchers_row_dict(row)
