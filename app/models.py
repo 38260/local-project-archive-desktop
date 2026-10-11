@@ -121,16 +121,19 @@ class LauncherUpdate(LauncherCreate):
 
 
 class LaunchPrefsUpdate(BaseModel):
-    """启动面板的展示偏好：入口顺序 + 顶部「启动」按钮默认跑哪一个。
+    """启动面板的展示偏好：入口顺序 + 顶部「启动」按钮默认跑哪一个 + 已移除的自动项。
 
     order 里放的是入口键——自定义项用 ``l:<id>``，自动检测项用
     ``s:<mode>|<cwd>|<command>``（自动检测结果不落库，所以用内容指纹当键，
     重新检测后仍能对上）。primary 为 None 表示「按顺序取第一项」。
+    hidden 是被用户移除的自动检测入口键：重新检测不再展示（脚本不删），
+    前端提供恢复入口。
     """
     order: list[str] = Field(default_factory=list, max_length=100)
     primary: Optional[str] = Field(None, max_length=320)
+    hidden: list[str] = Field(default_factory=list, max_length=100)
 
-    @field_validator("order")
+    @field_validator("order", "hidden")
     @classmethod
     def _order_items_ok(cls, v):
         for key in v:

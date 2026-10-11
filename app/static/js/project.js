@@ -183,8 +183,11 @@
         // 启动面板展示偏好（随 GET /launch 一起回来，落库在 projects.launch_prefs）：
         //   launchOrder   入口展示顺序（键数组，见 entryKey）
         //   launchPrimary 顶部「启动」按钮默认跑哪个入口；null = 取顺序里的第一项
+        //   launchHidden  被移除的自动检测入口键：重新检测不再出现（脚本不删，可恢复）
         launchOrder: [],
         launchPrimary: null,
+        launchHidden: [],
+        editSourceKey: null,    // 正在「编辑自动检测入口」时记录原入口键（保存后转存覆盖）
         launchMenuOpen: false,  // 顶栏「启动」按钮的下拉是否展开
         launchDragKey: null,    // 正在拖拽的入口键（null = 没在拖）
         // 捕获运行与运行历史：勾选后后台执行并采集输出/退出码（记忆上次选择）
@@ -429,13 +432,23 @@
         if (!this.launch) return 0;
         return (this.launch.launchers || []).length + this.visibleSuggestions.length;
       },
-      // 已转存为自定义启动项的建议不再重复展示（按 mode+cwd+command 去重）
+      // 已转存为自定义启动项、或被用户移除的自动检测建议不再重复展示
+      // （前者按 mode+cwd+command 去重，后者按入口键）
       visibleSuggestions() {
         if (!this.launch) return [];
         const saved = new Set((this.launch.launchers || [])
           .map(l => `${l.mode}|${(l.cwd || "").trim()}|${l.command.trim()}`));
+        const hidden = new Set(this.launchHidden);
         return (this.launch.suggestions || [])
-          .filter(s => !saved.has(`${s.mode}|${(s.cwd || "").trim()}|${s.command.trim()}`));
+          .filter(s => !saved.has(`${s.mode}|${(s.cwd || "").trim()}|${s.command.trim()}`)
+            && !hidden.has(this.entryKey(s)));
+      },
+      // 已移除且当前检测仍在命中的自动入口（有名字可展示、可一键恢复；
+      // 项目内容变了导致键对不上的旧记录保持静默隐藏，不影响列表）
+      hiddenSuggestions() {
+        if (!this.launch || !this.launchHidden.length) return [];
+        const hidden = new Set(this.launchHidden);
+        return (this.launch.suggestions || []).filter(s => hidden.has(this.entryKey(s)));
       },
       // 全部入口（自定义 + 自动检测混排）按用户拖出来的顺序排好。
       // 顺序里没出现过的入口一律排在最后、保持各自原有次序：
@@ -461,6 +474,11 @@
           inferred: "构建配置推断",
         };
         return (this.launch && map[this.launch.detect_kind]) || "项目内扫描";
+      },
+      // 启动项编辑弹窗标题：编辑已有 / 编辑自动入口（转存覆盖）/ 新增
+      launchFormTitle() {
+        if (this.launchForm.id) return "编辑启动项";
+        return this.editSourceKey ? "编辑自动检测入口" : "添加启动项";
       },
       // 顶部「启动」主按钮跑哪一个：优先用下拉里显式指定的那个；
       // 没指定（或指定的入口已不存在）就取顺序里的第一项。
@@ -799,6 +817,7 @@
           this.launch = d;
           this.launchOrder = Array.isArray(d.order) ? d.order : [];
           this.launchPrimary = d.primary || null;
+          this.launchHidden = Array.isArray(d.hidden) ? d.hidden : [];
         } catch (e) {
           this.launch = null;   // 检测失败不影响详情页其他面板
         } finally { this.launchLoading = false; }
@@ -823,7 +842,8 @@
         try {
           await api(`/api/projects/${this.projectId}/launch-prefs`, {
             method: "PUT", silent: true,
-            body: { order: this.launchOrder, primary: this.launchPrimary },
+            body: { order: this.launchOrder, primary: this.launchPrimary,
+                    hidden: this.launchHidden },
           });
         } catch (e) {
           toast("启动项顺序没能保存，刷新后会恢复原样", "error");
@@ -1075,13 +1095,53 @@
         if (entry) {
           this.launchForm = { id: entry.id, name: entry.name, command: entry.command,
                               cwd: entry.cwd || "", mode: entry.mode || "console" };
+          this.editSourceKey = null;          // 编辑自定义项：与自动项无关
         } else if (suggestion) {
+          // 编辑自动检测入口：预填后保存为自定义覆盖项，并记住原建议的指纹，
+          // 避免「改了命令、原建议又冒出来」——覆盖关系见 applyAutoOverride
           this.launchForm = { id: null, name: suggestion.name, command: suggestion.command,
                               cwd: suggestion.cwd || "", mode: suggestion.mode || "console" };
+          this.editSourceKey = this.entryKey(suggestion);
         } else {
           this.launchForm = { id: null, name: "", command: "", cwd: "", mode: "console" };
+          this.editSourceKey = null;
         }
         this.showLaunchForm = true;
+      },
+      closeLaunchForm() {
+        this.showLaunchForm = false;
+        this.editSourceKey = null;
+      },
+      // 编辑自动检测入口后的落库：新建的自定义项接管原建议的位置与默认项关系，
+      // 原建议进 hidden（重新检测不再出现）；三份偏好一次 PUT 落库
+      async applyAutoOverride(sourceKey, launcherId) {
+        const key = "l:" + launcherId;
+        if (!this.launchHidden.includes(sourceKey)) {
+          this.launchHidden = this.launchHidden.concat(sourceKey);
+        }
+        const order = this.launchOrder.slice();
+        const idx = order.indexOf(sourceKey);
+        if (idx >= 0) order.splice(idx, 1, key);
+        else order.push(key);
+        this.launchOrder = order;
+        if (this.launchPrimary === sourceKey) this.launchPrimary = key;
+        await this.saveLaunchPrefs();
+      },
+      // 移除自动检测入口：只从列表隐藏（launch_prefs.hidden），不删除任何脚本；
+      // 重新检测不会再次出现，列表下方提供恢复入口
+      async removeSuggestion(s) {
+        const key = this.entryKey(s);
+        if (!this.launchHidden.includes(key)) {
+          this.launchHidden = this.launchHidden.concat(key);
+        }
+        if (this.launchPrimary === key) this.launchPrimary = null;   // 回落到顺序第一项
+        await this.saveLaunchPrefs();
+        toast(`已移除自动检测入口「${s.name}」，脚本未删除，可随时恢复`, "ok");
+      },
+      async restoreSuggestion(s) {
+        this.launchHidden = this.launchHidden.filter(k => k !== this.entryKey(s));
+        await this.saveLaunchPrefs();
+        toast(`已恢复「${s.name}」`, "ok");
       },
       async saveLaunchForm() {
         const f = this.launchForm;
@@ -1095,9 +1155,15 @@
             await api(`/api/projects/${this.projectId}/launchers/${f.id}`,
               { method: "PUT", body });
           } else {
-            await api(`/api/projects/${this.projectId}/launchers`, { method: "POST", body });
+            const created = await api(`/api/projects/${this.projectId}/launchers`,
+              { method: "POST", body });
+            // 来自「编辑自动检测入口」：新建项接管原建议的位置与默认项关系
+            if (this.editSourceKey) {
+              await this.applyAutoOverride(this.editSourceKey, created.id);
+            }
           }
           this.showLaunchForm = false;
+          this.editSourceKey = null;
           toast(f.id ? "启动项已更新" : "启动项已添加", "ok");
           this.loadLaunch();
         } catch (e) { /* toast 已提示 */ }
@@ -1611,7 +1677,7 @@
         if (this.$refs.settings && this.$refs.settings.visible) { this.$refs.settings.close(); return; }
         if (this.flowZoom) { this.flowZoom = null; return; }
         if (this.previewShot) { this.previewShot = null; return; }
-        if (this.showLaunchForm) { this.showLaunchForm = false; return; }
+        if (this.showLaunchForm) { this.closeLaunchForm(); return; }
         if (this.launchMenuOpen) { this.launchMenuOpen = false; return; }
         if (this.moreOpen) { this.moreOpen = false; return; }
         if (this.showEdit) this.showEdit = false;

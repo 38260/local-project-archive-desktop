@@ -428,15 +428,30 @@
                 </button>
               </template>
               <template v-else>
-                <button class="icon-btn" title="转存为自定义启动项" aria-label="转存为自定义启动项"
-                        @click="openLaunchForm(null, x.entry)">
-                  <tl-icon name="plus" :size="13"></tl-icon>
+                <button class="icon-btn" title="编辑（保存后转存为自定义覆盖项，原建议不再出现）"
+                        aria-label="编辑自动检测入口" @click="openLaunchForm(null, x.entry)">
+                  <tl-icon name="pencil" :size="13"></tl-icon>
+                </button>
+                <button class="icon-btn" title="从此列表移除（不删除脚本，可在下方恢复）"
+                        aria-label="移除自动检测入口" @click="removeSuggestion(x.entry)">
+                  <tl-icon name="x" :size="13"></tl-icon>
                 </button>
               </template>
             </span>
           </div>
         </div>
       </template>
+
+      <!-- 已移除的自动检测入口：一键恢复（脚本未被删除） -->
+      <div class="launch-removed" v-if="hiddenSuggestions.length">
+        <span class="section-note">
+          已移除 {{ hiddenSuggestions.length }} 个自动检测入口（脚本未删除，重新检测不会再出现）：
+        </span>
+        <button class="btn sm" v-for="s in hiddenSuggestions" :key="entryKey(s)"
+                @click="restoreSuggestion(s)" :title="'恢复「' + s.name + '」到列表'">
+          <tl-icon name="refresh" :size="12"></tl-icon>恢复 {{ s.name }}
+        </button>
+      </div>
 
       <div class="section-note" style="margin-top:10px"
            v-if="launch && launch.supported && !orderedEntries.length">
@@ -1217,10 +1232,13 @@
     </div>
   </div>
 
-  <!-- 启动项编辑（新增 / 编辑 / 转存自动检测建议，三者共用） -->
+  <!-- 启动项编辑（新增 / 编辑自定义项 / 编辑自动检测入口，三者共用） -->
   <div class="modal-mask" v-if="showLaunchForm" @click.self="showLaunchForm = false">
     <div class="modal" v-modal role="dialog" aria-modal="true" aria-labelledby="launch-form-title">
-      <h3 id="launch-form-title">{{ launchForm.id ? "编辑启动项" : "添加启动项" }}</h3>
+      <h3 id="launch-form-title">{{ launchFormTitle }}</h3>
+      <div class="hint" v-if="editSourceKey" style="margin-bottom:10px">
+        保存后将创建自定义启动项并接管原入口的位置；原自动检测建议不再出现（可在列表下方恢复）。
+      </div>
       <div class="field">
         <label for="lf-name">名称</label>
         <input type="text" id="lf-name" v-model.trim="launchForm.name" maxlength="60"
@@ -1247,7 +1265,7 @@
                     :options="[{v:'console',l:'新终端窗口（可看日志，Ctrl+C 停止）'},{v:'open',l:'直接运行（双击等效）'}]"></tl-select>
       </div>
       <div class="actions">
-        <button class="btn" @click="showLaunchForm = false">取消</button>
+        <button class="btn" @click="closeLaunchForm">取消</button>
         <button class="btn primary" @click="saveLaunchForm" :disabled="launchFormSaving">
           {{ launchFormSaving ? "保存中…" : "保存" }}
         </button>

@@ -1444,6 +1444,12 @@ body.modal-open { overflow: hidden; }
   .launch-row { flex-wrap: wrap; }
   .launch-ops { width: 100%; justify-content: flex-end; }
 }
+/* 已移除的自动检测入口：恢复入口一行平铺 */
+.launch-removed {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: var(--s-3); padding-top: var(--s-3);
+  border-top: 1px dashed var(--border);
+}
 
 /* ---- 顶部「启动」分体按钮：主按钮直接跑默认入口，右侧箭头用来换默认项 ---- */
 .launch-split { position: relative; display: inline-flex; }

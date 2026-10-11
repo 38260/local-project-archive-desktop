@@ -743,19 +743,26 @@ def _launchers_row_dict(r) -> dict:
 
 def _parse_launch_prefs(raw) -> dict:
     """解析启动面板偏好；任何异常都降级为空偏好，不让脏数据拖垮详情页。"""
+    empty = {"order": [], "primary": None, "hidden": []}
     try:
         data = json.loads(raw or "{}")
     except (TypeError, ValueError):
-        return {"order": [], "primary": None}
+        return dict(empty)
     if not isinstance(data, dict):
-        return {"order": [], "primary": None}
+        return dict(empty)
     order = data.get("order")
     order = [k.strip() for k in order
              if isinstance(k, str) and k.strip()] if isinstance(order, list) else []
     primary = data.get("primary")
     if not isinstance(primary, str) or not primary.strip():
         primary = None
-    return {"order": order, "primary": primary}
+    hidden = data.get("hidden")
+    hidden = [k.strip() for k in hidden
+              if isinstance(k, str) and k.strip()] if isinstance(hidden, list) else []
+    # 去重保序：重复移除记录只保留一份
+    seen: set[str] = set()
+    hidden = [k for k in hidden if not (k in seen or seen.add(k))]
+    return {"order": order, "primary": primary, "hidden": hidden}
 
 
 @router.get("/{project_id}/launch")
@@ -790,23 +797,27 @@ def get_launch(project_id: int):
         "launchers": [_launchers_row_dict(r) for r in rows],
         "order": prefs["order"],       # 入口展示顺序（用户拖拽决定）
         "primary": prefs["primary"],   # 顶部「启动」按钮的默认项键；None=取顺序第一项
+        "hidden": prefs["hidden"],     # 被移除的自动检测入口键（不删脚本，可恢复）
     }
 
 
 @router.put("/{project_id}/launch-prefs")
 def update_launch_prefs(project_id: int, body: LaunchPrefsUpdate):
-    """保存启动面板偏好（入口顺序 + 顶部「启动」按钮的默认项）。
+    """保存启动面板偏好（入口顺序 + 顶部默认项 + 已移除的自动检测入口键）。
 
     刻意不更新 updated_at：拖一下入口顺序只是界面偏好，
     不该让这个档案在列表里跳到「最近更新」的最前面。
     """
-    payload = json.dumps({"order": body.order, "primary": body.primary},
+    # 去重保序：并发保存/重复移除也不产生重复记录
+    seen: set[str] = set()
+    hidden = [k for k in body.hidden if not (k in seen or seen.add(k))]
+    payload = json.dumps({"order": body.order, "primary": body.primary, "hidden": hidden},
                          ensure_ascii=False)
     with get_db() as conn:
         _get_row_or_404(conn, project_id)
         conn.execute("UPDATE projects SET launch_prefs=? WHERE id=?",
                      (payload, project_id))
-    return {"ok": True, "order": body.order, "primary": body.primary}
+    return {"ok": True, "order": body.order, "primary": body.primary, "hidden": hidden}
 
 
 @router.put("/{project_id}/launch-note")
