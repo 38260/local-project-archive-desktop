@@ -2,6 +2,16 @@
 (function () {
   "use strict";
 
+  // 拖选产生的 click 不应打开档案、切换标签或覆盖选中的部分文字。
+  document.addEventListener("click", e => {
+    const selected = window.getSelection();
+    if (!e.detail || !selected || selected.isCollapsed || !selected.toString()) return;
+    if (e.target.contains(selected.anchorNode) || e.target.contains(selected.focusNode)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
+
   // ---------- 旧版 localStorage 键名兼容（应用改名 lpa- → tl- 的一次性搬迁） ----------
   // 旧键只复制不删除：新版一律读写新键，旧版程序（若还在跑）继续用旧键互不干扰；
   // 新键已存在时不覆盖（用户在新版本里改过的偏好优先）。
@@ -1172,15 +1182,16 @@
             <div class="tab" role="tab" tabindex="0" v-for="t in tabs" :key="t.id"
                  :class="{ on: t.id === curId, dragging: t.id === dragId }"
                  :aria-selected="t.id === curId ? 'true' : 'false'"
-                 draggable="true"
                  :title="tabTitle(t)"
                  @click="openTab(t)" @keydown.enter.prevent="openTab(t)"
                  @keydown.space.prevent="openTab(t)"
                  @auxclick.middle.prevent="closeTab(t)"
-                 @dragstart="onDragStart(t, $event)"
                  @dragover="onDragOver(t, $event)"
                  @drop.prevent="onDragEnd" @dragend="onDragEnd">
-              <tl-icon name="folder" :size="13"></tl-icon>
+              <span class="tab-handle" draggable="true" title="拖动图标调整标签顺序"
+                    @dragstart.stop="onDragStart(t, $event)">
+                <tl-icon name="folder" :size="13"></tl-icon>
+              </span>
               <span class="tab-label">{{ t.name }}</span>
               <span class="tab-x" role="button" tabindex="0"
                     :aria-label="'关闭 ' + t.name + ' 标签'"

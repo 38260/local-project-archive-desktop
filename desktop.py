@@ -840,7 +840,7 @@ def main() -> int:
 
     window = webview.create_window(
         WINDOW_TITLE, url, width=width, height=height, min_size=(1024, 700),
-        hidden=start_hidden, maximized=start_maximized, **pos_kwargs)
+        hidden=start_hidden, maximized=start_maximized, text_select=True, **pos_kwargs)
     if window is None:
         # 极少数环境下创建窗口会返回 None，不能让用户干等
         logger.error("pywebview 创建窗口失败，回退到系统浏览器")

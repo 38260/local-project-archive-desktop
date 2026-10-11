@@ -97,7 +97,10 @@ html.has-tabbar { --tabbar-h: 40px; }
 [data-status="暂停"],   .s-暂停,   .sv-暂停   { --st: var(--st-hold); }
 [data-status="归档"], [data-status="废弃"], .s-归档, .s-废弃, .sv-归档, .sv-废弃 { --st: var(--st-arch); }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; user-select: text; -webkit-user-select: text; }
+a, img { -webkit-user-drag: none; }
+.project-drag, .project-drag *, .launch-handle, .launch-handle *,
+.tab-handle, .tab-handle * { user-select: none; -webkit-user-select: none; }
 html, body { margin: 0; padding: 0; }
 html {
   scroll-behavior: smooth;
@@ -201,13 +204,14 @@ a:hover { text-decoration: underline; }
   border: 1px solid transparent; border-radius: var(--r-md);
   background: transparent; color: var(--muted);
   font-size: 13.5px; line-height: 1.15;
-  cursor: pointer; user-select: none; white-space: nowrap;
+  cursor: pointer; white-space: nowrap;
   transition: background .15s, color .15s, border-color .15s;
 }
 .tab:hover { background: var(--panel-2); color: var(--text); }
 .tab.on { background: var(--panel); border-color: var(--border); color: var(--text); }
 .tab.on .licon { color: var(--accent); }
 .tab-label { overflow: hidden; text-overflow: ellipsis; }
+.tab-handle { display: inline-flex; flex: none; cursor: grab; }
 /* 关闭按钮：平时让位给标签文字，悬停 / 当前标签 / 键盘聚焦时出现 */
 .tab-x {
   display: inline-flex; align-items: center; justify-content: center;
@@ -1072,7 +1076,7 @@ body.modal-open { overflow: hidden; }
 .md-body img { max-width: 100%; }
 
 /* ---- 目录树 ---- */
-.tree { font-family: var(--mono); font-size: 15px; line-height: 1.9; user-select: none; }
+.tree { font-family: var(--mono); font-size: 15px; line-height: 1.9; }
 .tree ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px dotted var(--border); }
 .tree > ul { border-left: none; padding-left: 0; }
 .tree .t-row { cursor: default; white-space: nowrap; }
@@ -1672,12 +1676,12 @@ body.modal-open { overflow: hidden; }
 .gh-months { position: relative; height: 16px; margin-left: 26px; }
 .gh-month {
   position: absolute; top: 0; font-size: 11.5px; color: var(--muted);
-  white-space: nowrap; user-select: none;
+  white-space: nowrap;
 }
 .gh-main { display: flex; gap: 6px; }
 .gh-day-col {
   display: grid; grid-template-rows: repeat(7, 11px); gap: 3px;
-  width: 20px; user-select: none;
+  width: 20px;
 }
 .gh-day-label {
   grid-row: 1; font-size: 10.5px; line-height: 11px; color: var(--muted);
@@ -1700,7 +1704,7 @@ body.modal-open { overflow: hidden; }
 .hm-cell.today { outline: 1.5px solid var(--text); outline-offset: 1px; }
 .hm-legend {
   display: inline-flex; align-items: center; gap: var(--s-1);
-  font-size: 12px; color: var(--muted); user-select: none;
+  font-size: 12px; color: var(--muted);
 }
 .hm-legend .hm-cell { width: 10px; height: 10px; }
 
@@ -1782,8 +1786,7 @@ body.modal-open { overflow: hidden; }
   text-underline-offset: 2px;
 }
 .tree .t-file.clickable.openable:hover .t-name { text-decoration-style: solid; }
-/* 单击即复制路径、双击即打开，不需要选中文件名（也避免双击时出现选中高亮） */
-.tree .t-name { user-select: none; }
+/* 文件名可拖选复制；普通单击复制路径、双击打开行为保持。 */
 /* 面板锚点跳转闪烁 */
 @keyframes panel-flash { 0% { box-shadow: 0 0 0 3px var(--accent-soft); } 100% { box-shadow: 0 0 0 3px transparent; } }
 .panel.flash { animation: panel-flash 1.1s ease-out 1; }
