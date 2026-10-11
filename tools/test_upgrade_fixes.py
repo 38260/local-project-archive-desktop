@@ -159,6 +159,100 @@ class UpgradeApiTests(unittest.TestCase):
         self.assertIn(b"data:image/svg+xml;base64,", content)
         self.assertIn(uploaded["saved"]["file"].encode(), content)
 
+    def test_import_remaps_launchers_and_flowchart_files(self):
+        launchers = []
+        for name in ("first", "second"):
+            status, launcher, _ = self.request("POST", f"/api/projects/{self.pid}/launchers",
+                {"name": name, "command": f"echo {name}", "mode": "console", "cwd": ""})
+            self.assertEqual(status, 200, launcher)
+            launchers.append(launcher)
+        keys = [f"l:{launcher['id']}" for launcher in reversed(launchers)]
+        hidden = ["s:console||echo hidden"]
+        self.request("PUT", f"/api/projects/{self.pid}/launch-prefs",
+                     {"order": keys, "primary": keys[0], "hidden": hidden})
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg"><rect width="20" height="20"/></svg>'
+        _, first_image, _ = self.upload("first.svg", svg)
+        _, second_image, _ = self.upload("second.svg", svg)
+        _, exported, _ = self.request("GET", "/api/export")
+        item = next(p for p in exported["projects"] if p["id"] == self.pid)
+        self.assertEqual({l["id"] for l in item["launchers"]}, {l["id"] for l in launchers})
+        target_path = self.root / ("import-" + uuid.uuid4().hex)
+        target_path.mkdir()
+        item["path"] = str(target_path)
+        # 目标 ID 目录已有同名文件时，不能覆盖它。
+        existing = self.root / "data/flowcharts" / str(self.pid + 1) / second_image["saved"]["file"]
+        existing.parent.mkdir(parents=True)
+        existing.write_bytes(b"existing-media-must-stay")
+        status, imported, _ = self.request("POST", "/api/import", {"projects": [item]})
+        self.assertEqual(status, 200, imported)
+        self.assertEqual(imported["imported"], 1)
+        self.assertEqual(imported["warnings"], [])
+        _, listing, _ = self.request("GET", "/api/projects")
+        project = next(p for p in listing["projects"] if p["path"] == str(target_path))
+        pid = project["id"]
+        self.addCleanup(self.request, "DELETE", f"/api/projects/{pid}")
+        _, launch, _ = self.request("GET", f"/api/projects/{pid}/launch")
+        new_keys = {l["name"]: f"l:{l['id']}" for l in launch["launchers"]}
+        self.assertEqual(launch["order"], [new_keys["second"], new_keys["first"]])
+        self.assertEqual(launch["primary"], new_keys["second"])
+        self.assertEqual(launch["hidden"], hidden)
+        _, flow, _ = self.request("GET", f"/api/projects/{pid}/flowchart")
+        self.assertEqual(flow["current"]["kind"], "custom")
+        self.assertNotEqual(flow["current"]["file"], second_image["saved"]["file"])
+        self.assertEqual(existing.read_bytes(), b"existing-media-must-stay")
+        status, data, _ = self.request("GET", flow["current"]["url"])
+        self.assertEqual((status, data), (200, svg))
+        self.assertIn(first_image["saved"]["file"], {f["file"] for f in flow["custom_files"]})
+        self.assertTrue((self.root / "data/flowcharts" / str(self.pid)
+                         / second_image["saved"]["file"]).is_file())
+
+    def test_legacy_import_keeps_entries_without_guessing_ids(self):
+        path = self.root / ("legacy-" + uuid.uuid4().hex)
+        path.mkdir()
+        status, imported, _ = self.request("POST", "/api/import", {"projects": [{
+            "path": str(path), "launchers": [
+                {"name": "first", "command": "echo first"},
+                {"name": "second", "command": "echo second"}],
+            "launch_prefs": {"order": ["l:900", "l:800"], "primary": "l:800",
+                             "hidden": ["s:console||echo hidden"]}}]})
+        self.assertEqual(status, 200, imported)
+        self.assertEqual(imported["imported"], 1)
+        self.assertEqual(len(imported["warnings"]), 1)
+        _, listing, _ = self.request("GET", "/api/projects")
+        pid = next(p["id"] for p in listing["projects"] if p["path"] == str(path))
+        self.addCleanup(self.request, "DELETE", f"/api/projects/{pid}")
+        _, launch, _ = self.request("GET", f"/api/projects/{pid}/launch")
+        self.assertEqual(len(launch["launchers"]), 2)
+        self.assertEqual(launch["order"], [])
+        self.assertIsNone(launch["primary"])
+        self.assertEqual(launch["hidden"], ["s:console||echo hidden"])
+
+    def test_legacy_import_matches_available_source(self):
+        launchers = []
+        for name in ("first", "second"):
+            _, launcher, _ = self.request("POST", f"/api/projects/{self.pid}/launchers",
+                {"name": name, "command": f"echo {name}", "mode": "console", "cwd": ""})
+            launchers.append(launcher)
+        keys = [f"l:{l['id']}" for l in reversed(launchers)]
+        self.request("PUT", f"/api/projects/{self.pid}/launch-prefs",
+                     {"order": keys, "primary": keys[0]})
+        _, exported, _ = self.request("GET", "/api/export")
+        item = next(p for p in exported["projects"] if p["id"] == self.pid)
+        for launcher in item["launchers"]:
+            launcher.pop("id")
+        path = self.root / ("legacy-source-" + uuid.uuid4().hex)
+        path.mkdir()
+        item["path"] = str(path)
+        _, imported, _ = self.request("POST", "/api/import", {"projects": [item]})
+        self.assertEqual(imported["warnings"], [])
+        _, listing, _ = self.request("GET", "/api/projects")
+        pid = next(p["id"] for p in listing["projects"] if p["path"] == str(path))
+        self.addCleanup(self.request, "DELETE", f"/api/projects/{pid}")
+        _, launch, _ = self.request("GET", f"/api/projects/{pid}/launch")
+        expected = [f"l:{l['id']}" for l in reversed(launch["launchers"])]
+        self.assertEqual(launch["order"], expected)
+        self.assertEqual(launch["primary"], expected[0])
+
 
 class AutostartTests(unittest.TestCase):
     def test_enable_disable_and_legacy_names(self):

@@ -151,6 +151,9 @@
           const r = await api("/api/import", { method: "POST", body: payload });
           let msg = `导入 ${r.imported} 个项目，跳过 ${r.skipped} 个已存在`;
           if (r.failed.length) msg += `，${r.failed.length} 个失败`;
+          if (r.warnings && r.warnings.length) {
+            msg += `；${r.warnings[0].name}：${r.warnings[0].reason}`;
+          }
           toast(msg, r.failed.length ? "error" : "ok");
           this.$emit("changed", "data");
         } catch (err) { /* toast 已提示 */ }

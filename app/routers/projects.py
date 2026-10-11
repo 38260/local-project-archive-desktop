@@ -1359,6 +1359,27 @@ def _custom_flowchart_list(project_id: int) -> list[dict]:
     return items
 
 
+def _copy_flowchart_files(source_id: int, project_id: int) -> dict[str, str]:
+    """导入时复制旧 ID 的媒体，保留源图且不覆盖目标中已有文件。"""
+    if source_id == project_id:
+        return {}
+    names = {}
+    for image in _custom_flowchart_list(source_id):
+        try:
+            source = Path(_resolve_project_rel(str(FLOWCHART_DIR),
+                                               f"{source_id}/{image['file']}"))
+        except HTTPException:
+            continue
+        target_dir = Path(_resolve_project_rel(str(FLOWCHART_DIR), str(project_id)))
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / source.name
+        if target.exists():
+            target = target_dir / (uuid.uuid4().hex + source.suffix)
+        shutil.copy2(source, target)
+        names[source.name] = target.name
+    return names
+
+
 def _flowchart_current(project_id: int, prefs: dict,
                        candidates: list[dict]) -> Optional[dict]:
     """当前应展示的流程图：用户选择优先，选中的图失效/缺失时回落自动识别。

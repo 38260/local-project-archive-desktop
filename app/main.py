@@ -239,7 +239,7 @@ def export_all():
                 "fs_created": r["fs_created"], "fs_modified": r["fs_modified"],
                 "created_at": r["created_at"], "updated_at": r["updated_at"],
                 "launchers": [
-                    {"name": l["name"], "command": l["command"], "cwd": l["cwd"],
+                    {"id": l["id"], "name": l["name"], "command": l["command"], "cwd": l["cwd"],
                      "mode": l["mode"], "sort": l["sort"], "created_at": l["created_at"],
                      "updated_at": l["updated_at"]}
                     for l in conn.execute(
@@ -278,16 +278,16 @@ def import_backup(payload: dict):
 
     按路径去重：档案库中已存在的路径跳过，其余项目连同笔记、变更日志一并导入。
     """
-    projects = payload.get("projects")
-    if not isinstance(projects, list):
+    items = payload.get("projects")
+    if not isinstance(items, list):
         raise HTTPException(400, "不是有效的备份文件：缺少 projects 列表（应来自本系统的导出 JSON）")
 
-    imported, skipped, failed = 0, 0, []
+    imported, skipped, failed, warnings = 0, 0, [], []
     now = datetime.now().astimezone().isoformat()
     with get_db() as conn:
         existing = {r["path"].lower() for r in
                     conn.execute("SELECT path FROM projects").fetchall()}
-        for item in projects:
+        for item in items:
             if not isinstance(item, dict):
                 continue
             path = str(item.get("path") or "").strip()
@@ -315,6 +315,11 @@ def import_backup(payload: dict):
             raw_flow = item.get("flowchart_prefs")
             flowchart_prefs = json.dumps(raw_flow if isinstance(raw_flow, dict) else {},
                                          ensure_ascii=False)
+            source_id = item.get("id")
+            if not isinstance(source_id, int) or isinstance(source_id, bool) or source_id <= 0:
+                source_id = None
+            source_launchers = (conn.execute("SELECT * FROM launchers WHERE project_id=?",
+                                            (source_id,)).fetchall() if source_id else [])
             try:
                 cur = conn.execute(
                     "INSERT INTO projects (path, name, alias, category, status, tags, "
@@ -356,9 +361,10 @@ def import_backup(payload: dict):
                          str(c.get("entry_date") or ""),
                          str(c.get("created_at") or now), str(c.get("updated_at") or now)))
             # 自定义启动项随项目恢复；命令为空或非法 mode 的条目兜底处理
+            launcher_keys = {}
             for l in item.get("launchers") or []:
                 if isinstance(l, dict) and str(l.get("command") or "").strip():
-                    conn.execute(
+                    launcher = conn.execute(
                         "INSERT INTO launchers (project_id, name, command, cwd, mode, "
                         "sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
                         (pid, str(l.get("name") or "启动"), str(l["command"]).strip(),
@@ -366,9 +372,43 @@ def import_backup(payload: dict):
                          l.get("mode") if l.get("mode") in ("console", "open") else "console",
                          int(l.get("sort") or 0),
                          str(l.get("created_at") or now), str(l.get("updated_at") or now)))
+                    old_id = l.get("id")
+                    if old_id is None:
+                        matches = [old for old in source_launchers if
+                            all(str(old[field]) == str(l.get(field) or default)
+                                for field, default in (("name", "启动"), ("command", ""),
+                                                       ("cwd", ""), ("mode", "console")))]
+                        if len(matches) == 1:
+                            old_id = matches[0]["id"]
+                    if isinstance(old_id, int) and not isinstance(old_id, bool):
+                        launcher_keys[f"l:{old_id}"] = f"l:{launcher.lastrowid}"
+            prefs = projects._parse_launch_prefs(launch_prefs)
+            old_keys = prefs["order"] + ([prefs["primary"]] if prefs["primary"] else [])
+            if any(key.startswith("l:") and key not in launcher_keys for key in old_keys):
+                warnings.append({"name": name, "reason":
+                    "部分启动偏好缺少可映射 ID，入口已保留，请重新选择默认项与排序"})
+            prefs["order"] = [launcher_keys.get(key, key) for key in prefs["order"]
+                              if not key.startswith("l:") or key in launcher_keys]
+            if prefs["primary"] and prefs["primary"].startswith("l:"):
+                prefs["primary"] = launcher_keys.get(prefs["primary"])
+            flow_prefs = projects._parse_flowchart_prefs(flowchart_prefs)
+            if source_id is not None:
+                media = projects._copy_flowchart_files(source_id, pid)
+                choice = flow_prefs["choice"]
+                if choice and choice.get("kind") == "custom":
+                    old_file = str(choice.get("file") or "")
+                    if old_file in media:
+                        choice["file"] = media[old_file]
+            if (flow_prefs["choice"] and flow_prefs["choice"].get("kind") == "custom"
+                    and projects._flowchart_current(pid, flow_prefs, []) is None):
+                warnings.append({"name": name, "reason":
+                    "上传流程图文件未找到，跨机恢复需同时迁移媒体目录"})
+            conn.execute("UPDATE projects SET launch_prefs=?, flowchart_prefs=? WHERE id=?",
+                         (json.dumps(prefs, ensure_ascii=False),
+                          json.dumps(flow_prefs, ensure_ascii=False), pid))
             existing.add(path.lower())
             imported += 1
-    return {"imported": imported, "skipped": skipped, "failed": failed}
+    return {"imported": imported, "skipped": skipped, "failed": failed, "warnings": warnings}
 
 
 @app.post("/api/render-md")
