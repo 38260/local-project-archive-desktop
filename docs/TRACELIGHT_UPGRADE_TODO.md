@@ -1,7 +1,7 @@
 # 归迹 · tracelight 功能升级计划与 TODO
 
 更新日期：2026-10-11
-状态：R1～R9 问题修复与新增 R10 文字选择已完成，正在执行 R11 整体验证；此前 T8 记录不代表本轮最终验收结果。
+状态：R1～R10 已完成并提交；R11 整体回归与浏览器复验已通过，桌面/打包验证完成（含 2 项未执行，见 R11.3）。
 
 ## 已确认的需求
 
@@ -350,7 +350,7 @@
 - [x] R8：拒绝损坏图片，保留原有效选择；全部支持格式、损坏数据、错误类型与像素上限回归通过。
 - [x] R9：根目录精确流程图名称优先；备份图、分隔符名称、大小写与子目录顺序回归通过。
 - [x] R10：新增界面文字鼠标拖选与复制；7 类内容、无误跳转/整段复制、按钮与标签排序浏览器回归通过。
-- [ ] R11：整体回归、浏览器复验与交付。
+- [x] R11：整体回归、浏览器复验与交付（含 2 项未执行，见记录）。
 
 ### R1：SVG 隔离
 
@@ -414,3 +414,62 @@
 - 拖选产生的点击不会打开卡片、切换标签或触发整段路径复制；标签排序通过原有文件夹图标拖动，标签名称可单独选择。
 - 新增 `tools/test_browser_fixes.cjs`：实际鼠标选择首页名称/路径、详情路径、命令、目录树文件名、README 和标签名称，并验证 Ctrl+C 的原生复制事件内容；不写入用户系统剪贴板。
 - 验证普通按钮正常、标签图标可拖动排序、浏览器无未捕获异常。图片 OCR 未纳入本轮，符合用户已确认的范围。
+
+### R11：整体回归、浏览器复验与交付（已完成）
+
+**R11.1 回归套件**
+
+- `tools/test_upgrade_fixes.py`：**11 项全部通过**（SVG 隔离、真实路径边界、自启动旧名兼容、自动流程图导出、导入身份与媒体恢复、自动入口覆盖位置、保存失败原子性、图片内容校验、候选图优先级）。
+- `tools/test_dashboard_order.cjs`：PASS（分组保留、组内拖动直接保存、跨组/置顶拒绝、一键整理、失败回退、旧偏好升级）。
+- `tools/test_project_launch.cjs`：PASS（自动项覆盖位置与默认项、移除/恢复/默认项保存失败回退、并发保护、创建失败不部分覆盖）。
+- `tools/smoke_test.py`：在隔离临时源码实例（`%TEMP%/tl-fixes-*`，源码与数据目录均与正式库隔离）运行 **138 通过 / 0 失败**。
+  - 修正：原「导入的启动面板偏好可读回」断言写于 R5 之前，与 R5 新语义（无身份信息时清除失效 `l:` 引用并提示重新选择）冲突。已按 R5 语义改写，并补上「导入重映射启动项 ID 与默认项」「旧备份缺 ID 时导入成功并提示」「失效 `l:` 引用被清除且自动项入口保留」3 项；断言总数 135 → 138，**标准未降低**。
+- 新增 `tools/isolated_instance.py`：浏览器回归用的隔离实例测试台（复制源码到临时目录、起 uvicorn、造样例档案、生成 `state.json`），浏览器脚本据此运行。
+
+**R11.2 浏览器复验（隔离实例 + 真实 Chrome + 真实鼠标）**
+
+- `tools/test_browser_fixes.cjs`：PASS（7 类文字拖选与 Ctrl+C、拖选不误跳转/不整段复制、普通按钮正常、标签图标可拖动排序）。
+- 新增 `tools/test_browser_r11.cjs`：**12 组全部通过**——
+  - SVG 直接打开：媒体响应带 `sandbox` CSP，内联脚本未执行、未改写文档；
+  - 流程图：真实 `file input` 上传后立即启用并记入上传历史；单项目 HTML 导出内嵌图片数据（离线可看）；恢复自动识别回落项目内 `docs/workflow.svg` 且上传历史保留；
+  - 启动项：默认入口与顶部「启动」按钮命令一致；下拉切换默认项不改动列表顺序；拦截 `launch-prefs` 返回 500 时回退原状态并给出明确提示、不残留隐藏记录；
+  - 弹窗：输入框拖选到遮罩松手不关闭；完整点击遮罩正常关闭；
+  - 文字拖选：选区保持、Ctrl+C 内容等于选中文字、不触发跳转；
+  - 首页项目排序：同状态组内拖动落库 `ui.project_order`、分组标题与成员数不变、刷新后保持；
+  - 亮/暗主题 × 1440/1024/768/390：**0 横向溢出**，暗色底色确认为深色；
+  - 控制台：无非预期错误（仅 2 条预期输出：R1 的 SVG 沙箱拦截提示、本脚本刻意制造的 500）。
+- `tools/cdp_console_check.cjs`：**0 条错误级输出**（首页/详情页加载、候选切换、越界拖选、启动项编辑取消全程）。
+
+**R11.3 桌面与打包验证**
+
+- 新增 `tools/test_desktop_webview.cjs`：源码壳验证 **5 项通过**——桌面壳启动并使用仓库 dev 数据目录、`POST /api/show-window` 返回 `ok=true`（桌面模式生效）、原生窗口标题为「归迹 · tracelight」、二次启动因单实例直接退出且不产生第二个窗口。脚本用隔离互斥体名 + 自动挑选端口，**不干扰用户正在运行的实例**。
+- **未执行（1）**：WebView2 页面级断言（界面文字选中、拖选后点击行为、`window.pywebview` 原生桥）。原因：本会话下 pywebview 的 `loaded` 事件始终不触发（壳内诊断 `shown=true, loaded=false, renderer=edgechromium`），`evaluate_js` 报 `Main window failed to start`，改用 CDP 也只看到 `about:blank` 目标——即该进程里 WebView2 未完成页面加载。已排除「代理环境变量」「WebView2 用户数据目录共用」「调试端口未生效」三种可能，未定位到根因。脚本在页面可加载时会自动执行这些断言，当前按未执行记录。间接证据：用户正式实例日志中多次出现 `FOLDER_DIALOG/OPEN_DIALOG` 警告，说明原生桥在真实使用中是生效的。
+- 打包（全部输出到新目录 `dist/r11/`，未改动 `dist/tracelight/`）：
+  - PyInstaller → `dist/r11/tracelight/tracelight.exe`（8,475,580 B；FileVersion/ProductVersion `1.10.0.0`；ProductName/FileDescription「归迹 · tracelight」）。
+  - ISCC → `dist/r11/installer/tracelight-Setup-1.10.0.exe`（编译成功）。
+  - 便携包 → `dist/r11/tracelight-portable-1.10.0.zip`（236 文件 / 26,910,363 B，顶层唯一 `tracelight/`，含 `tracelight.exe`）。
+- `installer/tracelight.iss` 新增可用命令行 `/D` 覆盖的 `MySourceDir` / `MyOutputDir`（不传时保持原默认路径，行为与以往一致），使产物能输出到新目录。
+- 包内资源核验：`_internal/app/static` 含 R10 标记（`user-select: text`、`tab-handle`）与 T3–T7 标记（`flow-picker`、`launch-list`、`tlMaskPress`、`OPENABLE_EXTS`）。
+- **未执行（2）**：打包版 exe 的运行时验证。原因：用户正在运行的旧包实例持有**全局**单实例互斥体，第二个实例会被拒绝启动（只会唤出已有窗口）；未擅自结束用户进程。
+
+**R11.4 本轮发现与处置**
+
+1. **打包版从临时目录运行会改写自启动注册表**：`autostart.self_heal()` 会把已有自启动项改指「当前 exe」，而打包版无论从哪里启动都会执行它。本轮第一次打包验证因此把 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Tracelight` 改指到已删除的临时目录；已依据 `%LOCALAPPDATA%\tracelight\app.log` 的上一行记录恢复为 `"D:\AI\Zcode_Workspace\local-project-archive-desktop\dist\tracelight\tracelight.exe"`（与用户正在运行的实例一致）。后续不再从临时目录运行打包版。**建议**：绿色/临时运行不应纠偏自启动，留待后续版本处理。
+2. 冒烟测试 1 项断言过时（见 R11.1），已按 R5 语义修正并加强。
+3. WebView2 页面级断言未执行（见 R11.3）。
+
+**R11.5 清理与保留**
+
+- 删除：本轮临时调试脚本、临时 PYZ/日志/注册表导出文件；隔离实例、样例档案与临时服务随测试台自动清理。
+- 保留：`tools/test_browser_r11.cjs`、`tools/test_desktop_webview.cjs`、`tools/isolated_instance.py` 及既有回归脚本；`dist/r11/` 全部产物；`dist/tracelight/`（T8 产物，未改动）。
+- 用户资产 `archify_workflows/`、`归迹拾光项目宣传片.mp4` 未做任何改动。
+
+**R11.6 交付验收（本轮产物）**
+
+| 项目 | 路径 |
+|---|---|
+| 文件夹版 EXE | `dist/r11/tracelight/tracelight.exe` |
+| 安装包 | `dist/r11/installer/tracelight-Setup-1.10.0.exe` |
+| 便携包 | `dist/r11/tracelight-portable-1.10.0.zip` |
+
+安装包未自动安装、未发布远端（按要求仅本地构建）。安装方式（如需）：运行安装包，或静默 `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`；安装前会自动结束正在运行的实例。

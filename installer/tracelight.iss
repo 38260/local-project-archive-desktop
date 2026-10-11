@@ -25,6 +25,16 @@
 ; 取值逐字一致，否则固定到任务栏的图标会被 Windows 当成另一个应用
 #define MyAppAUMID       "Guiji.tracelight"
 
+; 构建目录可用 ISCC 命令行覆盖，便于把产物放到新目录而不动已有的旧包：
+;   iscc /DMySourceDir=..\dist\r11\tracelight /DMyOutputDir=..\dist\r11\installer installer\tracelight.iss
+; 不传时保持默认路径，行为与以往一致。
+#ifndef MySourceDir
+  #define MySourceDir "..\dist\tracelight"
+#endif
+#ifndef MyOutputDir
+  #define MyOutputDir "..\dist\installer"
+#endif
+
 [Setup]
 AppId={#MyAppId}
 AppName={#MyAppDisplayName} ({#MyAppName})
@@ -38,7 +48,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
-OutputDir=..\dist\installer
+OutputDir={#MyOutputDir}
 OutputBaseFilename=tracelight-Setup-{#MyAppVersion}
 SetupIconFile=..\assets\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
@@ -65,7 +75,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 ; onedir 全量打包：exe + _internal（递归）
-Source: "..\dist\tracelight\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
 ; 覆盖安装前先清空运行时目录，让「直接替换成新版本文件」是干净的：

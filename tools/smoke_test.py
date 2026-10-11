@@ -669,9 +669,12 @@ def main():
               all("flowchart_prefs" in p for p in exp["projects"]))
         imp_dir = os.path.join(_temp_root, "imp-prefs")
         os.makedirs(imp_dir, exist_ok=True)
+        # 备份里带自定义启动项（含源 ID），导入后应把 l:<源ID> 重映射为库内新 ID
         st, imp_res = req("POST", "/api/import", {"projects": [{
             "path": imp_dir, "name": "imp-prefs",
-            "launch_prefs": {"order": ["l:1", "s:open||x.bat"], "primary": "l:1"},
+            "launchers": [{"id": 7, "name": "启动后端", "command": "run.bat",
+                           "cwd": "", "mode": "console", "sort": 0}],
+            "launch_prefs": {"order": ["l:7", "s:open||x.bat"], "primary": "l:7"},
         }]})
         check("导入接受启动面板偏好", st == 200 and imp_res.get("imported") == 1)
         st, all_p = req("GET", "/api/projects")
@@ -680,8 +683,30 @@ def main():
         if _imp:
             _created_ids.append(_imp["id"])
             st, li = req("GET", f"/api/projects/{_imp['id']}/launch")
-            check("导入的启动面板偏好可读回",
-                  li.get("order") == ["l:1", "s:open||x.bat"] and li.get("primary") == "l:1")
+            new_id = li["launchers"][0]["id"] if li.get("launchers") else None
+            check("导入重映射启动项 ID 与默认项",
+                  new_id is not None
+                  and li.get("order") == [f"l:{new_id}", "s:open||x.bat"]
+                  and li.get("primary") == f"l:{new_id}")
+        # 旧备份没有启动项 ID 也没有可匹配的源档案：自动项入口保留，
+        # 无法映射的 l: 引用清掉并给出提示，绝不猜测默认命令（R5 语义）
+        imp2_dir = os.path.join(_temp_root, "imp-legacy")
+        os.makedirs(imp2_dir, exist_ok=True)
+        st, imp2 = req("POST", "/api/import", {"projects": [{
+            "path": imp2_dir, "name": "imp-legacy",
+            "launch_prefs": {"order": ["l:1", "s:open||x.bat"], "primary": "l:1"},
+        }]})
+        check("旧备份缺 ID 时导入成功并提示重新选择",
+              st == 200 and imp2.get("imported") == 1
+              and any(w.get("name") == "imp-legacy" for w in (imp2.get("warnings") or [])))
+        st, all_p = req("GET", "/api/projects")
+        _imp2 = next((p for p in all_p["projects"] if p["name"] == "imp-legacy"), None)
+        check("导入的档案已落库（旧偏好）", _imp2 is not None)
+        if _imp2:
+            _created_ids.append(_imp2["id"])
+            st, li2 = req("GET", f"/api/projects/{_imp2['id']}/launch")
+            check("失效的 l: 引用被清除且自动项入口保留",
+                  li2.get("order") == ["s:open||x.bat"] and li2.get("primary") is None)
         st, md = req("POST", "/api/render-md", {"text": "# 标题\n**加粗**", "mode": "notes"})
         check("Markdown 渲染", st == 200 and "<h1" in md["html"] and "<strong>" in md["html"])
         st, md2 = req("POST", "/api/render-md",
