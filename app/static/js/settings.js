@@ -6,8 +6,8 @@
 (function () {
   "use strict";
 
-  window.LpaSettingsDialog = {
-    name: "LpaSettingsDialog",
+  window.TlSettingsDialog = {
+    name: "TlSettingsDialog",
     props: {
       // 状态选项由父页面传入（首页来自列表接口，详情页来自详情接口）
       statuses: { type: Array, default: () => ["进行中", "已完成", "暂停", "归档", "废弃"] },
@@ -19,7 +19,7 @@
         tab: "general",   // general | desktop | data | danger
         prefs: {},        // 通用设置键值（来自 /api/settings）
         themeTick: 0,     // 主题按钮响应 window.themePref() 的开关
-        tabbarVisible: window.lpaTabbarVisible(),  // 顶部标签栏显隐（纯界面偏好，走 localStorage）
+        tabbarVisible: window.tlTabbarVisible(),  // 顶部标签栏显隐（纯界面偏好，走 localStorage）
         editorOptions: [],
         autostart: { enabled: false, available: false, saving: false },
         importingBackup: false,
@@ -80,7 +80,7 @@
       // 顶部标签栏显隐：与主题一样是纯界面偏好（localStorage），改完广播事件让标签栏即时响应
       toggleTabbar(on) {
         this.tabbarVisible = !!on;
-        window.setLpaTabbarVisible(this.tabbarVisible);
+        window.setTlTabbarVisible(this.tabbarVisible);
       },
       // 编辑器下拉选项：后端探测 PATH 上可用的命令（带友好显示名）
       async loadEditors() {
@@ -245,19 +245,19 @@
           <div class="settings-tabs" role="tablist" aria-label="设置分区">
             <button type="button" class="settings-tab" role="tab" :class="{ on: tab === 'general' }"
                     :aria-selected="tab === 'general' ? 'true' : 'false'" @click="switchTab('general')">
-              <lpa-icon name="settings" :size="14"></lpa-icon>通用
+              <tl-icon name="settings" :size="14"></tl-icon>通用
             </button>
             <button type="button" class="settings-tab" role="tab" :class="{ on: tab === 'desktop' }"
                     :aria-selected="tab === 'desktop' ? 'true' : 'false'" @click="switchTab('desktop')">
-              <lpa-icon name="monitor" :size="14"></lpa-icon>桌面
+              <tl-icon name="monitor" :size="14"></tl-icon>桌面
             </button>
             <button type="button" class="settings-tab" role="tab" :class="{ on: tab === 'data' }"
                     :aria-selected="tab === 'data' ? 'true' : 'false'" @click="switchTab('data')">
-              <lpa-icon name="drive" :size="14"></lpa-icon>数据
+              <tl-icon name="drive" :size="14"></tl-icon>数据
             </button>
             <button type="button" class="settings-tab danger" role="tab" :class="{ on: tab === 'danger' }"
                     :aria-selected="tab === 'danger' ? 'true' : 'false'" @click="switchTab('danger')">
-              <lpa-icon name="warning" :size="14"></lpa-icon>危险区
+              <tl-icon name="warning" :size="14"></tl-icon>危险区
             </button>
           </div>
 
@@ -292,8 +292,8 @@
                   <span class="setting-title">打开项目的编辑器</span>
                   <span class="setting-desc">「{{ editorName(prefs['editor.command'] || 'code') }} 打开」按钮使用的编辑器，下拉里只列出本机可用的命令</span>
                 </div>
-                <lpa-select :model-value="prefs['editor.command'] || 'code'" :options="editorOptions"
-                            @update:model-value="chooseEditor" aria-label="编辑器"></lpa-select>
+                <tl-select :model-value="prefs['editor.command'] || 'code'" :options="editorOptions"
+                            @update:model-value="chooseEditor" aria-label="编辑器"></tl-select>
               </div>
               <div class="setting-row" style="margin-top:10px">
                 <div>
@@ -309,9 +309,9 @@
                   <span class="setting-title">提交记录单次加载数</span>
                   <span class="setting-desc">详情页「提交记录」一次读取的条数上限，大仓库可调小以加快加载</span>
                 </div>
-                <lpa-select :model-value="String(prefs['commits.limit'] || 200)"
+                <tl-select :model-value="String(prefs['commits.limit'] || 200)"
                             :options="[{v:'50',l:'50 条'},{v:'100',l:'100 条'},{v:'200',l:'200 条（最多）'}]"
-                            @update:model-value="v => { prefs['commits.limit'] = Number(v); savePref('commits.limit'); }"></lpa-select>
+                            @update:model-value="v => { prefs['commits.limit'] = Number(v); savePref('commits.limit'); }"></tl-select>
               </div>
               <div class="setting-row" style="margin-top:10px">
                 <div>
@@ -341,9 +341,9 @@
                   <span class="setting-desc">手动录入与批量导入时的初始值，留空用系统默认（进行中 / 无分类）</span>
                 </div>
                 <span class="setting-btns">
-                  <lpa-select :model-value="prefs['add.default_status'] || '进行中'"
+                  <tl-select :model-value="prefs['add.default_status'] || '进行中'"
                               :options="statuses"
-                              @update:model-value="v => { prefs['add.default_status'] = v; savePref('add.default_status'); }"></lpa-select>
+                              @update:model-value="v => { prefs['add.default_status'] = v; savePref('add.default_status'); }"></tl-select>
                   <input type="text" class="pref-input" v-model.trim="prefs['add.default_category']"
                          @change="savePref('add.default_category')" placeholder="默认分类" aria-label="默认分类">
                 </span>
@@ -444,10 +444,10 @@
                 </div>
                 <span class="setting-btns">
                   <button class="btn sm" @click="exportJson" title="导出全部档案为 JSON 备份">
-                    <lpa-icon name="download" :size="13"></lpa-icon>导出
+                    <tl-icon name="download" :size="13"></tl-icon>导出
                   </button>
                   <label class="btn sm" style="cursor:pointer" title="从备份文件恢复档案">
-                    <lpa-icon name="upload" :size="13"></lpa-icon>{{ importingBackup ? "导入中…" : "导入" }}
+                    <tl-icon name="upload" :size="13"></tl-icon>{{ importingBackup ? "导入中…" : "导入" }}
                     <input type="file" accept=".json,application/json" style="display:none"
                            @change="importBackup" :disabled="importingBackup">
                   </label>
@@ -471,10 +471,10 @@
                 </div>
                 <span class="setting-btns">
                   <button class="btn sm" @click="openDataFolder" title="在资源管理器中打开数据目录">
-                    <lpa-icon name="folder-open" :size="13"></lpa-icon>打开数据文件夹
+                    <tl-icon name="folder-open" :size="13"></tl-icon>打开数据文件夹
                   </button>
                   <button class="btn sm" @click="openLog" title="打开应用日志文件">
-                    <lpa-icon name="file-text" :size="13"></lpa-icon>查看日志
+                    <tl-icon name="file-text" :size="13"></tl-icon>查看日志
                   </button>
                 </span>
               </div>
@@ -503,20 +503,20 @@
                   <span class="fill"></span>
                   <button class="btn sm" @click="restoreBackup(b)">恢复</button>
                   <button class="icon-btn" title="删除该备份" aria-label="删除该备份" @click="deleteBackup(b)">
-                    <lpa-icon name="trash" :size="13"></lpa-icon>
+                    <tl-icon name="trash" :size="13"></tl-icon>
                   </button>
                 </div>
               </div>
               <div class="hint" v-else-if="backupsError">
                 备份列表加载失败
                 <button class="btn sm" @click="loadBackups" style="margin-left:6px">
-                  <lpa-icon name="refresh" :size="13"></lpa-icon>重试
+                  <tl-icon name="refresh" :size="13"></tl-icon>重试
                 </button>
               </div>
               <div class="hint" v-else>暂无备份（启动服务时自动创建，或点下方按钮立即备份）</div>
               <div style="margin-top:8px">
                 <button class="btn sm" @click="backupNow" :disabled="backupSaving">
-                  <lpa-icon name="save" :size="13"></lpa-icon>{{ backupSaving ? "备份中…" : "立即备份" }}
+                  <tl-icon name="save" :size="13"></tl-icon>{{ backupSaving ? "备份中…" : "立即备份" }}
                 </button>
               </div>
             </div>
@@ -531,14 +531,14 @@
                   <span class="setting-desc">删除所有项目记录、笔记、变更日志与截图（不触碰原项目文件）。建议先在「数据」页签导出 JSON 备份。</span>
                 </div>
                 <button class="btn sm danger" @click="clearAll">
-                  <lpa-icon name="trash" :size="13"></lpa-icon>清空
+                  <tl-icon name="trash" :size="13"></tl-icon>清空
                 </button>
               </div>
             </div>
           </div>
 
           <div class="app-info">
-            归迹拾光 <b>v{{ appVersion }}</b> · 作者 <b>{{ appAuthor }}</b> · 服务端口 <b>{{ appPort }}</b> ·
+            归迹 · tracelight <b>v{{ appVersion }}</b> · 作者 <b>{{ appAuthor }}</b> · 服务端口 <b>{{ appPort }}</b> ·
             数据：<span class="mono">{{ dataPath }}</span>
           </div>
           <div class="actions">

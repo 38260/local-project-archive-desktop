@@ -10,8 +10,10 @@ import socket
 import sys
 from pathlib import Path
 
-# 用户在「程序与功能」里看到的名字，同时用作数据目录名
-APP_TITLE = "Tracelight"
+# 数据目录名（冻结模式下 %LOCALAPPDATA% 下的文件夹名）。
+# Windows 路径大小写不敏感，从 Tracelight 改为小写不会产生第二个数据目录；
+# 跨平台的历史目录迁移见 desktop.py 的 migrate_renamed_data。
+APP_TITLE = "tracelight"
 
 
 def _is_frozen() -> bool:

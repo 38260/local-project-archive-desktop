@@ -2,8 +2,44 @@
 (function () {
   "use strict";
 
+  // ---------- 旧版 localStorage 键名兼容（应用改名 lpa- → tl- 的一次性搬迁） ----------
+  // 旧键只复制不删除：新版一律读写新键，旧版程序（若还在跑）继续用旧键互不干扰；
+  // 新键已存在时不覆盖（用户在新版本里改过的偏好优先）。
+  const LEGACY_LS_KEYS = {
+    "tl-theme": "lpa-theme",
+    "tl-soft-nav": "lpa-soft-nav",
+    "tl-tabs": "lpa-tabs",
+    "tl-tabbar-hidden": "lpa-tabbar-hidden",
+    "tl-home-heat-expanded": "lpa-home-heat-expanded",
+    "tl-run-capture": "lpa-run-capture",
+    "tl-month-collapsed": "lpa-month-collapsed",
+    "tl-tree-collapsed": "lpa-tree-collapsed",
+    "tl-toc-collapsed": "lpa-toc-collapsed",
+  };
+  // 动态键（按项目 id 拼接）按前缀搬迁
+  const LEGACY_LS_PREFIXES = [["tl-draft-desc-", "lpa-draft-desc-"]];
+  (function migrateLegacyPrefs() {
+    try {
+      for (const [nk, ok] of Object.entries(LEGACY_LS_KEYS)) {
+        if (localStorage.getItem(nk) !== null) continue;
+        const old = localStorage.getItem(ok);
+        if (old !== null) localStorage.setItem(nk, old);
+      }
+      for (const [np, op] of LEGACY_LS_PREFIXES) {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (!k || !k.startsWith(op)) continue;
+          const nk = np + k.slice(op.length);
+          if (localStorage.getItem(nk) === null) {
+            localStorage.setItem(nk, localStorage.getItem(k));
+          }
+        }
+      }
+    } catch (e) { /* 隐私模式等读不到 localStorage：跳过迁移，按无偏好走 */ }
+  })();
+
   // ---------- 主题（三态：跟随系统 / 亮色 / 暗色） ----------
-  const THEME_KEY = "lpa-theme";
+  const THEME_KEY = "tl-theme";
   const mq = window.matchMedia("(prefers-color-scheme: dark)");
   function resolveTheme(pref) {
     return (pref === "light" || pref === "dark") ? pref : (mq.matches ? "dark" : "light");
@@ -510,8 +546,8 @@
     // 停止运行（运行历史里结束捕获进程）
     stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
   };
-  window.LpaIcon = {
-    name: "LpaIcon",
+  window.TlIcon = {
+    name: "TlIcon",
     props: {
       name: { type: String, required: true },
       size: { type: [Number, String], default: 16 },
@@ -558,14 +594,14 @@
     if (!modalStack.length) document.body.classList.remove("modal-open");
     if (m.prev && document.body.contains(m.prev)) m.prev.focus();
   }
-  window.LpaModal = {
+  window.TlModal = {
     mounted(el) { lockModal(el); },
     unmounted(el) { unlockModal(el); },
   };
 
   // 模板表达式只能访问组件实例属性（Vue3 编译后为 _ctx.xxx），
   // window 上的工具函数必须通过 globalProperties 注入后模板才能调用
-  window.LPA_HELPERS = {
+  window.TL_HELPERS = {
     fmtTime, relTime, shortPath, fmtSize, fmtNum, copyText, statusBadgeClass,
     themeName, cycleTheme, tagClass,
     commitType, commitMsgText, commitTypeClass, userColor, fileColor,
@@ -573,9 +609,9 @@
   };
 
   // ---------- 自定义下拉组件（替代原生 select：统一样式 + 键盘可达） ----------
-  // 用法：<lpa-select v-model="x" :options="['a','b']" all-label="全部" placeholder="…" accent></lpa-select>
-  window.LpaSelect = {
-    name: "LpaSelect",
+  // 用法：<tl-select v-model="x" :options="['a','b']" all-label="全部" placeholder="…" accent></tl-select>
+  window.TlSelect = {
+    name: "TlSelect",
     props: {
       modelValue: { type: String, default: "" },
       options: { type: Array, default: () => [] },
@@ -685,8 +721,8 @@
     return briefPending;
   }
 
-  window.lpaBriefSync = briefSync;       // 同步读最近一次结果（页面 data() 里用）
-  window.lpaRefreshBrief = refreshBrief; // 异步刷新（同一 tick 内多次调用只发一次请求）
+  window.tlBriefSync = briefSync;       // 同步读最近一次结果（页面 data() 里用）
+  window.tlRefreshBrief = refreshBrief; // 异步刷新（同一 tick 内多次调用只发一次请求）
 
   // ---------- 页面内跳转的统一出口：同文档软导航 ----------
   // 背景：本应用是两个独立文档（/ 与 /project/N）。早期点标签直接 location.href，
@@ -699,9 +735,9 @@
   //     拿到一份全新的 IIFE 作用域，页面逻辑与整页加载时完全一致；
   //   · 页面外壳（#app 模板 + 脚本源码）与具体项目无关，取一次缓存复用，
   //     之后切项目是纯 DOM 操作，没有网络与解析开销；
-  //   · 任何一步失败都回退到整页跳转（localStorage 里 lpa-soft-nav="0" 可强制关闭），
+  //   · 任何一步失败都回退到整页跳转（localStorage 里 tl-soft-nav="0" 可强制关闭），
   //     所以最坏情况等于改动前的行为，不会白屏卡死。
-  const SOFT_NAV_KEY = "lpa-soft-nav";
+  const SOFT_NAV_KEY = "tl-soft-nav";
   const PAGE_HOME = "home";
   const PAGE_PROJECT = "project";
 
@@ -782,8 +818,8 @@
     next.innerHTML = shell.appHTML;
     prev.replaceWith(next);
     for (const s of shell.scripts) runScriptText(s.src, s.text);
-    // 页面脚本挂载后会写 window.__lpaPageApp；没写说明它没跑起来
-    if (!window.__lpaPageApp) {
+    // 页面脚本挂载后会写 window.__tlPageApp；没写说明它没跑起来
+    if (!window.__tlPageApp) {
       throw new Error("页面脚本未完成挂载：" + shell.scripts.map(s => s.src).join("、"));
     }
     document.title = shell.title;
@@ -798,33 +834,33 @@
     try {
       const shell = await loadShell(type);     // 唯一的 await：只做资源准备，不动 DOM
       if (my !== navToken) return;             // 期间又点了别的标签，放弃本次
-      if (!opts.fromPop && history.state && history.state.lpa) {
+      if (!opts.fromPop && history.state && history.state.tl) {
         // 记下当前页的滚动位置，供浏览器「后退」时恢复
-        history.replaceState({ lpa: 1, scroll: window.scrollY }, "", location.pathname);
+        history.replaceState({ tl: 1, scroll: window.scrollY }, "", location.pathname);
       }
-      const prev = window.__lpaPageApp;
-      window.__lpaPageApp = null;
-      window.LPA_OPEN_SETTINGS = null;         // 首页专属入口，切走后必须失效
-      window.lpaNavigate = softNavigate;       // 详情页 mounted 里会再覆盖成 leaveConfirm
+      const prev = window.__tlPageApp;
+      window.__tlPageApp = null;
+      window.TL_OPEN_SETTINGS = null;         // 首页专属入口，切走后必须失效
+      window.tlNavigate = softNavigate;       // 详情页 mounted 里会再覆盖成 leaveConfirm
       if (prev && typeof prev.unmount === "function") {
         try { prev.unmount(); } catch (e) { /* 已经卸过了 */ }
       }
-      if (!opts.fromPop) history.pushState({ lpa: 1, scroll: 0 }, "", url);
+      if (!opts.fromPop) history.pushState({ tl: 1, scroll: 0 }, "", url);
       mountPage(shell);
       window.scrollTo(0, opts.restoreScroll || 0);
-      window.dispatchEvent(new CustomEvent("lpa-route-changed", {
+      window.dispatchEvent(new CustomEvent("tl-route-changed", {
         detail: { url: url, projectId: projectIdOf(url) },
       }));
     } catch (err) {
-      console.warn("[lpa] 软导航失败，回退整页跳转：", err);
+      console.warn("[tl] 软导航失败，回退整页跳转：", err);
       if (my === navToken) hardNavigate(url);
     }
   }
 
-  window.lpaSoftNavigate = softNavigate;
+  window.tlSoftNavigate = softNavigate;
   // 页面内跳转的统一出口。详情页会把它换成带「未保存内容」确认的版本
   // （见 project.js 的 leaveConfirm），标签栏与其它共享组件一律走这里，就不会绕过那道确认。
-  window.lpaNavigate = softNavigate;
+  window.tlNavigate = softNavigate;
   // pushState 只换了地址栏，前进/后退必须自己把内容换回去
   window.addEventListener("popstate", (e) => {
     softNavigate(location.pathname, {
@@ -838,21 +874,21 @@
   //   · 第一个标签固定为「首页」（全部项目），不可关闭，相当于浏览器的主页标签；
   //   · 项目标签在你进入详情页时追加到末尾（不打乱你手动拖出来的顺序），
   //     顺序完全由你决定：拖动排序、× / 中键关闭，关当前标签时自动切到相邻标签；
-  //   · 顺序存在本机 localStorage["lpa-tabs"]，刷新、重启后都保持；
+  //   · 顺序存在本机 localStorage["tl-tabs"]，刷新、重启后都保持；
   //   · 标签只记在本机：换浏览器 / 清缓存即重来，不写档案库、不进导出备份；
   //   · 首次使用（本机还没有标签记录）时用后端「最近开发」预填，打开就有东西可切。
-  const TAB_KEY = "lpa-tabs";
-  const TABBAR_HIDDEN_KEY = "lpa-tabbar-hidden";
+  const TAB_KEY = "tl-tabs";
+  const TABBAR_HIDDEN_KEY = "tl-tabbar-hidden";
 
   function tabbarVisible() {
     return localStorage.getItem(TABBAR_HIDDEN_KEY) !== "1";
   }
-  window.lpaTabbarVisible = tabbarVisible;
+  window.tlTabbarVisible = tabbarVisible;
   // 设置弹窗里切换标签栏显隐；写 localStorage 后广播事件，标签栏自身即时响应
-  window.setLpaTabbarVisible = function (on) {
+  window.setTlTabbarVisible = function (on) {
     try { localStorage.setItem(TABBAR_HIDDEN_KEY, on ? "0" : "1"); }
     catch (e) { /* 隐私模式等写不了，忽略即可 */ }
-    window.dispatchEvent(new Event("lpa-prefs-changed"));
+    window.dispatchEvent(new Event("tl-prefs-changed"));
   };
 
   // 当前页面对应的项目 id（详情页才有；首页为 null）
@@ -861,8 +897,8 @@
     return m ? Number(m[1]) : null;
   }
 
-  window.LpaTabbar = {
-    name: "LpaTabbar",
+  window.TlTabbar = {
+    name: "TlTabbar",
     data() {
       return {
         tabs: [],                       // 已打开的项目标签 [{id, name, alias}]，数组顺序 = 显示顺序
@@ -879,7 +915,7 @@
       hasTabs() { return this.tabs.length > 0; },
     },
     methods: {
-      go(url) { window.lpaNavigate(url); },
+      go(url) { window.tlNavigate(url); },
       openHome() { if (this.curId !== null) this.go("/"); },
       openTab(t) { if (t.id !== this.curId) this.go("/project/" + t.id); },
       hasTab(id) { return this.tabs.some(t => t.id === id); },
@@ -904,7 +940,7 @@
         const next = this.tabs[idx] || this.tabs[idx - 1] || null;
         this.go(next ? "/project/" + next.id : "/");
       },
-      // 档案被删除后同步摘掉对应标签（详情页删档时调用，见 window.lpaForgetTab）
+      // 档案被删除后同步摘掉对应标签（详情页删档时调用，见 window.tlForgetTab）
       forget(id) {
         const idx = this.tabs.findIndex(t => t.id === id);
         if (idx < 0) return;
@@ -974,7 +1010,7 @@
         if (er.left < sr.left) strip.scrollLeft -= (sr.left - er.left) + 8;
         else if (er.right > sr.right) strip.scrollLeft += (er.right - sr.right) + 8;
       },
-      // ---- 软导航后的路由同步（common.js 的 softNavigate 广播 lpa-route-changed）----
+      // ---- 软导航后的路由同步（common.js 的 softNavigate 广播 tl-route-changed）----
       onRouteChanged(e) {
         const detail = (e && e.detail) || {};
         this.curId = detail.projectId != null ? detail.projectId : currentProjectId();
@@ -1083,18 +1119,18 @@
       document.addEventListener("click", this.onDocClick);
       document.addEventListener("keydown", this.onDocKey);
       document.addEventListener("mouseup", this.onDocMouseUp);
-      window.addEventListener("lpa-prefs-changed", this.onPrefsChanged);
-      window.addEventListener("lpa-route-changed", this.onRouteChanged);
-      window.addEventListener("lpa-project-updated", this.onProjectUpdated);
+      window.addEventListener("tl-prefs-changed", this.onPrefsChanged);
+      window.addEventListener("tl-route-changed", this.onRouteChanged);
+      window.addEventListener("tl-project-updated", this.onProjectUpdated);
       await this.init();
     },
     beforeUnmount() {
       document.removeEventListener("click", this.onDocClick);
       document.removeEventListener("keydown", this.onDocKey);
       document.removeEventListener("mouseup", this.onDocMouseUp);
-      window.removeEventListener("lpa-prefs-changed", this.onPrefsChanged);
-      window.removeEventListener("lpa-route-changed", this.onRouteChanged);
-      window.removeEventListener("lpa-project-updated", this.onProjectUpdated);
+      window.removeEventListener("tl-prefs-changed", this.onPrefsChanged);
+      window.removeEventListener("tl-route-changed", this.onRouteChanged);
+      window.removeEventListener("tl-project-updated", this.onProjectUpdated);
       document.documentElement.classList.remove("has-tabbar");
     },
     template: `
@@ -1107,7 +1143,7 @@
                :aria-selected="curId === null ? 'true' : 'false'"
                title="首页：全部项目" @click="openHome"
                @keydown.enter.prevent="openHome" @keydown.space.prevent="openHome">
-            <lpa-icon name="layers" :size="14"></lpa-icon>
+            <tl-icon name="layers" :size="14"></tl-icon>
             <span class="tab-label">首页</span>
           </div>
           <!-- transition-group 不写 tag：不额外包一层元素，标签仍是 .tab-strip 的直接子元素。
@@ -1124,14 +1160,14 @@
                  @dragstart="onDragStart(t, $event)"
                  @dragover="onDragOver(t, $event)"
                  @drop.prevent="onDragEnd" @dragend="onDragEnd">
-              <lpa-icon name="folder" :size="13"></lpa-icon>
+              <tl-icon name="folder" :size="13"></tl-icon>
               <span class="tab-label">{{ t.name }}</span>
               <span class="tab-x" role="button" tabindex="0"
                     :aria-label="'关闭 ' + t.name + ' 标签'"
                     @mousedown="xPressed = true"
                     @click.stop="closeTab(t)" @keydown.enter.stop.prevent="closeTab(t)"
                     @keydown.space.stop.prevent="closeTab(t)">
-                <lpa-icon name="x" :size="12"></lpa-icon>
+                <tl-icon name="x" :size="12"></tl-icon>
               </span>
             </div>
           </transition-group>
@@ -1141,7 +1177,7 @@
                   :class="{ on: moreOpen }" aria-haspopup="menu"
                   :aria-expanded="moreOpen ? 'true' : 'false'"
                   title="最近项目：快速打开其它项目">
-            <lpa-icon name="chevron-down" :size="14"></lpa-icon>
+            <tl-icon name="chevron-down" :size="14"></tl-icon>
           </button>
           <span class="tab-more-list" v-if="moreOpen" role="menu">
             <span class="tm-head">最近项目</span>
@@ -1156,7 +1192,7 @@
             <span class="tm-sep" v-if="hasTabs"></span>
             <button type="button" class="tm-item tm-close-all" role="menuitem"
                     v-if="hasTabs" @click="closeAll">
-              <lpa-icon name="x" :size="13"></lpa-icon>关闭全部项目标签
+              <tl-icon name="x" :size="13"></tl-icon>关闭全部项目标签
             </button>
           </span>
         </span>
@@ -1170,12 +1206,12 @@
   (function mountTabbar() {
     const slot = document.getElementById("tabbar-root");
     if (!slot) return;                       // 老页面没有挂载点就跳过，不报错
-    const app = Vue.createApp(window.LpaTabbar);
-    app.component("lpa-icon", window.LpaIcon);
-    Object.assign(app.config.globalProperties, window.LPA_HELPERS);
+    const app = Vue.createApp(window.TlTabbar);
+    app.component("tl-icon", window.TlIcon);
+    Object.assign(app.config.globalProperties, window.TL_HELPERS);
     const vm = app.mount(slot);
     // 详情页删档后调用，同步摘掉对应标签（否则会留下一个点不开的死标签）
-    window.lpaForgetTab = function (id) {
+    window.tlForgetTab = function (id) {
       if (vm && typeof vm.forget === "function") vm.forget(Number(id));
     };
   })();

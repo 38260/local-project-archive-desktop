@@ -3,7 +3,7 @@
   "use strict";
   const { createApp } = Vue;
 
-  const DRAFT_PREFIX = "lpa-draft-desc-";
+  const DRAFT_PREFIX = "tl-draft-desc-";
   // 描述预览防抖定时器（非响应式，放组件外即可）
   let descTimer = null;
 
@@ -87,7 +87,7 @@
             <span class="t-caret">
               <svg class="licon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="open ? 'm6 9 6 6 6-6' : 'm9 18 6-6-6-6'"/></svg>
             </span>
-            <lpa-icon :name="open ? 'folder-open' : 'folder'" :size="14"></lpa-icon>
+            <tl-icon :name="open ? 'folder-open' : 'folder'" :size="14"></tl-icon>
             <span class="t-name">{{ node.name }}</span>
           </span>
           <span class="t-err" v-if="node.error">（{{ node.error }}）</span>
@@ -125,7 +125,7 @@
         // 初值取 common.js 的共享缓存（外壳脚本常驻，软导航不重跑）：
         // 列表非空时顶栏的 ‹ › 箭头首帧就能渲染成正确状态，
         // 否则会「先没箭头、数据回来再冒出来」，顶栏内容左右跳一下。
-        siblings: (window.lpaBriefSync && window.lpaBriefSync()) || [],
+        siblings: (window.tlBriefSync && window.tlBriefSync()) || [],
         // 描述编辑：脏标记 + 本地草稿
         descBaseline: "",
         descDraftRestored: false,
@@ -167,7 +167,7 @@
         // 月柱状图默认折叠：它与下方「提交构成分析」里的类型×月份堆叠柱信息重叠，
         // 折叠后仍保留"共 N 次提交"的摘要可见，需要细节再展开。状态记忆在 localStorage，
         // 判据写成 `!== "0"`（即默认折叠），用户展开过一次后才记住"展开"。
-        monthCollapsed: localStorage.getItem("lpa-month-collapsed") !== "0",
+        monthCollapsed: localStorage.getItem("tl-month-collapsed") !== "0",
         editorCmd: "code",      // 打开项目的编辑器命令，被设置 editor.command 覆盖
         // 快速启动（GET /launch 载荷：note/note_html/supported/detect_kind/suggestions/launchers）
         launch: null,
@@ -188,7 +188,7 @@
         launchMenuOpen: false,  // 顶栏「启动」按钮的下拉是否展开
         launchDragKey: null,    // 正在拖拽的入口键（null = 没在拖）
         // 捕获运行与运行历史：勾选后后台执行并采集输出/退出码（记忆上次选择）
-        runCapture: localStorage.getItem("lpa-run-capture") === "1",
+        runCapture: localStorage.getItem("tl-run-capture") === "1",
         runs: [],               // 运行历史列表（不含输出正文）
         runsLoading: false,
         runsError: false,
@@ -208,13 +208,13 @@
         moreOpen: false,
         descLive: "",
         // 目录树收起状态（记忆在 localStorage，默认展开）
-        treeCollapsed: localStorage.getItem("lpa-tree-collapsed") === "1",
+        treeCollapsed: localStorage.getItem("tl-tree-collapsed") === "1",
         // 左侧锚点目录（sections 已改为计算属性，空面板自动隐藏）
         activeSection: "sec-info",
         spySuspendedUntil: 0,
         // 目录树分组的折叠状态（记忆在 localStorage，默认全部展开）
         tocCollapsed: (() => {
-          try { return JSON.parse(localStorage.getItem("lpa-toc-collapsed") || "[]"); }
+          try { return JSON.parse(localStorage.getItem("tl-toc-collapsed") || "[]"); }
           catch (e) { return []; }
         })(),
         // 应用内文档查看器（README/笔记里的相对链接不再整页跳转，改在这里打开）
@@ -833,7 +833,7 @@
         }
         if (canCapture) {                            // 记住选择，下次默认沿用
           this.runCapture = capture;
-          localStorage.setItem("lpa-run-capture", capture ? "1" : "0");
+          localStorage.setItem("tl-run-capture", capture ? "1" : "0");
         }
         this.launchBusyKey = entry.id ? `l${entry.id}` : `s${entry.command}`;
         try {
@@ -1097,8 +1097,8 @@
         try {
           // 轻量接口：只取 id/name/alias，不做磁盘校验。
           // 走 common.js 的共享缓存，与顶部标签栏共用一次请求。
-          const list = window.lpaRefreshBrief
-            ? await window.lpaRefreshBrief()
+          const list = window.tlRefreshBrief
+            ? await window.tlRefreshBrief()
             : ((await api("/api/projects/brief", { silent: true })).projects || []);
           this.siblings = list;
         } catch (e) { /* 失败就沿用缓存里的旧值，顶栏箭头不至于消失 */ }
@@ -1124,13 +1124,13 @@
           || (this.noteDraft != null && String(this.noteDraft).trim())
           || (this.logDraft != null && String(this.logDraft).trim())
           || editingNote || editingLog;
-        if (!hasUnsaved) { window.lpaSoftNavigate(url); return; }
+        if (!hasUnsaved) { window.tlSoftNavigate(url); return; }
         confirmDialog(
           "当前页面有未保存的内容（描述、笔记或变更日志）。\n\n"
           + "描述草稿会自动保留，下次打开本项目可继续编辑；"
           + "尚未保存的笔记 / 日志（含正在编辑的修改）离开后将丢失。",
           { title: "离开详情页", okText: "仍然离开" })
-          .then(ok => { if (ok) window.lpaSoftNavigate(url); });
+          .then(ok => { if (ok) window.tlSoftNavigate(url); });
       },
       switchTheme() { window.cycleTheme(); this.themeTick++; },
       // ---- 开发笔记 ----
@@ -1343,19 +1343,19 @@
       firstLine(msg) { return ((msg || "").split("\n")[0] || "").slice(0, 120); },
       toggleTree() {
         this.treeCollapsed = !this.treeCollapsed;
-        localStorage.setItem("lpa-tree-collapsed", this.treeCollapsed ? "1" : "0");
+        localStorage.setItem("tl-tree-collapsed", this.treeCollapsed ? "1" : "0");
       },
       // 月柱状图折叠（状态跨项目记忆）
       toggleMonthChart() {
         this.monthCollapsed = !this.monthCollapsed;
-        localStorage.setItem("lpa-month-collapsed", this.monthCollapsed ? "1" : "0");
+        localStorage.setItem("tl-month-collapsed", this.monthCollapsed ? "1" : "0");
       },
       // 目录树分组折叠（跨项目记忆展开偏好）
       toggleGroup(id) {
         const i = this.tocCollapsed.indexOf(id);
         if (i >= 0) this.tocCollapsed.splice(i, 1);
         else this.tocCollapsed.push(id);
-        localStorage.setItem("lpa-toc-collapsed", JSON.stringify(this.tocCollapsed));
+        localStorage.setItem("tl-toc-collapsed", JSON.stringify(this.tocCollapsed));
       },
       toggleCommit(hash) {
         const i = this.expandedCommits.indexOf(hash);
@@ -1508,7 +1508,7 @@
           this.reloadMeta(p);
           this.showEdit = false;
           // 标签栏常驻：改名 / 改别名后刷新标签的悬浮提示，避免显示旧值
-          window.dispatchEvent(new Event("lpa-project-updated"));
+          window.dispatchEvent(new Event("tl-project-updated"));
           toast("档案信息已保存", "ok");
         } catch (e) { /* toast 已提示 */ }
         finally { this.savingEdit = false; }
@@ -1531,16 +1531,16 @@
           const pid = this.projectId;
           setTimeout(() => {
             // 标签栏常驻，档案删了要同步摘掉标签，否则会留下点不开的死标签
-            if (window.lpaForgetTab) window.lpaForgetTab(pid);
-            window.lpaSoftNavigate("/");
+            if (window.tlForgetTab) window.tlForgetTab(pid);
+            window.tlSoftNavigate("/");
           }, 600);
         } catch (e) { /* toast 已提示 */ }
       },
     },
     mounted() {
       this.load();
-      // 顶部标签栏 / 其它共享组件的跳转统一走 lpaNavigate，避免绕过「未保存内容」确认
-      window.lpaNavigate = (url) => this.leaveConfirm(url);
+      // 顶部标签栏 / 其它共享组件的跳转统一走 tlNavigate，避免绕过「未保存内容」确认
+      window.tlNavigate = (url) => this.leaveConfirm(url);
       window.addEventListener("scroll", this.onScroll, { passive: true });
       // 有未保存内容时的离开确认改用应用内弹窗（leaveConfirm），见 gotoSibling/返回首页：
       // 原生 beforeunload 在 pywebview(WebView2) 桌面壳里确认框可能不可见，导致「退不出来」。
@@ -1572,15 +1572,15 @@
   });
 
   app.component("tree-node", TreeNode);
-  app.component("lpa-select", window.LpaSelect);
-  app.component("lpa-icon", window.LpaIcon);
-  app.component("lpa-tabbar", window.LpaTabbar);
-  app.component("lpa-settings-dialog", window.LpaSettingsDialog);
-  app.directive("modal", window.LpaModal);
+  app.component("tl-select", window.TlSelect);
+  app.component("tl-icon", window.TlIcon);
+  app.component("tl-tabbar", window.TlTabbar);
+  app.component("tl-settings-dialog", window.TlSettingsDialog);
+  app.directive("modal", window.TlModal);
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用
-  Object.assign(app.config.globalProperties, window.LPA_HELPERS);
+  Object.assign(app.config.globalProperties, window.TL_HELPERS);
   app.mount("#app");
   // 软导航切换页面时要卸载本应用（见 common.js 的 softNavigate）：
   // beforeUnmount 里负责清掉滚动 / 键盘 / 全局点击监听与运行输出轮询
-  window.__lpaPageApp = app;
+  window.__tlPageApp = app;
 })();

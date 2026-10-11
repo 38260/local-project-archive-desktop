@@ -15,10 +15,10 @@ import sys
 from pathlib import Path
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-VALUE_NAME = "Tracelight"
+VALUE_NAME = "tracelight"
 
 # 改名前用过的注册表值名：读取时自动搬迁，写入时顺手清理
-_LEGACY_VALUE_NAMES = ("LocalProjectArchive",)
+_LEGACY_VALUE_NAMES = ("LocalProjectArchive", "Tracelight")
 
 
 def exe_command() -> str | None:

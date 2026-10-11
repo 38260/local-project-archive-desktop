@@ -1,5 +1,5 @@
 ﻿; ---------------------------------------------------------------------------
-; Tracelight（归迹拾光）Inno Setup 安装脚本
+; tracelight（归迹 · tracelight）Inno Setup 安装脚本
 ;
 ; 用法（先装 Inno Setup 6：winget install --id JRSoftware.InnoSetup -e）：
 ;   iscc installer\tracelight.iss
@@ -14,16 +14,16 @@
 ;   - 开始菜单快捷方式必有，桌面快捷方式可选（默认不建，减少打扰）。
 ; ---------------------------------------------------------------------------
 
-#define MyAppName        "Tracelight"
-#define MyAppDisplayName "归迹拾光"
+#define MyAppName        "tracelight"
+#define MyAppDisplayName "归迹 · tracelight"
 #define MyAppVersion     "1.10.0"
 #define MyAppPublisher   "BJTU-Yibo"
-#define MyAppExeName     "Tracelight.exe"
+#define MyAppExeName     "tracelight.exe"
 ; 固定 GUID：升级安装靠它识别「同一个应用」，不要改
 #define MyAppId          "{{B7E2F1A4-9C3D-4E6F-8A2B-5D4C3B2A1900}"
 ; 任务栏归组标识：必须与 desktop.py 里 SetCurrentProcessExplicitAppUserModelID 的
 ; 取值逐字一致，否则固定到任务栏的图标会被 Windows 当成另一个应用
-#define MyAppAUMID       "GuijiShiguang.Tracelight"
+#define MyAppAUMID       "Guiji.tracelight"
 
 [Setup]
 AppId={#MyAppId}
@@ -31,14 +31,15 @@ AppName={#MyAppDisplayName} ({#MyAppName})
 AppVersion={#MyAppVersion}
 VersionInfoVersion={#MyAppVersion}.0
 AppPublisher={#MyAppPublisher}
-; per-user 默认安装目录：C:\Users\<用户>\AppData\Local\Programs\Tracelight
+; per-user 默认安装目录：C:\Users\<用户>\AppData\Local\Programs\tracelight
+; （Windows 路径大小写不敏感：旧版装在 ...\Programs\Tracelight 时会复用同一目录）
 DefaultDirName={localappdata}\Programs\{#MyAppName}
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 OutputDir=..\dist\installer
-OutputBaseFilename=Tracelight-Setup-{#MyAppVersion}
+OutputBaseFilename=tracelight-Setup-{#MyAppVersion}
 SetupIconFile=..\assets\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppDisplayName} ({#MyAppName})
@@ -64,7 +65,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 ; onedir 全量打包：exe + _internal（递归）
-Source: "..\dist\Tracelight\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\tracelight\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
 ; 覆盖安装前先清空运行时目录，让「直接替换成新版本文件」是干净的：
@@ -85,7 +86,8 @@ Name: "{autodesktop}\{#MyAppDisplayName}";  Filename: "{app}\{#MyAppExeName}"; T
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch now"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; 安装目录残留下属正常清理；用户数据在 %LOCALAPPDATA%\Tracelight，默认不动
+; 安装目录残留下属正常清理；用户数据在 %LOCALAPPDATA%\tracelight，默认不动
+; （Windows 大小写不敏感，旧版数据目录 %LOCALAPPDATA%\Tracelight 是同一目录）
 
 [Code]
 // ---------------------------------------------------------------------------
@@ -100,22 +102,55 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch now"; Flags: nowait post
 // ---------------------------------------------------------------------------
 const
   // 与 desktop.py 的 MUTEX_NAME 必须逐字一致
-  AppMutexName = 'Tracelight_SingleInstanceMutex';
+  AppMutexName = 'tracelight_SingleInstanceMutex';
+  // 改名前旧版本的互斥体名：旧版进程还在跑时同样要被识别并关闭
+  LegacyMutexNames = 'Tracelight_SingleInstanceMutex,LocalProjectArchive_SingleInstanceMutex';
+  // 改名前旧版本的 exe 镜像名：覆盖安装时一并 taskkill
+  LegacyExeImages: Array of String = ['Tracelight.exe', 'LocalProjectArchive.exe'];
+
+// 任一版本（新旧）的实例互斥体仍存在
+function AnyInstanceRunning(): Boolean;
+var
+  I: Integer;
+  Names: TStringList;
+begin
+  Result := CheckForMutexes(AppMutexName);
+  if Result then Exit;
+  Names := TStringList.Create;
+  try
+    Names.CommaText := LegacyMutexNames;
+    for I := 0 to Names.Count - 1 do
+      if CheckForMutexes(Trim(Names[I])) then
+      begin
+        Result := True;
+        Exit;
+      end;
+  finally
+    Names.Free;
+  end;
+end;
 
 // 结束正在运行的旧程序，并等到它真正退出、文件句柄释放。
 procedure KillRunningApp();
 var
   ResultCode, I: Integer;
+  Exe: String;
 begin
   // 不做「先判断再杀」：没在跑时 taskkill 只报「找不到进程」，没有副作用；
   // 反倒是「检测不到却仍在运行」才会留下文件被占用的坑。
   // /F 强制结束；/T 连带子进程（pywebview 的 WebView2 渲染进程）。
   // 按镜像名匹配，所以从 dist 目录直接运行的绿色版同样会被关掉。
+  // 新旧 exe 名都要杀：升级场景里正在跑的往往是旧名的 Tracelight.exe。
   Exec('taskkill', '/F /T /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  for I := 0 to GetArrayLength(LegacyExeImages) - 1 do
+  begin
+    Exe := LegacyExeImages[I];
+    Exec('taskkill', '/F /T /IM ' + Exe, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
   // 进程退出后内核对象与文件映射的释放有延迟，轮询等互斥体消失（最多 10 秒）
   for I := 1 to 40 do
   begin
-    if not CheckForMutexes(AppMutexName) then
+    if not AnyInstanceRunning() then
       Break;
     Sleep(250);
   end;
@@ -127,7 +162,7 @@ begin
   // 时机：本函数在 Setup 检查「文件是否被占用」之前、旧版本被卸载之前调用，
   // 是关掉旧程序最合适的位置——关完之后，卸载旧版与复制新文件都不会再撞占用。
   KillRunningApp();
-  if CheckForMutexes(AppMutexName) then
+  if AnyInstanceRunning() then
   begin
     // 自动关不掉（多半是旧进程以管理员身份启动，权限不同）：明确报错并允许重试，
     // 好过让安装走到一半才因为文件被占用而失败。

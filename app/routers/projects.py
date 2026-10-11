@@ -1489,7 +1489,7 @@ code.path { background: #f0f2f4; border: 1px solid var(--bd); border-radius: 6px
 <title>{esc(row['name'])} · 项目档案</title>
 <style>{css}</style></head><body>
 <header class="hero"><div class="wrap">
-  <div class="crumb">归迹拾光 · 项目档案导出</div>
+  <div class="crumb">归迹 · tracelight · 项目档案导出</div>
   <h1>{esc(row['name'])}{alias_html}</h1>
   <div class="chips">
     <span class="badge {st_cls}">{esc(status) or '未设置'}</span>
@@ -1504,7 +1504,7 @@ code.path { background: #f0f2f4; border: 1px solid var(--bd); border-radius: 6px
   <section><h2>项目描述</h2><div class="md">{desc_html}</div></section>
   <section><h2>开发笔记{notes_count}</h2>{notes_html}</section>
   <section><h2>变更日志{logs_count}</h2>{logs_html}</section>
-  <div class="foot">由 归迹拾光 导出于 {exported_at} · 数据仅含本机档案索引，原项目文件未做任何改动</div>
+  <div class="foot">由 归迹 · tracelight 导出于 {exported_at} · 数据仅含本机档案索引，原项目文件未做任何改动</div>
 </div></body></html>"""
 
     import re as _re

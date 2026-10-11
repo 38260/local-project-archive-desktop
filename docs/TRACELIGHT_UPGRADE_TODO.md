@@ -30,7 +30,7 @@
 | 编号 | TODO | 计划提交说明 | 完成状态 |
 |---|---|---|---|
 | P0 | 完成代码摸底与需求确认，提交审阅计划 | `docs: 规划归迹 tracelight 功能升级与验收` | 已完成规划，待审阅 |
-| T1 | 统一品牌与命名，兼容旧数据和偏好 | `refactor: 统一归迹 tracelight 品牌与命名` | 未开始 |
+| T1 | 统一品牌与命名，兼容旧数据和偏好 | `refactor: 统一归迹 tracelight 品牌与命名` | 已完成（T1 验证见执行记录） |
 | T2 | 首页拖动保留分组，移除独立手动排序模式 | `fix: 保留首页分组并直接保存拖动顺序` | 未开始 |
 | T3 | 流程图自动识别与详情展示 | `feat: 自动识别并展示项目流程图` | 未开始 |
 | T4 | 流程图选择、上传替换与恢复自动识别 | `feat: 支持档案流程图选择与替换` | 未开始 |
@@ -45,7 +45,7 @@
 - [x] 确认品牌展示方式和流程图替换位置。
 - [x] 编写本轮计划、功能拆分与验收清单。
 - [ ] 用户审阅通过。
-- [ ] T1 品牌与命名统一。
+- [x] T1 品牌与命名统一。
 - [ ] T2 首页拖动排序。
 - [ ] T3 流程图识别与展示。
 - [ ] T4 流程图选择与替换。
@@ -245,3 +245,12 @@
 - 新增本文件；本次提交只包含计划文档。
 - Git Bash 与 Windows 原生 Git 的配置不同，前者显示 5 个文件的换行符差异，忽略行尾空白后没有内容差异；原生 Git 确认功能代码没有未提交改动。本轮使用原生 Git 的既有用户身份提交，不修改 Git 配置。实现前重新检查工作区。
 - 待用户审阅确认后推进 T1～T8。
+
+### 2026-10-11：T1 品牌与命名统一（已完成）
+
+- 界面/服务标题/导出报告/README/PACKAGING 统一为「归迹 · tracelight」；exe、构建目录、安装包、导出文件名统一小写 `tracelight`（`tracelight.exe`、`tracelight-Setup-<版本>.exe`、`tracelight-backup.json`）。
+- 前端共享组件、全局桥接、事件、`localStorage` 键由 `Lpa`/`lpa-` 统一为 `Tl`/`tl-`；`common.js` 开头对旧键做一次性搬迁（新键已存在时不覆盖，旧键保留），两个页面首帧引导脚本对主题/标签栏两个键做旧键兜底读取。
+- 数据目录名 `Tracelight` → `tracelight`：`migrate_renamed_data` 改为旧名列表 + normcase 真实路径比对，Windows 大小写等价时零迁移；新库已有 `projects.db` 一律不覆盖。
+- 注册表自启动值名 `Tracelight` → `tracelight`，旧值名纳入 `_LEGACY_VALUE_NAMES` 自动搬迁（沿用既有 LocalProjectArchive 机制）；单实例互斥体改名并保留旧名探测；安装器 taskkill 同时结束新旧 exe 名、互斥体等待覆盖新旧名；AppId GUID 保持不变。
+- 任务栏 AUMID 更新为 `Guiji.tracelight`（桌面壳与安装器两侧一致）。已有固定到任务栏的图标因 exe 改名本就会失效，需要重新固定一次。
+- 验证：`python -m py_compile`（config/main/routers/services/desktop/run）通过；`node --check`（common/settings/dashboard/project.js）通过；`grep` 确认旧名称仅存在于兼容代码、迁移函数与历史说明。桌面窗口/托盘/安装器的真机验证归入 T8。

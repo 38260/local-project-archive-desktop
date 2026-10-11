@@ -6,7 +6,7 @@
   python desktop.py --port 9000  # 指定端口（默认自动挑选空闲端口）
 
 打包后由 PyInstaller 以本文件为入口，双击 exe 直接打开原生窗口，
-数据写入 %LOCALAPPDATA%\\Tracelight，不随程序重装而丢失。
+数据写入 %LOCALAPPDATA%\\tracelight，不随程序重装而丢失。
 """
 from __future__ import annotations
 
@@ -32,10 +32,10 @@ if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 # 窗口/托盘统一显示名（与任务栏、告警弹窗保持一致）
-WINDOW_TITLE = "归迹拾光"
+WINDOW_TITLE = "归迹 · tracelight"
 
 # 任务栏归组标识：与 installer/tracelight.iss 的 MyAppAUMID 必须逐字一致
-APP_AUMID = "GuijiShiguang.Tracelight"
+APP_AUMID = "Guiji.tracelight"
 
 
 # --------------------------------------------------------------------------
@@ -52,7 +52,7 @@ def setup_logging(data_dir: Path):
         encoding="utf-8",
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    return logging.getLogger("lpa"), log_file
+    return logging.getLogger("tracelight"), log_file
 
 
 def alert(title: str, msg: str) -> None:
@@ -68,7 +68,7 @@ def install_excepthook(logger) -> None:
     def hook(etype, value, tb):
         msg = "".join(traceback.format_exception(etype, value, tb))
         logger.error("未捕获异常：\n%s", msg)
-        alert("归迹拾光 - 出错了", msg)
+        alert("归迹 · tracelight - 出错了", msg)
 
     sys.excepthook = hook
 
@@ -76,7 +76,10 @@ def install_excepthook(logger) -> None:
 # --------------------------------------------------------------------------
 # 单实例
 # --------------------------------------------------------------------------
-MUTEX_NAME = "Tracelight_SingleInstanceMutex"
+MUTEX_NAME = "tracelight_SingleInstanceMutex"
+# 改名前用过的互斥体名：旧版进程还在跑时，新实例必须同样识别为「已有实例」，
+# 否则升级期新旧版本会同时运行（旧版占用端口文件、新版抢不到数据目录锁）。
+_LEGACY_MUTEX_NAMES = ("Tracelight_SingleInstanceMutex", "LocalProjectArchive_SingleInstanceMutex")
 ERROR_ALREADY_EXISTS = 183
 
 # 互斥体句柄必须持有到进程结束；一旦被回收，内核会认为实例已退出
@@ -207,6 +210,16 @@ def acquire_single_instance(data_dir: Path, logger=None) -> bool:
 
     if os.name == "nt":
         k32 = ctypes.windll.kernel32
+        # 先认旧版互斥体：旧版进程仍在运行时（升级过渡期常见），同样视为已有实例
+        k32.OpenMutexW.restype = ctypes.c_void_p
+        k32.OpenMutexW.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_wchar_p]
+        for legacy in _LEGACY_MUTEX_NAMES:
+            handle = k32.OpenMutexW(0x00100000, 0, legacy)   # SYNCHRONIZE：仅探测存在性
+            if handle:
+                k32.CloseHandle(ctypes.c_void_p(handle))
+                if logger:
+                    logger.info("检测到旧版本实例（互斥体 %s）在运行，本次退出", legacy)
+                return False
         k32.CreateMutexW.restype = ctypes.c_void_p
         k32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p]
         handle = k32.CreateMutexW(None, 0, MUTEX_NAME)
@@ -268,16 +281,21 @@ def migrate_legacy_data(data_dir: Path, logger) -> None:
         logger.warning("旧档案迁移失败：%s", exc)
 
 
-# 改名前的旧英文名：数据目录随之变化，新版首次运行需一次性迁移
-_LEGACY_APP_TITLE = "LocalProjectArchive"
+# 改名前用过的旧英文名：数据目录随之变化，新版首次运行需一次性迁移。
+# Tracelight → tracelight 在 Windows 上大小写不敏感（同一目录），仅跨平台场景需要搬。
+_LEGACY_APP_TITLES = ("LocalProjectArchive", "Tracelight")
 
 
 def migrate_renamed_data(data_dir: Path, logger) -> None:
-    """应用英文名由 LocalProjectArchive 改为 Tracelight 后的一次性数据迁移。
+    """应用英文名多次变更后的一次性数据迁移（LocalProjectArchive → Tracelight → tracelight）。
 
     旧版 exe 把数据放在用户目录下以旧名命名的文件夹里；新版首次运行时
     若自己的数据库尚未生成，则把旧目录整体复制过来。复制而非移动：
     旧目录保留在原地作保险，迁移失败也能重试。
+
+    Windows 路径大小写不敏感：`Tracelight` 与 `tracelight` 是同一个物理目录，
+    normcase 比对相同就跳过，绝不能把目录复制到自己身上；迁移同样不得覆盖
+    新目录中已有的档案（已有 projects.db 一律不动）。
     """
     if not getattr(sys, "frozen", False):
         return
@@ -289,14 +307,21 @@ def migrate_renamed_data(data_dir: Path, logger) -> None:
     else:
         base = Path(os.environ.get("XDG_DATA_HOME")
                     or (Path.home() / ".local" / "share"))
-    legacy = base / _LEGACY_APP_TITLE
-    if not legacy.is_dir() or (data_dir / "projects.db").exists():
+    if (data_dir / "projects.db").exists():
         return
-    try:
-        shutil.copytree(legacy, data_dir, dirs_exist_ok=True)
-        logger.info("已迁移改名前的数据目录：%s -> %s", legacy, data_dir)
-    except OSError as exc:
-        logger.warning("改名前数据目录迁移失败：%s", exc)
+    target_norm = os.path.normcase(os.path.abspath(data_dir))
+    for legacy_title in _LEGACY_APP_TITLES:
+        legacy = base / legacy_title
+        if not legacy.is_dir():
+            continue
+        if os.path.normcase(os.path.abspath(legacy)) == target_norm:
+            continue   # 同一物理目录（Windows 大小写差异），无需迁移
+        try:
+            shutil.copytree(legacy, data_dir, dirs_exist_ok=True)
+            logger.info("已迁移改名前的数据目录：%s -> %s", legacy, data_dir)
+        except OSError as exc:
+            logger.warning("改名前数据目录迁移失败：%s", exc)
+        return
 
 
 # --------------------------------------------------------------------------
@@ -543,11 +568,11 @@ def start_tray(window, server, logger):
         return out
 
     def open_settings(icon, item):
-        """唤出窗口并直接打开设置弹窗（前端在首页暴露 LPA_OPEN_SETTINGS）。"""
+        """唤出窗口并直接打开设置弹窗（前端在首页暴露 TL_OPEN_SETTINGS）。"""
         show_window(icon, item)
         try:
             window.evaluate_js(
-                "window.LPA_OPEN_SETTINGS ? window.LPA_OPEN_SETTINGS() "
+                "window.TL_OPEN_SETTINGS ? window.TL_OPEN_SETTINGS() "
                 ": (location.href = '/')")
         except Exception as exc:
             logger.debug("托盘打开设置失败：%s", exc)
@@ -616,7 +641,7 @@ def start_tray(window, server, logger):
         return items
 
     menu = pystray.Menu(build_menu)
-    icon = pystray.Icon("Tracelight", image, "归迹拾光", menu)
+    icon = pystray.Icon("tracelight", image, "归迹 · tracelight", menu)
     threading.Thread(target=icon.run, daemon=True).start()
     logger.info("系统托盘已启用")
     return icon
@@ -725,7 +750,7 @@ def main() -> int:
     import argparse
 
     set_app_identity()
-    parser = argparse.ArgumentParser(description="归迹拾光管理系统（桌面模式）")
+    parser = argparse.ArgumentParser(description="归迹 · tracelight 本地项目档案管理（桌面模式）")
     parser.add_argument("--port", type=int, default=0, help="指定端口（默认自动挑选）")
     parser.add_argument("--browser", action="store_true", help="用系统浏览器打开")
     args = parser.parse_args()
@@ -773,7 +798,7 @@ def main() -> int:
 
     if not wait_port(port):
         logger.error("服务未能在 20 秒内启动（端口 %s）", port)
-        alert("归迹拾光", f"服务启动失败。\n日志位置：{log_file}")
+        alert("归迹 · tracelight", f"服务启动失败。\n日志位置：{log_file}")
         return 1
 
     url = f"http://{HOST}:{port}"

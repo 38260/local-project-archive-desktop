@@ -49,14 +49,14 @@ pywebview 在 Windows 上用的是系统自带的 **Edge WebView2 运行时**
 ```text
 开发模式（当前）                    桌面模式（目标）
 ┌──────────────┐                  ┌────────────────────────┐
-│  代码仓库     │                  │ Tracelight\            │  ← onedir 目录
-│  app/ + data/│                  │  ├─ Tracelight.exe
+│  代码仓库     │                  │ tracelight\            │  ← onedir 目录
+│  app/ + data/│                  │  ├─ tracelight.exe
 │  混放         │                  │  ├─ _internal\（依赖+static，只读）
 └──────┬───────┘                  │  └─ portable.txt（可选，便携模式开关）
        │                          └───────────┬────────────┘
        ▼                                      │
   uvicorn :8300                               ▼
-  （固定端口）                      %LOCALAPPDATA%\Tracelight\
+  （固定端口）                      %LOCALAPPDATA%\tracelight\
        │                            ├─ projects.db      ← 档案
        ▼                            ├─ backups\         ← 自动备份
   系统浏览器                         ├─ screenshots\     ← 截图
@@ -78,7 +78,7 @@ pywebview 在 Windows 上用的是系统自带的 **Edge WebView2 运行时**
 import os, sys
 from pathlib import Path
 
-APP_TITLE = "Tracelight"
+APP_TITLE = "tracelight"
 
 def _is_frozen() -> bool:
     """PyInstaller 冻结后 sys.frozen 为 True，代码实际在 sys._MEIPASS 临时/内部目录。"""
@@ -182,7 +182,7 @@ def main():
             server.should_exit = True
         return 0
 
-    win = webview.create_window("归迹拾光", f"http://{HOST}:{port}",
+    win = webview.create_window("归迹 · tracelight", f"http://{HOST}:{port}",
                                 width=1440, height=900, min_size=(1024, 700))
     win.events.closed += lambda: setattr(server, "should_exit", True)  # 关窗即退出
     webview.start()
@@ -201,7 +201,7 @@ def _excepthook(etype, value, tb):
     logging.error("未捕获异常：\n%s", msg)
     if getattr(sys, "frozen", False) and os.name == "nt":
         import ctypes
-        ctypes.windll.user32.MessageBoxW(0, msg[-1800:], "归迹拾光 - 出错了", 0x10)
+        ctypes.windll.user32.MessageBoxW(0, msg[-1800:], "归迹 · tracelight - 出错了", 0x10)
 sys.excepthook = _excepthook
 ```
 
@@ -259,7 +259,7 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [],
     exclude_binaries=True,
-    name="Tracelight",
+    name="tracelight",
     icon="assets/app.ico",
     console=False,                            # 不弹黑框
     version="version_info.txt",               # 可选：文件属性里的版本号
@@ -267,7 +267,7 @@ exe = EXE(
 coll = COLLECT(
     exe, a.binaries, a.datas,
     strip=False, upx=False,                   # upx 容易触发杀软，建议关
-    name="Tracelight",
+    name="tracelight",
 )
 ```
 
@@ -275,7 +275,7 @@ coll = COLLECT(
 
 ```bash
 pyinstaller build.spec --noconfirm --clean
-# 产物在 dist/Tracelight/
+# 产物在 dist/tracelight/
 ```
 
 ### 4.3 onefile 还是 onedir
@@ -302,7 +302,7 @@ PyInstaller 打出来的 exe 是"自解压 + 内存加载"结构，特徴和行�
 - **代码签名**能基本解决，但 OV 证书每年几百到几千元；
 - 免费替代：在 VirusTotal 提交白名单申诉、让用户加信任；
 - 自用/内部分发的话，加 Defender 排除项即可：
-  `Add-MpPreference -ExclusionPath "D:\...\Tracelight"`
+  `Add-MpPreference -ExclusionPath "D:\...\tracelight"`
 
 ### 5.2 GitPython 依赖系统 git
 
@@ -316,7 +316,7 @@ PyInstaller 打出来的 exe 是"自解压 + 内存加载"结构，特徴和行�
 
 ### 5.3 `--noconsole` 后 print 全部失效
 
-`run.py:32` 那句 `print(f"归迹拾光服务已启动：{url}")` 在桌面模式下没人看得见。
+`run.py:32` 那句 `print(f"归迹 · tracelight服务已启动：{url}")` 在桌面模式下没人看得见。
 所有输出必须改走 `logging` 写文件，见 §3.4。
 
 ### 5.4 首次启动白屏
@@ -397,17 +397,17 @@ PyInstaller 打出来的 exe 是"自解压 + 内存加载"结构，特徴和行�
 
 ```bat
 tools\build_installer.bat
-rem 产物：dist\Tracelight\（目录版）+ dist\installer\Tracelight-Setup-<版本>.exe
+rem 产物：dist\tracelight\（目录版）+ dist\installer\tracelight-Setup-<版本>.exe
 ```
 
 安装脚本设计要点：
 
 - **per-user 安装**（`PrivilegesRequired=lowest`）：不弹 UAC，装到
-  `%LOCALAPPDATA%\Programs\Tracelight`；数据在 `%LOCALAPPDATA%\Tracelight`，与安装目录分离；
+  `%LOCALAPPDATA%\Programs\tracelight`；数据在 `%LOCALAPPDATA%\tracelight`，与安装目录分离；
 - 开始菜单快捷方式必有，桌面快捷方式可选（默认不建）；
-- **覆盖安装自动关掉旧程序**：`taskkill /F /T /IM Tracelight.exe` 按镜像名结束（连
+- **覆盖安装自动关掉旧程序**：`taskkill /F /T /IM tracelight.exe` 按镜像名结束（连
   pywebview 的 WebView2 子进程一起，从 `dist` 直接运行的绿色版同样命中），再用应用自己
-  创建的命名互斥体 `Tracelight_SingleInstanceMutex` 轮询等它真正退出、文件句柄释放干净；
+  创建的命名互斥体 `tracelight_SingleInstanceMutex` 轮询等它真正退出、文件句柄释放干净；
 - **直接替换成新版本文件**：`CloseApplications=no` 关掉 Inno 自带的 Restart Manager
   （它只给主窗口发 WM_CLOSE，会被本应用「关闭时最小化到托盘」拦下，必然关不掉），
   关闭逻辑全由上面的 taskkill 负责；`[InstallDelete]` 先清 `{app}\_internal`，避免旧版

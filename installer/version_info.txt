@@ -20,13 +20,13 @@ VSVersionInfo(
       [
       StringTable(
         u'080404B0',
-        [StringStruct(u'CompanyName', u'Tracelight'),
-        StringStruct(u'FileDescription', u'归迹拾光 · 本地项目档案管理系统'),
+        [StringStruct(u'CompanyName', u'tracelight'),
+        StringStruct(u'FileDescription', u'归迹 · tracelight · 本地项目档案管理系统'),
         StringStruct(u'FileVersion', u'1.10.0.0'),
-        StringStruct(u'InternalName', u'Tracelight'),
-        StringStruct(u'LegalCopyright', u'Copyright (C) 2026 Tracelight'),
-        StringStruct(u'OriginalFilename', u'Tracelight.exe'),
-        StringStruct(u'ProductName', u'Tracelight 归迹拾光'),
+        StringStruct(u'InternalName', u'tracelight'),
+        StringStruct(u'LegalCopyright', u'Copyright (C) 2026 tracelight'),
+        StringStruct(u'OriginalFilename', u'tracelight.exe'),
+        StringStruct(u'ProductName', u'归迹 · tracelight'),
         StringStruct(u'ProductVersion', u'1.10.0.0')])
       ]),
     VarFileInfo([VarStruct(u'Translation', [2052, 1200])])

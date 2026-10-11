@@ -1,4 +1,4 @@
-# 归迹拾光
+# 归迹 · tracelight
 
 **作者：BJTU-Yibo**
 
@@ -83,10 +83,10 @@
 
 不想配 Python 环境的话，直接从 [GitHub Releases](https://github.com/38260/local-project-archive-desktop/releases/latest) 下载：
 
-- **安装版** `Tracelight-Setup-*.exe`（推荐）：per-user 免管理员安装，卸载默认保留档案数据，支持开机自启动；
-- **便携版** `Tracelight-portable-*.zip`：解压后运行 `Tracelight\Tracelight.exe` 即用，无需安装。
+- **安装版** `tracelight-Setup-*.exe`（推荐）：per-user 免管理员安装，卸载默认保留档案数据，支持开机自启动；
+- **便携版** `tracelight-portable-*.zip`：解压后运行 `tracelight\tracelight.exe` 即用，无需安装。
 
-两者内容一致，数据均保存在本机 `%LOCALAPPDATA%\Tracelight`，不出本机。
+两者内容一致，数据均保存在本机 `%LOCALAPPDATA%\tracelight`，不出本机。
 
 ## 技术栈
 
@@ -119,7 +119,7 @@ python -m venv .venv
 
 浏览器/桌面窗口访问 <http://127.0.0.1:8300>（端口被占自动顺延，仅本机可访问）。
 
-**打包成 exe**：`.venv/Scripts/python.exe -m PyInstaller build.spec --noconfirm`，产物在 `dist/Tracelight/`；运行 `tools\build_installer.bat` 可一键出 Inno Setup 安装包 `dist/installer/Tracelight-Setup-<版本>.exe`（per-user 免管理员安装、卸载默认保留档案数据；方案与细节见 `docs/PACKAGING.md`）。
+**打包成 exe**：`.venv/Scripts/python.exe -m PyInstaller build.spec --noconfirm`，产物在 `dist/tracelight/`；运行 `tools\build_installer.bat` 可一键出 Inno Setup 安装包 `dist/installer/tracelight-Setup-<版本>.exe`（per-user 免管理员安装、卸载默认保留档案数据；方案与细节见 `docs/PACKAGING.md`）。
 
 ## 目录结构
 
@@ -205,7 +205,7 @@ local-project-archive-desktop/
 - **静默启动**：配合开机自启动，登录后只在托盘待命。
 - **升级自愈**：安装版升级后，二次启动/开机自启动自动指向新版 exe（版本握手，不会唤起旧版窗口或旧快捷方式）。
 - **窗口记忆**：记住大小与位置，下次启动还原。
-- **任务栏/托盘**：应用独立图标与身份（开发模式同样生效）。安装器给快捷方式写入与进程一致的 `AppUserModelID`（`GuijiShiguang.Tracelight`，见 `installer/tracelight.iss` 的 `MyAppAUMID`），使「固定到任务栏的图标」与运行中的窗口归为同一项——点图标即唤出已有窗口，而不是再拉起一个进程。
+- **任务栏/托盘**：应用独立图标与身份（开发模式同样生效）。安装器给快捷方式写入与进程一致的 `AppUserModelID`（`Guiji.tracelight`，见 `installer/tracelight.iss` 的 `MyAppAUMID`），使「固定到任务栏的图标」与运行中的窗口归为同一项——点图标即唤出已有窗口，而不是再拉起一个进程。
 - **导出下载**：走系统保存对话框；「浏览…」走原生文件夹选择对话框。
 
 ### 快速启动（详情页「启动」面板）

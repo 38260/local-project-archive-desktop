@@ -12,7 +12,7 @@ const context = {
     options = config;
     return { config: { globalProperties: {} }, component() {}, directive() {}, mount() {} };
   } },
-  window: { LPA_HELPERS: {} },
+  window: { TL_HELPERS: {} },
   localStorage: { getItem() { return null; } },
   toast() {},
   api: async (url, request) => {

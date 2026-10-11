@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>归迹拾光 · 首页</title>
+  <title>归迹 · tracelight · 首页</title>
   <script>
     /* 首帧引导：必须在样式表之前跑完，否则会出现"闪一下"。
        1) 主题：偏好存在 localStorage，若等 common.js（body 末尾）才应用，
@@ -13,12 +13,17 @@
           让样式表生效前的空白期也是应用底色，而不是白底。 */
     (function () {
       try {
-        var pref = localStorage.getItem("lpa-theme") || "auto";
+        /* 本脚本先于 common.js 执行：旧键（lpa-）在此处兜底读取，
+           完整的键名迁移由 common.js 开头的一次性搬迁完成 */
+        var pref = localStorage.getItem("tl-theme")
+          || localStorage.getItem("lpa-theme") || "auto";
         var dark = pref === "dark"
           || (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
         var root = document.documentElement;
         root.setAttribute("data-theme", dark ? "dark" : "light");
-        if (localStorage.getItem("lpa-tabbar-hidden") !== "1") {
+        var tabbarHidden = localStorage.getItem("tl-tabbar-hidden")
+          ?? localStorage.getItem("lpa-tabbar-hidden");
+        if (tabbarHidden !== "1") {
           root.classList.add("has-tabbar");
         }
       } catch (e) { /* 隐私模式等读不到 localStorage，按默认外观走 */ }
@@ -39,40 +44,40 @@
 <div id="app" v-cloak>
   <header class="topbar">
     <span class="logo">
-      <lpa-icon name="folder" :size="18"></lpa-icon>
-      归迹拾光 <span class="dim">/ 本机索引库 · 数据不出本机</span>
+      <tl-icon name="folder" :size="18"></tl-icon>
+      归迹 · tracelight <span class="dim">/ 本机索引库 · 数据不出本机</span>
     </span>
     <span class="spacer"></span>
     <button class="btn" @click="openScan" title="批量扫描导入">
-      <lpa-icon name="search" :size="15"></lpa-icon><span class="btn-text">批量扫描导入</span>
+      <tl-icon name="search" :size="15"></tl-icon><span class="btn-text">批量扫描导入</span>
     </button>
     <button class="btn primary" @click="openAdd" title="手动录入项目">
-      <lpa-icon name="plus" :size="15"></lpa-icon><span class="btn-text">手动录入</span>
+      <tl-icon name="plus" :size="15"></tl-icon><span class="btn-text">手动录入</span>
     </button>
     <span class="more-wrap">
       <button class="btn" @click.stop="toolsOpen = !toolsOpen" title="更多工具"
               aria-haspopup="menu" :aria-expanded="toolsOpen ? 'true' : 'false'">
-        <lpa-icon name="more" :size="15"></lpa-icon><span class="btn-text">工具</span>
+        <tl-icon name="more" :size="15"></tl-icon><span class="btn-text">工具</span>
       </button>
       <span class="more-list" v-if="toolsOpen" style="z-index:80" role="menu"
             @click="toolsOpen = false">
         <button class="btn" role="menuitem" @click="rescanAll" :disabled="rescanningAll"
                 title="用最新解析器重新解析全部项目（保留已有标签，补充新识别）">
-          <lpa-icon name="refresh" :size="15" :class="{spin: rescanningAll}"></lpa-icon>
+          <tl-icon name="refresh" :size="15" :class="{spin: rescanningAll}"></tl-icon>
           {{ rescanningAll
             ? (rescanProgress.total ? `解析中 ${rescanProgress.done}/${rescanProgress.total}` : "解析中…")
             : "全部重新解析" }}
         </button>
         <button class="btn" role="menuitem" @click="exportJson" title="导出全部档案为 JSON 备份">
-          <lpa-icon name="download" :size="15"></lpa-icon>导出 JSON 备份
+          <tl-icon name="download" :size="15"></tl-icon>导出 JSON 备份
         </button>
       </span>
     </span>
     <button class="btn icon-only" @click="openSettings" title="设置" aria-label="设置">
-      <lpa-icon name="settings" :size="15"></lpa-icon>
+      <tl-icon name="settings" :size="15"></tl-icon>
     </button>
     <button class="btn" @click="switchTheme" :title="'主题：' + themeLabel + '（点击切换：跟随系统 / 亮色 / 暗色）'">
-      <lpa-icon :name="themeIcon" :size="15"></lpa-icon><span class="btn-text">{{ themeLabel }}</span>
+      <tl-icon :name="themeIcon" :size="15"></tl-icon><span class="btn-text">{{ themeLabel }}</span>
     </button>
   </header>
 
@@ -82,31 +87,31 @@
       <button type="button" class="stat stat-total" :class="{on: statActive('total')}"
               @click="applyStatFilter('total')"
               title="点击显示全部项目（含废弃）">
-        <span class="stat-ico"><lpa-icon name="folder" :size="15"></lpa-icon></span>
+        <span class="stat-ico"><tl-icon name="folder" :size="15"></tl-icon></span>
         <b>{{ stats.total }}</b>全部项目
       </button>
       <button type="button" class="stat stat-active" :class="{on: statActive('active')}"
               @click="applyStatFilter('active')"
               title="点击查看未归档/未废弃且路径有效的项目">
-        <span class="stat-ico"><lpa-icon name="zap" :size="15"></lpa-icon></span>
+        <span class="stat-ico"><tl-icon name="zap" :size="15"></tl-icon></span>
         <b>{{ stats.active }}</b>活跃项目
       </button>
       <button type="button" class="stat stat-archived" :class="{on: statActive('archived')}"
               @click="applyStatFilter('archived')"
               title="点击只看已归档项目（收尾留档，始终展示）">
-        <span class="stat-ico"><lpa-icon name="archive" :size="15"></lpa-icon></span>
+        <span class="stat-ico"><tl-icon name="archive" :size="15"></tl-icon></span>
         <b>{{ stats.archived }}</b>已归档
       </button>
       <button type="button" class="stat stat-discarded" :class="{on: statActive('discarded')}"
               @click="applyStatFilter('discarded')"
               title="点击只看已废弃项目（默认隐藏）">
-        <span class="stat-ico"><lpa-icon name="trash" :size="15"></lpa-icon></span>
+        <span class="stat-ico"><tl-icon name="trash" :size="15"></tl-icon></span>
         <b>{{ stats.discarded }}</b>已废弃
       </button>
       <button type="button" class="stat stat-lost" :class="{pulse: stats.lost > 0, on: statActive('lost')}"
               @click="applyStatFilter('lost')"
               title="点击只看路径丢失的项目">
-        <span class="stat-ico"><lpa-icon name="warning" :size="15"></lpa-icon></span>
+        <span class="stat-ico"><tl-icon name="warning" :size="15"></tl-icon></span>
         <b>{{ stats.lost }}</b>路径丢失
       </button>
     </div>
@@ -115,8 +120,8 @@
     <div class="heat-panel" v-if="heatGrid">
       <button type="button" class="heat-head" @click="toggleHeat"
               :aria-expanded="!heatCollapsed">
-        <lpa-icon name="chevron-down" :size="13" class="heat-chev"
-                  :class="{ folded: heatCollapsed }"></lpa-icon>
+        <tl-icon name="chevron-down" :size="13" class="heat-chev"
+                  :class="{ folded: heatCollapsed }"></tl-icon>
         <span class="heat-title">
           开发活动
           <span class="heat-sub">
@@ -171,15 +176,15 @@
                placeholder="搜索名称 / 别名 / 路径 / 标签…">
         <button type="button" class="search-clear" v-if="q" @click="q = ''"
                 aria-label="清空搜索" title="清空搜索">
-          <lpa-icon name="x" :size="13"></lpa-icon>
+          <tl-icon name="x" :size="13"></tl-icon>
         </button>
         <kbd class="search-kbd" v-else title="按 / 快速聚焦搜索">/</kbd>
       </span>
-      <lpa-select v-model="statusFilter" :options="statuses" all-label="全部状态"></lpa-select>
-      <lpa-select v-model="tagFilter" :options="allTags" all-label="全部标签"></lpa-select>
-      <lpa-select v-model="catFilter" :options="allCategories" all-label="全部分类"></lpa-select>
-      <lpa-select :model-value="sortBy" :options="sortOptions" all-label=""
-                  @update:model-value="saveSort"></lpa-select>
+      <tl-select v-model="statusFilter" :options="statuses" all-label="全部状态"></tl-select>
+      <tl-select v-model="tagFilter" :options="allTags" all-label="全部标签"></tl-select>
+      <tl-select v-model="catFilter" :options="allCategories" all-label="全部分类"></tl-select>
+      <tl-select :model-value="sortBy" :options="sortOptions" all-label=""
+                  @update:model-value="saveSort"></tl-select>
       <label class="check-label">
         <input type="checkbox" v-model="showDiscarded"> 显示废弃项目
       </label>
@@ -195,7 +200,7 @@
       <span class="section-note">筛选：</span>
       <button type="button" class="afilter" v-for="f in activeFilters" :key="f.k"
               @click="f.clear()" :title="'移除筛选：' + f.label">
-        {{ f.label }}<lpa-icon name="x" :size="12"></lpa-icon>
+        {{ f.label }}<tl-icon name="x" :size="12"></tl-icon>
       </button>
       <button type="button" class="btn sm" @click="clearFilters">清除全部</button>
     </div>
@@ -233,7 +238,7 @@
                       @keydown.alt.up.prevent="moveProjectByKey(p, -1)" @keydown.alt.left.prevent="moveProjectByKey(p, -1)"
                       @keydown.alt.down.prevent="moveProjectByKey(p, 1)" @keydown.alt.right.prevent="moveProjectByKey(p, 1)"
                       @dragstart.stop="onProjectDragStart(p, $event)" @dragend="onProjectDragEnd">
-                <lpa-icon name="arrow-up-down" :size="18"></lpa-icon>
+                <tl-icon name="arrow-up-down" :size="18"></tl-icon>
               </button>
             </div>
             <div class="alias-row" v-if="p.alias">
@@ -246,18 +251,18 @@
                         :title="p.pinned ? '取消置顶' : '置顶（列表中优先展示）'"
                         :aria-label="p.pinned ? '取消置顶' : '置顶'"
                         @click.stop="togglePin(p)">
-                  <lpa-icon name="pin" :size="21"></lpa-icon>
+                  <tl-icon name="pin" :size="21"></tl-icon>
                 </button>
                 <button class="icon-btn" title="资源管理器打开" aria-label="资源管理器打开" :disabled="p.is_lost"
                         @click.stop="quickOpen(p, 'explorer')">
-                  <lpa-icon name="folder-open" :size="15"></lpa-icon>
+                  <tl-icon name="folder-open" :size="15"></tl-icon>
                 </button>
                 <button class="icon-btn" :title="editorName + ' 打开'" :aria-label="editorName + ' 打开'" :disabled="p.is_lost"
                         @click.stop="quickOpen(p, 'vscode')">
-                  <lpa-icon :name="editorIcon(editorCmd)" :size="15"></lpa-icon>
+                  <tl-icon :name="editorIcon(editorCmd)" :size="15"></tl-icon>
                 </button>
                 <button class="icon-btn" title="复制路径" aria-label="复制路径" @click.stop="copyText(p.path)">
-                  <lpa-icon name="copy" :size="15"></lpa-icon>
+                  <tl-icon name="copy" :size="15"></tl-icon>
                 </button>
               </span>
             </div>
@@ -288,22 +293,22 @@
     <div class="empty-tip" v-else-if="!loading">
       <template v-if="stats.total === 0">
         <div class="empty-ico">
-          <lpa-icon name="folder" :size="72" :stroke="1.2"></lpa-icon>
+          <tl-icon name="folder" :size="72" :stroke="1.2"></tl-icon>
         </div>
         档案库还是空的<br>
         <span class="section-note">把散落在磁盘各处的开发项目收进统一索引，数据只存本机</span>
         <div class="empty-actions">
           <button class="btn primary" @click="openAdd">
-            <lpa-icon name="plus" :size="15"></lpa-icon>手动录入第一个项目
+            <tl-icon name="plus" :size="15"></tl-icon>手动录入第一个项目
           </button>
           <button class="btn" @click="openScan">
-            <lpa-icon name="search" :size="15"></lpa-icon>批量扫描磁盘
+            <tl-icon name="search" :size="15"></tl-icon>批量扫描磁盘
           </button>
         </div>
       </template>
       <template v-else>
         <div class="empty-ico">
-          <lpa-icon name="filter" :size="64" :stroke="1.2"></lpa-icon>
+          <tl-icon name="filter" :size="64" :stroke="1.2"></tl-icon>
         </div>
         没有符合筛选条件的项目<br>
         <span class="section-note" v-if="activeFilters.length">
@@ -318,11 +323,11 @@
   </main>
 
   <footer class="foot-note" v-if="dataPath">
-    <lpa-icon name="drive" :size="14"></lpa-icon>
+    <tl-icon name="drive" :size="14"></tl-icon>
     档案持久化保存于本机：<span class="mono path-link" @click="copyText(dataPath)"
       title="点击复制数据路径">{{ dataPath }}</span>
     <button class="icon-btn" @click="openDataFolder" title="打开数据文件夹" aria-label="打开数据文件夹">
-      <lpa-icon name="folder-open" :size="13"></lpa-icon>
+      <tl-icon name="folder-open" :size="13"></tl-icon>
     </button>
     ，重启服务/电脑不丢失；每次启动自动备份到 data/backups/（保留份数可在设置中调整）
   </footer>
@@ -358,7 +363,7 @@
       </div>
       <div class="field">
         <label for="add-status">项目状态</label>
-        <lpa-select v-model="form.status" :options="statuses"></lpa-select>
+        <tl-select v-model="form.status" :options="statuses"></tl-select>
       </div>
       <div class="field">
         <label for="add-tags">技术栈标签（逗号分隔，留空则自动识别）</label>
@@ -440,7 +445,7 @@
   <div class="modal-mask" v-if="showDay" @click.self="closeDay">
     <div class="modal day-modal" v-modal role="dialog" aria-modal="true" aria-labelledby="day-title">
       <h3 id="day-title">
-        <lpa-icon name="commit" :size="16"></lpa-icon>
+        <tl-icon name="commit" :size="16"></tl-icon>
         {{ dayLoading && !dayData ? "加载中…" : (dayData ? dayData.date + " 提交明细" : "提交明细") }}
       </h3>
       <div class="day-body">
@@ -482,7 +487,7 @@
   </div>
 
   <!-- 设置（共享组件，见 js/settings.js；详情页同款） -->
-  <lpa-settings-dialog ref="settings" :statuses="statuses" @changed="onSettingsChanged"></lpa-settings-dialog>
+  <tl-settings-dialog ref="settings" :statuses="statuses" @changed="onSettingsChanged"></tl-settings-dialog>
 
   <!-- 工具菜单关闭遮罩：必须挂在 topbar 之外——topbar 的 backdrop-filter 会把
        position:fixed 后代的包含块劫持为顶栏自身，导致遮罩盖不住页面其余部分。

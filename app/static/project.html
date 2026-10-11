@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>归迹拾光 · 项目详情</title>
+  <title>归迹 · tracelight · 项目详情</title>
   <script>
     /* 首帧引导：必须在样式表之前跑完，否则会出现"闪一下"。
        1) 主题：偏好存在 localStorage，若等 common.js（body 末尾）才应用，
@@ -13,12 +13,17 @@
           让样式表生效前的空白期也是应用底色，而不是白底。 */
     (function () {
       try {
-        var pref = localStorage.getItem("lpa-theme") || "auto";
+        /* 本脚本先于 common.js 执行：旧键（lpa-）在此处兜底读取，
+           完整的键名迁移由 common.js 开头的一次性搬迁完成 */
+        var pref = localStorage.getItem("tl-theme")
+          || localStorage.getItem("lpa-theme") || "auto";
         var dark = pref === "dark"
           || (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
         var root = document.documentElement;
         root.setAttribute("data-theme", dark ? "dark" : "light");
-        if (localStorage.getItem("lpa-tabbar-hidden") !== "1") {
+        var tabbarHidden = localStorage.getItem("tl-tabbar-hidden")
+          ?? localStorage.getItem("lpa-tabbar-hidden");
+        if (tabbarHidden !== "1") {
           root.classList.add("has-tabbar");
         }
       } catch (e) { /* 隐私模式等读不到 localStorage，按默认外观走 */ }
@@ -39,26 +44,26 @@
 <div id="app" v-cloak>
   <header class="topbar">
     <a class="btn" href="/" title="返回首页" @click.prevent="leaveConfirm('/')">
-      <lpa-icon name="arrow-left" :size="15"></lpa-icon><span class="btn-text">返回首页</span>
+      <tl-icon name="arrow-left" :size="15"></tl-icon><span class="btn-text">返回首页</span>
     </a>
     <button class="btn icon-only" v-if="prevProject" @click="gotoSibling(prevProject)"
             :title="'上一个项目：' + prevProject.name" aria-label="上一个项目">
-      <lpa-icon name="chevron-left" :size="15"></lpa-icon>
+      <tl-icon name="chevron-left" :size="15"></tl-icon>
     </button>
     <button class="btn icon-only" v-if="nextProject" @click="gotoSibling(nextProject)"
             :title="'下一个项目：' + nextProject.name" aria-label="下一个项目">
-      <lpa-icon name="chevron-right" :size="15"></lpa-icon>
+      <tl-icon name="chevron-right" :size="15"></tl-icon>
     </button>
     <span class="logo">
-      <lpa-icon name="folder" :size="18"></lpa-icon>
-      <span class="btn-text">归迹拾光 <span class="dim">/ 项目详情</span></span>
+      <tl-icon name="folder" :size="18"></tl-icon>
+      <span class="btn-text">归迹 · tracelight <span class="dim">/ 项目详情</span></span>
     </span>
     <span class="spacer"></span>
     <button class="btn icon-only" @click="openSettings" title="设置" aria-label="设置">
-      <lpa-icon name="settings" :size="15"></lpa-icon>
+      <tl-icon name="settings" :size="15"></tl-icon>
     </button>
     <button class="btn" @click="switchTheme" :title="'主题：' + themeLabel + '（点击切换：跟随系统 / 亮色 / 暗色）'">
-      <lpa-icon :name="themeIcon" :size="15"></lpa-icon><span class="btn-text">{{ themeLabel }}</span>
+      <tl-icon :name="themeIcon" :size="15"></tl-icon><span class="btn-text">{{ themeLabel }}</span>
     </button>
   </header>
 
@@ -70,30 +75,30 @@
           <h1>{{ p.name }}</h1>
           <span class="alias-chip alias-lg" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
         </div>
-        <lpa-select v-model="p.status" :options="statuses" accent @update:model-value="saveStatus"></lpa-select>
+        <tl-select v-model="p.status" :options="statuses" accent @update:model-value="saveStatus"></tl-select>
       </div>
       <button class="proj-card-path" type="button" @click="copyText(p.path)"
               :title="'点击复制：' + p.path" :disabled="p.is_lost">
-        <lpa-icon name="folder" :size="14"></lpa-icon>
+        <tl-icon name="folder" :size="14"></tl-icon>
         <span class="proj-path-text">{{ p.path }}</span>
-        <lpa-icon name="copy" :size="13" class="proj-path-copy"></lpa-icon>
+        <tl-icon name="copy" :size="13" class="proj-path-copy"></tl-icon>
       </button>
       <div class="badge-row" v-if="headBadges.length">
         <span class="dbadge" v-for="b in headBadges" :key="b.label">
-          <lpa-icon :name="b.icon" :size="13" class="db-ico"></lpa-icon><b>{{ b.val }}</b>{{ b.label }}
+          <tl-icon :name="b.icon" :size="13" class="db-ico"></tl-icon><b>{{ b.val }}</b>{{ b.label }}
         </span>
       </div>
       <div class="action-row">
         <span class="launch-split" v-if="launch && launch.supported && primaryLaunchEntry">
           <button class="btn primary split-main" @click="quickLaunch" :disabled="!!launchBusyKey"
                   :title="'启动：' + primaryLaunchEntry.command">
-            <lpa-icon name="zap" :size="15"></lpa-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
+            <tl-icon name="zap" :size="15"></tl-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
           </button>
           <button class="btn primary split-caret" type="button" :disabled="!!launchBusyKey"
                   @click.stop="launchMenuOpen = !launchMenuOpen"
                   :aria-expanded="launchMenuOpen ? 'true' : 'false'" aria-haspopup="menu"
                   title="选择「启动」按钮默认跑哪个入口" aria-label="选择「启动」按钮默认跑哪个入口">
-            <lpa-icon name="chevron-down" :size="13"></lpa-icon>
+            <tl-icon name="chevron-down" :size="13"></tl-icon>
           </button>
           <span class="more-mask" v-if="launchMenuOpen" @click="launchMenuOpen = false"></span>
           <span class="more-list launch-menu" v-if="launchMenuOpen" role="menu">
@@ -103,41 +108,41 @@
                     :class="{ on: isPrimaryEntry(x.entry) }"
                     :title="x.entry.command"
                     @click="setPrimaryEntry(x.entry)">
-              <lpa-icon :name="isPrimaryEntry(x.entry) ? 'check' : 'zap'" :size="13"></lpa-icon>
+              <tl-icon :name="isPrimaryEntry(x.entry) ? 'check' : 'zap'" :size="13"></tl-icon>
               <span class="lm-name">{{ x.entry.name }}</span>
               <span class="lb-tag" v-if="x.kind === 's'">自动</span>
             </button>
           </span>
         </span>
         <button class="btn primary" @click="openIn('explorer')" :disabled="p.is_lost">
-          <lpa-icon name="folder-open" :size="15"></lpa-icon>资源管理器
+          <tl-icon name="folder-open" :size="15"></tl-icon>资源管理器
         </button>
         <button class="btn primary" @click="openIn('vscode')" :disabled="p.is_lost">
-          <lpa-icon :name="editorIcon(editorCmd)" :size="15"></lpa-icon>{{ editorName(editorCmd) }}
+          <tl-icon :name="editorIcon(editorCmd)" :size="15"></tl-icon>{{ editorName(editorCmd) }}
         </button>
         <button class="btn" @click="copyText(p.path)">
-          <lpa-icon name="copy" :size="15"></lpa-icon>复制路径
+          <tl-icon name="copy" :size="15"></tl-icon>复制路径
         </button>
         <button class="btn" @click="openEdit">
-          <lpa-icon name="pencil" :size="15"></lpa-icon>编辑档案
+          <tl-icon name="pencil" :size="15"></tl-icon>编辑档案
         </button>
         <span class="more-wrap">
           <button class="btn" @click.stop="moreOpen = !moreOpen" aria-haspopup="menu" :aria-expanded="moreOpen ? 'true' : 'false'">
-            <lpa-icon name="more" :size="15"></lpa-icon>更多
+            <tl-icon name="more" :size="15"></tl-icon>更多
           </button>
           <span class="more-mask" v-if="moreOpen" @click="moreOpen = false"></span>
           <span class="more-list" v-if="moreOpen" style="z-index:80" role="menu" @click="moreOpen = false">
             <button class="btn" role="menuitem" @click="rescan" :disabled="rescanning">
-              <lpa-icon name="refresh" :size="15" :class="{spin: rescanning}"></lpa-icon>{{ rescanning ? "解析中…" : "重新解析" }}
+              <tl-icon name="refresh" :size="15" :class="{spin: rescanning}"></tl-icon>{{ rescanning ? "解析中…" : "重新解析" }}
             </button>
             <button class="btn" role="menuitem" @click="togglePin">
-              <lpa-icon name="pin" :size="15"></lpa-icon>{{ p.pinned ? "取消置顶" : "置顶" }}
+              <tl-icon name="pin" :size="15"></tl-icon>{{ p.pinned ? "取消置顶" : "置顶" }}
             </button>
             <button class="btn" role="menuitem" @click="exportHtml">
-              <lpa-icon name="download" :size="15"></lpa-icon>导出 HTML
+              <tl-icon name="download" :size="15"></tl-icon>导出 HTML
             </button>
             <button class="btn danger" role="menuitem" @click="removeProject">
-              <lpa-icon name="trash" :size="15"></lpa-icon>删除档案
+              <tl-icon name="trash" :size="15"></tl-icon>删除档案
             </button>
           </span>
         </span>
@@ -146,7 +151,7 @@
 
     <!-- 丢失项目提示与路径修复 -->
     <div class="banner-lost" v-if="p.is_lost">
-      <lpa-icon name="warning" :size="16"></lpa-icon>
+      <tl-icon name="warning" :size="16"></tl-icon>
       <span><b>丢失项目</b>：{{ p.lost_reason || "项目路径不存在，文件夹可能已被删除或移动" }}</span>
       <input type="text" v-model.trim="newPath" aria-label="项目的新路径"
              placeholder="输入项目的新路径，如 D:\code\new-location"
@@ -163,8 +168,8 @@
         <button type="button" class="toc-group-head"
                 @click="toggleGroup(g.id)"
                 :aria-expanded="!tocCollapsed.includes(g.id)">
-          <lpa-icon name="chevron-down" :size="14" class="toc-chev"></lpa-icon>
-          <lpa-icon :name="g.icon" :size="15" class="toc-folder"></lpa-icon>
+          <tl-icon name="chevron-down" :size="14" class="toc-chev"></tl-icon>
+          <tl-icon :name="g.icon" :size="15" class="toc-folder"></tl-icon>
           <span class="toc-group-label">{{ g.label }}</span>
         </button>
         <div class="toc-group-body">
@@ -183,7 +188,7 @@
         <span class="info-k">本地路径</span>
         <code class="info-path" :title="p.path">{{ p.path }}</code>
         <button class="icon-btn" title="复制路径" aria-label="复制路径" @click="copyText(p.path)">
-          <lpa-icon name="copy" :size="15"></lpa-icon>
+          <tl-icon name="copy" :size="15"></tl-icon>
         </button>
       </div>
       <div class="info-tiles">
@@ -249,10 +254,10 @@
         <span class="right">
           <button class="btn sm" @click="loadLaunch" :disabled="launchLoading"
                   title="重新扫描项目内的启动入口">
-            <lpa-icon name="refresh" :size="13" :class="{spin: launchLoading}"></lpa-icon>重新检测
+            <tl-icon name="refresh" :size="13" :class="{spin: launchLoading}"></tl-icon>重新检测
           </button>
           <button class="btn sm" @click="openLaunchForm()">
-            <lpa-icon name="plus" :size="13"></lpa-icon>添加启动项
+            <tl-icon name="plus" :size="13"></tl-icon>添加启动项
           </button>
         </span>
       </h2>
@@ -268,7 +273,7 @@
           还没有启动说明。把「先起后端再起前端」「需要先配置 .env」这类步骤写在这里。
         </div>
         <button class="btn sm" @click="toggleLaunchNoteEdit" style="margin-top:8px">
-          <lpa-icon name="pencil" :size="13"></lpa-icon>{{ launch && launch.note ? "编辑说明" : "写启动说明" }}
+          <tl-icon name="pencil" :size="13"></tl-icon>{{ launch && launch.note ? "编辑说明" : "写启动说明" }}
         </button>
       </div>
       <div class="launch-note-edit" v-else>
@@ -295,22 +300,22 @@
                @dragend="onLaunchDragEnd">
             <button type="button" class="launch-btn" @click="runEntry(l)" :disabled="!!launchBusyKey"
                     :title="l.command + (l.cwd ? '（子目录 ' + l.cwd + '）' : '')">
-              <lpa-icon name="zap" :size="15" class="lb-ico"></lpa-icon>
+              <tl-icon name="zap" :size="15" class="lb-ico"></tl-icon>
               <span class="lb-body">
                 <b>{{ l.name }}<span class="lb-primary" v-if="isPrimaryEntry(l)"
                      title="顶部「启动」按钮跑的就是这个">顶部启动</span>
-                  <lpa-icon :name="l.mode === 'open' ? 'external' : 'terminal'" :size="11" class="lb-mode"
-                            :title="l.mode === 'open' ? '直接运行' : '新终端窗口'"></lpa-icon>
+                  <tl-icon :name="l.mode === 'open' ? 'external' : 'terminal'" :size="11" class="lb-mode"
+                            :title="l.mode === 'open' ? '直接运行' : '新终端窗口'"></tl-icon>
                 </b>
                 <code class="lb-cmd">{{ l.command }}</code>
               </span>
             </button>
             <span class="lb-ops">
               <button class="icon-btn" title="编辑" aria-label="编辑启动项" @click="openLaunchForm(l)">
-                <lpa-icon name="pencil" :size="13"></lpa-icon>
+                <tl-icon name="pencil" :size="13"></tl-icon>
               </button>
               <button class="icon-btn" title="删除" aria-label="删除启动项" @click="deleteLauncher(l)">
-                <lpa-icon name="trash" :size="13"></lpa-icon>
+                <tl-icon name="trash" :size="13"></tl-icon>
               </button>
             </span>
           </div>
@@ -335,12 +340,12 @@
                @dragend="onLaunchDragEnd">
             <button type="button" class="launch-btn" @click="runEntry(s)" :disabled="!!launchBusyKey"
                     :title="s.command + '（' + s.source + '）'">
-              <lpa-icon name="zap" :size="15" class="lb-ico"></lpa-icon>
+              <tl-icon name="zap" :size="15" class="lb-ico"></tl-icon>
               <span class="lb-body">
                 <b>{{ s.name }}<span class="lb-primary" v-if="isPrimaryEntry(s)"
                      title="顶部「启动」按钮跑的就是这个">顶部启动</span><span class="lb-tag">自动</span>
-                  <lpa-icon :name="s.mode === 'open' ? 'external' : 'terminal'" :size="11" class="lb-mode"
-                            :title="s.mode === 'open' ? '直接运行' : '新终端窗口'"></lpa-icon>
+                  <tl-icon :name="s.mode === 'open' ? 'external' : 'terminal'" :size="11" class="lb-mode"
+                            :title="s.mode === 'open' ? '直接运行' : '新终端窗口'"></tl-icon>
                 </b>
                 <code class="lb-cmd">{{ s.command }}</code>
               </span>
@@ -348,7 +353,7 @@
             <span class="lb-ops">
               <button class="icon-btn" title="转存为自定义启动项" aria-label="转存为自定义启动项"
                       @click="openLaunchForm(null, s)">
-                <lpa-icon name="plus" :size="13"></lpa-icon>
+                <tl-icon name="plus" :size="13"></tl-icon>
               </button>
             </span>
           </div>
@@ -365,7 +370,7 @@
         运行历史加载失败，记录未丢失，可重试
         <span class="fill"></span>
         <button class="btn sm" @click="loadRuns" :disabled="runsLoading">
-          <lpa-icon name="refresh" :size="13"></lpa-icon>重试
+          <tl-icon name="refresh" :size="13"></tl-icon>重试
         </button>
       </div>
       <div class="run-history" v-else-if="runs.length">
@@ -375,7 +380,7 @@
           </span>
           <span class="run-head-ops">
             <button class="btn sm" @click="loadRuns" :disabled="runsLoading" title="刷新运行历史">
-              <lpa-icon name="refresh" :size="13" :class="{spin: runsLoading}"></lpa-icon>刷新
+              <tl-icon name="refresh" :size="13" :class="{spin: runsLoading}"></tl-icon>刷新
             </button>
             <button class="btn sm" @click="clearRuns">清空</button>
           </span>
@@ -387,7 +392,7 @@
             <div class="run-row">
               <button type="button" class="run-toggle" @click="toggleRun(r)"
                       :aria-expanded="runOpenId === r.id ? 'true' : 'false'">
-                <lpa-icon name="chevron-right" :size="13" class="run-chev"></lpa-icon>
+                <tl-icon name="chevron-right" :size="13" class="run-chev"></tl-icon>
                 <span class="run-status" :class="runStatusMeta(r).cls">{{ runStatusMeta(r).text }}</span>
                 <b class="run-name">{{ r.name || r.command }}</b>
                 <code class="run-cmd">{{ r.command }}</code>
@@ -397,11 +402,11 @@
               <span class="lb-ops">
                 <button class="icon-btn" v-if="r.running" title="停止运行" aria-label="停止运行"
                         @click="stopRun(r)" :disabled="runStopping">
-                  <lpa-icon name="stop" :size="13"></lpa-icon>
+                  <tl-icon name="stop" :size="13"></tl-icon>
                 </button>
                 <button class="icon-btn" v-else title="删除记录" aria-label="删除运行记录"
                         @click="deleteRun(r)">
-                  <lpa-icon name="trash" :size="13"></lpa-icon>
+                  <tl-icon name="trash" :size="13"></tl-icon>
                 </button>
               </span>
             </div>
@@ -488,7 +493,7 @@
       </template>
 
       <div class="dep-stats" v-if="depStats.total">
-        <lpa-icon name="package" :size="14"></lpa-icon>
+        <tl-icon name="package" :size="14"></tl-icon>
         依赖共 <b>{{ depStats.total }}</b> 项：
         固定版本 <b class="c-ok">{{ depStats.pinned }}</b> ·
         范围约束 <b class="c-warn">{{ depStats.ranged }}</b> ·
@@ -516,7 +521,7 @@
             <button @click="mdWrap('descEditor', '\n## ', '')" title="二级标题">H2</button>
             <button @click="mdWrap('descEditor', '- ', '')" title="列表">••</button>
             <button @click="mdWrap('descEditor', '\n```bash\n', '\n```')" title="代码块" aria-label="代码块">
-              <lpa-icon name="code" :size="14"></lpa-icon>
+              <tl-icon name="code" :size="14"></tl-icon>
             </button>
           </div>
           <textarea ref="descEditor" class="md-editor" v-model="p.description"
@@ -528,7 +533,7 @@
       <div class="editor-actions">
         <span class="draft-hint" v-if="hasDescDraft">已恢复上次未保存的草稿</span>
         <button class="btn primary" @click="saveDesc" :disabled="savingDesc || !descDirty">
-          <lpa-icon name="save" :size="15"></lpa-icon>{{ savingDesc ? "保存中…" : "保存描述" }}
+          <tl-icon name="save" :size="15"></tl-icon>{{ savingDesc ? "保存中…" : "保存描述" }}
         </button>
       </div>
     </section>
@@ -543,14 +548,14 @@
         笔记加载失败，数据未丢失，可重试
         <span class="fill"></span>
         <button class="btn sm" @click="loadNotes">
-          <lpa-icon name="refresh" :size="13"></lpa-icon>重试
+          <tl-icon name="refresh" :size="13"></tl-icon>重试
         </button>
       </div>
       <div class="panel-compact-bar" v-else-if="!notes.length && noteDraft === null">
         暂无笔记，随手记录开发体会与踩坑
         <span class="fill"></span>
         <button class="btn sm primary" @click="noteDraft = ''">
-          <lpa-icon name="plus" :size="13"></lpa-icon>新建笔记
+          <tl-icon name="plus" :size="13"></tl-icon>新建笔记
         </button>
       </div>
       <div v-if="noteDraft !== null">
@@ -566,7 +571,7 @@
         <div class="editor-actions">
           <button class="btn" @click="noteDraft = null">取消</button>
           <button class="btn primary" @click="saveNewNote" :disabled="!noteDraft.trim()">
-            <lpa-icon name="save" :size="15"></lpa-icon>保存笔记
+            <tl-icon name="save" :size="15"></tl-icon>保存笔记
           </button>
         </div>
       </div>
@@ -584,7 +589,7 @@
             <div class="editor-actions">
               <button class="btn" @click="editingNoteId = null">取消</button>
               <button class="btn primary" @click="saveEditNote(n)" :disabled="!editingNoteContent.trim()">
-                <lpa-icon name="save" :size="15"></lpa-icon>保存修改
+                <tl-icon name="save" :size="15"></tl-icon>保存修改
               </button>
             </div>
           </template>
@@ -595,10 +600,10 @@
               <span v-if="n.updated_at !== n.created_at">· 编辑于 {{ fmtTime(n.updated_at) }}</span>
               <span class="fill"></span>
               <button class="icon-btn" title="编辑笔记" @click="startEditNote(n)">
-                <lpa-icon name="pencil" :size="14"></lpa-icon>编辑
+                <tl-icon name="pencil" :size="14"></tl-icon>编辑
               </button>
               <button class="icon-btn" title="删除笔记" @click="deleteNote(n)">
-                <lpa-icon name="trash" :size="14"></lpa-icon>删除
+                <tl-icon name="trash" :size="14"></tl-icon>删除
               </button>
             </div>
           </template>
@@ -616,14 +621,14 @@
         变更日志加载失败，数据未丢失，可重试
         <span class="fill"></span>
         <button class="btn sm" @click="loadChangelogs">
-          <lpa-icon name="refresh" :size="13"></lpa-icon>重试
+          <tl-icon name="refresh" :size="13"></tl-icon>重试
         </button>
       </div>
       <div class="panel-compact-bar" v-else-if="!changelogs.length && logDraft === null">
         暂无变更日志，记录人为的版本改动
         <span class="fill"></span>
         <button class="btn sm primary" @click="openLogDraft">
-          <lpa-icon name="plus" :size="13"></lpa-icon>新增条目
+          <tl-icon name="plus" :size="13"></tl-icon>新增条目
         </button>
       </div>
       <div v-if="logDraft !== null">
@@ -642,7 +647,7 @@
         <div class="editor-actions">
           <button class="btn" @click="logDraft = null">取消</button>
           <button class="btn primary" @click="saveNewLog" :disabled="!logDraft.trim()">
-            <lpa-icon name="save" :size="15"></lpa-icon>保存条目
+            <tl-icon name="save" :size="15"></tl-icon>保存条目
           </button>
         </div>
       </div>
@@ -657,7 +662,7 @@
             <div class="editor-actions">
               <button class="btn" @click="editingLogId = null">取消</button>
               <button class="btn primary" @click="saveEditLog(c)" :disabled="!editLogForm.content.trim()">
-                <lpa-icon name="save" :size="15"></lpa-icon>保存修改
+                <tl-icon name="save" :size="15"></tl-icon>保存修改
               </button>
             </div>
           </template>
@@ -672,10 +677,10 @@
               <span v-if="c.updated_at !== c.created_at">· 编辑于 {{ fmtTime(c.updated_at) }}</span>
               <span class="fill"></span>
               <button class="icon-btn" title="编辑条目" @click="startEditLog(c)">
-                <lpa-icon name="pencil" :size="14"></lpa-icon>编辑
+                <tl-icon name="pencil" :size="14"></tl-icon>编辑
               </button>
               <button class="icon-btn" title="删除条目" @click="deleteLog(c)">
-                <lpa-icon name="trash" :size="14"></lpa-icon>删除
+                <tl-icon name="trash" :size="14"></tl-icon>删除
               </button>
             </div>
           </template>
@@ -698,8 +703,8 @@
       <div class="month-chart" v-if="monthBars.length">
         <button type="button" class="heat-head" @click="toggleMonthChart"
                 :aria-expanded="monthCollapsed ? 'false' : 'true'">
-          <lpa-icon name="chevron-down" :size="13" class="heat-chev"
-                    :class="{ folded: monthCollapsed }"></lpa-icon>
+          <tl-icon name="chevron-down" :size="13" class="heat-chev"
+                    :class="{ folded: monthCollapsed }"></tl-icon>
           <span class="heat-title">
             每月提交量
             <span class="heat-sub">
@@ -815,7 +820,7 @@
                   {{ c.author }} · {{ fmtTime(c.date) }}
                 </span>
                 <span class="ct-caret">
-                  <lpa-icon :name="expandedCommits.includes(c.hash) ? 'chevron-down' : 'chevron-right'" :size="13"></lpa-icon>
+                  <tl-icon :name="expandedCommits.includes(c.hash) ? 'chevron-down' : 'chevron-right'" :size="13"></tl-icon>
                 </span>
               </div>
               <div class="ct-detail" v-if="expandedCommits.includes(c.hash)">
@@ -836,7 +841,7 @@
         </div>
         <div class="commit-more">
           <button class="btn" v-if="hasMoreCommits" @click="loadMoreCommits" :disabled="commitLoading || commitLoadingMore">
-            <lpa-icon name="chevron-down" :size="15"></lpa-icon>{{ commitLoadingMore ? "加载中…" : "加载更早提交" }}
+            <tl-icon name="chevron-down" :size="15"></tl-icon>{{ commitLoadingMore ? "加载中…" : "加载更早提交" }}
           </button>
           <span class="section-note" v-else-if="commitData.total_count > commitData.commits.length">
             已加载最近 {{ commitData.commits.length }} 条，共 {{ fmtNum(commitData.total_count) }} 次提交（后端单次上限 200 条）
@@ -858,7 +863,7 @@
         <span class="count">{{ screenshots.length }} 张</span>
         <span class="right">
           <label class="btn sm" style="cursor:pointer">
-            <lpa-icon name="upload" :size="14"></lpa-icon>上传截图
+            <tl-icon name="upload" :size="14"></tl-icon>上传截图
             <input type="file" accept="image/png,image/jpeg,image/webp" multiple
                    style="display:none" @change="uploadShots">
           </label>
@@ -869,7 +874,7 @@
           <img :src="s.url" :alt="s.file" loading="lazy" @click="previewShot = s">
           <button class="icon-btn shot-del" title="删除截图" aria-label="删除截图"
                   @click="deleteShot(s)">
-            <lpa-icon name="trash" :size="14"></lpa-icon>
+            <tl-icon name="trash" :size="14"></tl-icon>
           </button>
           <span class="shot-size">{{ fmtSize(s.size) }}</span>
         </div>
@@ -878,13 +883,13 @@
         截图加载失败，可重试
         <span class="fill"></span>
         <button class="btn sm" @click="loadShots">
-          <lpa-icon name="refresh" :size="13"></lpa-icon>重试
+          <tl-icon name="refresh" :size="13"></tl-icon>重试
         </button>
       </div>
       <label class="shots-empty" v-else :class="{ on: shotsDrag }">
         <input type="file" accept="image/png,image/jpeg,image/webp" multiple
                class="shots-empty-input" @change="uploadShots">
-        <lpa-icon name="image" :size="28" :stroke="1.4" class="shots-empty-ico"></lpa-icon>
+        <tl-icon name="image" :size="28" :stroke="1.4" class="shots-empty-ico"></tl-icon>
         <span class="shots-empty-title">拖拽图片到此处，或点击上传</span>
         <span class="shots-empty-note">PNG / JPEG / WebP · 每张 ≤5MB · 存本系统 data 目录</span>
       </label>
@@ -900,7 +905,7 @@
           <span class="section-note" v-if="readme">{{ readme.file }}</span>
           <button class="btn sm" v-if="readme && readme.exists && readme.raw"
                   @click="copyReadme" title="复制 README 原文（Markdown 源码）">
-            <lpa-icon name="copy" :size="13"></lpa-icon>复制全文
+            <tl-icon name="copy" :size="13"></tl-icon>复制全文
           </button>
         </span>
       </h2>
@@ -920,14 +925,14 @@
     <aside class="detail-side">
       <section class="panel tree-panel">
         <h2>
-          <lpa-icon name="list" :size="15"></lpa-icon>
+          <tl-icon name="list" :size="15"></tl-icon>
           <span v-if="!treeCollapsed">目录树（只读预览）</span>
           <span v-else title="目录树（只读预览）">目录树</span>
           <span class="right">
             <button class="icon-btn" @click="toggleTree"
                     :title="treeCollapsed ? '展开目录树' : '收起目录树'"
                     :aria-expanded="treeCollapsed ? 'false' : 'true'">
-              <lpa-icon :name="treeCollapsed ? 'chevron-right' : 'chevron-down'" :size="14"></lpa-icon>
+              <tl-icon :name="treeCollapsed ? 'chevron-right' : 'chevron-down'" :size="14"></tl-icon>
               {{ treeCollapsed ? "展开" : "收起" }}
             </button>
           </span>
@@ -936,7 +941,7 @@
           <div class="tree" v-if="tree">
             <ul style="padding-left:0">
               <li class="t-row">
-                <lpa-icon name="folder-open" :size="14"></lpa-icon>
+                <tl-icon name="folder-open" :size="14"></tl-icon>
                 <span class="t-name" style="font-weight:600">{{ p.name }}</span>
                 <ul>
                   <tree-node v-for="c in tree.children" :key="c.name" :node="c"></tree-node>
@@ -962,7 +967,7 @@
     <div class="empty-tip">
       项目不存在或档案已被删除。<br><br>
       <a class="btn primary" href="/">
-        <lpa-icon name="arrow-left" :size="15"></lpa-icon>返回首页
+        <tl-icon name="arrow-left" :size="15"></tl-icon>返回首页
       </a>
     </div>
   </main>
@@ -972,10 +977,10 @@
       <span class="section-note">服务可能暂时不可用，稍后再试</span>
       <div class="empty-actions">
         <button class="btn primary" @click="load">
-          <lpa-icon name="refresh" :size="15"></lpa-icon>重试
+          <tl-icon name="refresh" :size="15"></tl-icon>重试
         </button>
         <a class="btn" href="/">
-          <lpa-icon name="arrow-left" :size="15"></lpa-icon>返回首页
+          <tl-icon name="arrow-left" :size="15"></tl-icon>返回首页
         </a>
       </div>
     </div>
@@ -993,15 +998,15 @@
     <img :src="previewShot.url" alt="截图预览">
     <button class="lb-nav lb-prev" v-if="screenshots.length > 1"
             aria-label="上一张" title="上一张（←）" @click.stop="navShot(-1)">
-      <lpa-icon name="chevron-left" :size="22"></lpa-icon>
+      <tl-icon name="chevron-left" :size="22"></tl-icon>
     </button>
     <button class="lb-nav lb-next" v-if="screenshots.length > 1"
             aria-label="下一张" title="下一张（→）" @click.stop="navShot(1)">
-      <lpa-icon name="chevron-right" :size="22"></lpa-icon>
+      <tl-icon name="chevron-right" :size="22"></tl-icon>
     </button>
     <span class="lb-count">{{ screenshots.indexOf(previewShot) + 1 }} / {{ screenshots.length }}</span>
     <button class="lb-close" aria-label="关闭预览" @click="previewShot = null">
-      <lpa-icon name="x" :size="20"></lpa-icon>
+      <tl-icon name="x" :size="20"></tl-icon>
     </button>
   </div>
 
@@ -1013,7 +1018,7 @@
          aria-labelledby="doc-modal-title">
       <div class="doc-modal-head">
         <h3 id="doc-modal-title">
-          <lpa-icon name="file-text" :size="16"></lpa-icon>
+          <tl-icon name="file-text" :size="16"></tl-icon>
           <span class="doc-modal-title">
             <template v-if="docView && docView.kind === 'missing'">找不到引用的原资源</template>
             <template v-else-if="docView && docView.name">{{ docView.name }}</template>
@@ -1023,7 +1028,7 @@
         </h3>
         <button class="btn icon-only" @click="docView = null; docLoading = false"
                 title="关闭" aria-label="关闭文档">
-          <lpa-icon name="x" :size="18"></lpa-icon>
+          <tl-icon name="x" :size="18"></tl-icon>
         </button>
       </div>
       <div class="doc-modal-rel mono" v-if="docView && docView.rel">相对路径：{{ docView.rel }}</div>
@@ -1035,13 +1040,13 @@
 
       <!-- 找不到原资源：友好提示，可查看同目录或去资源管理器 -->
       <div class="doc-missing" v-else-if="docView && docView.kind === 'missing'">
-        <lpa-icon name="warning" :size="22" class="doc-missing-ico"></lpa-icon>
+        <tl-icon name="warning" :size="22" class="doc-missing-ico"></tl-icon>
         <p><b>{{ docView.rel }}</b></p>
         <p>引用的原资源不存在{{ docView.error ? "：" + docView.error : "（文件可能已被移动或删除）" }}。</p>
         <p class="section-note">可在右侧目录树浏览项目现有文件；若文件仍在磁盘上，请先确认其是否被归档排除（如依赖/构建目录）。</p>
         <div class="actions">
           <button class="btn" @click="copyText(docView.rel || '')">
-            <lpa-icon name="copy" :size="14"></lpa-icon>复制路径
+            <tl-icon name="copy" :size="14"></tl-icon>复制路径
           </button>
           <button class="btn primary" @click="docView = null">关闭</button>
         </div>
@@ -1066,10 +1071,10 @@
         <p>该文件不是文本/图片类型（{{ docView.size ? fmtSize(docView.size) : "" }}），无法在应用内预览。</p>
         <div class="actions">
           <button class="btn" @click="copyText(docView.rel || '')">
-            <lpa-icon name="copy" :size="14"></lpa-icon>复制相对路径
+            <tl-icon name="copy" :size="14"></tl-icon>复制相对路径
           </button>
           <button class="btn" @click="openIn('explorer')" :disabled="p && p.is_lost">
-            <lpa-icon name="folder-open" :size="14"></lpa-icon>在资源管理器打开
+            <tl-icon name="folder-open" :size="14"></tl-icon>在资源管理器打开
           </button>
           <button class="btn primary" @click="docView = null">关闭</button>
         </div>
@@ -1077,7 +1082,7 @@
 
       <div class="doc-actions" v-if="docView && docView.kind !== 'missing' && docView.kind !== 'binary'">
         <button class="btn sm" @click="copyText(docView.rel || '')">
-          <lpa-icon name="copy" :size="13"></lpa-icon>复制相对路径
+          <tl-icon name="copy" :size="13"></tl-icon>复制相对路径
         </button>
         <span class="spacer"></span>
         <button class="btn primary sm" @click="docView = null">关闭</button>
@@ -1111,7 +1116,7 @@
       </div>
       <div class="field">
         <label for="edit-status">项目状态</label>
-        <lpa-select v-model="editForm.status" :options="statuses"></lpa-select>
+        <tl-select v-model="editForm.status" :options="statuses"></tl-select>
       </div>
       <div class="field">
         <label for="edit-tags">技术栈标签（逗号分隔）</label>
@@ -1152,8 +1157,8 @@
       </div>
       <div class="field">
         <label>运行方式</label>
-        <lpa-select v-model="launchForm.mode"
-                    :options="[{v:'console',l:'新终端窗口（可看日志，Ctrl+C 停止）'},{v:'open',l:'直接运行（双击等效）'}]"></lpa-select>
+        <tl-select v-model="launchForm.mode"
+                    :options="[{v:'console',l:'新终端窗口（可看日志，Ctrl+C 停止）'},{v:'open',l:'直接运行（双击等效）'}]"></tl-select>
       </div>
       <div class="actions">
         <button class="btn" @click="showLaunchForm = false">取消</button>
@@ -1164,7 +1169,7 @@
     </div>
   </div>
   <!-- 设置（共享组件，见 js/settings.js；首页同款） -->
-  <lpa-settings-dialog ref="settings" :statuses="statuses" @changed="onSettingsChanged"></lpa-settings-dialog>
+  <tl-settings-dialog ref="settings" :statuses="statuses" @changed="onSettingsChanged"></tl-settings-dialog>
 </div>
 
 <script src="/static/js/vendor/vue.global.prod.js"></script>

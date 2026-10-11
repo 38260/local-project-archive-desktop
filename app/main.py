@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).warning("收尾捕获进程失败：%s", exc)
 
 
-app = FastAPI(title="归迹拾光", version=APP_VERSION, docs_url="/api/docs",
+app = FastAPI(title="归迹 · tracelight", version=APP_VERSION, docs_url="/api/docs",
               lifespan=lifespan)
 
 init_db()
@@ -266,7 +266,7 @@ def export_all():
     }
     return JSONResponse(
         content=payload,
-        headers={"Content-Disposition": 'attachment; filename="project-archive-export.json"'},
+        headers={"Content-Disposition": 'attachment; filename="tracelight-backup.json"'},
     )
 
 

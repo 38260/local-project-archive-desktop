@@ -1,7 +1,7 @@
 @echo off
 rem ---------------------------------------------------------------------------
 rem One-shot release build: PyInstaller (onedir) -> Inno Setup (single Setup exe)
-rem Output: dist\Tracelight\ (folder build) and dist\installer\Tracelight-Setup-x.y.z.exe
+rem Output: dist\tracelight\ (folder build) and dist\installer\tracelight-Setup-x.y.z.exe
 rem NOTE: keep this file ASCII-only; cmd.exe parses .bat in the system codepage.
 rem ---------------------------------------------------------------------------
 setlocal
@@ -33,6 +33,6 @@ if errorlevel 1 (
 
 echo.
 echo ===== DONE =====
-echo Folder build: dist\Tracelight\Tracelight.exe
+echo Folder build: dist\tracelight\tracelight.exe
 echo Installer:    dist\installer\
 endlocal

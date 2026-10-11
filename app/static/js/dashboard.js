@@ -43,8 +43,8 @@
         heatWeeks: 53,
         // 折叠状态：**默认收起**，先把下面的项目列表露出来；用户手动展开后按本机偏好记住。
         // 存储语义取「已展开」而不是「已收起」——这样「没存过」天然等于收起，无需额外迁移；
-        // 旧键 lpa-home-heat-collapsed（默认展开时代的产物）就此废弃，不再读写。
-        heatCollapsed: localStorage.getItem("lpa-home-heat-expanded") !== "1",
+        // 旧键 tl-home-heat-collapsed（默认展开时代的产物）就此废弃，不再读写。
+        heatCollapsed: localStorage.getItem("tl-home-heat-expanded") !== "1",
         // 当日提交弹窗（点击热力图某天）
         showDay: false,
         dayLoading: false,
@@ -206,7 +206,7 @@
         this.loadHeatmap();
       },
       // 走统一出口（common.js 的软导航）：同文档切换，不整页重载
-      goto(p) { window.lpaNavigate("/project/" + p.id); },
+      goto(p) { window.tlNavigate("/project/" + p.id); },
       async saveSort(value) {
         if (this.orderSaving) return;
         const previous = this.sortBy;
@@ -403,7 +403,7 @@
       toggleHeat() {
         this.heatCollapsed = !this.heatCollapsed;
         // 记「已展开」，与上面的读取口径保持一致（没存过 = 收起）
-        localStorage.setItem("lpa-home-heat-expanded", this.heatCollapsed ? "0" : "1");
+        localStorage.setItem("tl-home-heat-expanded", this.heatCollapsed ? "0" : "1");
       },
       // 点击热力图某天：弹窗展示该日全部项目的提交明细
       openDayDetail(cell) {
@@ -639,17 +639,17 @@
   });
 
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用
-  Object.assign(app.config.globalProperties, window.LPA_HELPERS);
-  app.component("lpa-select", window.LpaSelect);
-  app.component("lpa-icon", window.LpaIcon);
-  app.component("lpa-tabbar", window.LpaTabbar);
-  app.component("lpa-settings-dialog", window.LpaSettingsDialog);
-  app.directive("modal", window.LpaModal);
+  Object.assign(app.config.globalProperties, window.TL_HELPERS);
+  app.component("tl-select", window.TlSelect);
+  app.component("tl-icon", window.TlIcon);
+  app.component("tl-tabbar", window.TlTabbar);
+  app.component("tl-settings-dialog", window.TlSettingsDialog);
+  app.directive("modal", window.TlModal);
   const root = app.mount("#app");
   // 软导航切换页面时要卸载本应用（见 common.js 的 softNavigate），
   // 否则旧实例的事件监听 / 定时器会跟着页面残留下来
-  window.__lpaPageApp = app;
+  window.__tlPageApp = app;
   // 桌面托盘「打开设置」的入口（desktop.py 通过 evaluate_js 调用；
   // 项目详情页没有此方法，托盘侧会回退为跳回首页）
-  window.LPA_OPEN_SETTINGS = () => root.openSettings();
+  window.TL_OPEN_SETTINGS = () => root.openSettings();
 })();
