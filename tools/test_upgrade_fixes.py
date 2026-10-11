@@ -315,6 +315,19 @@ class ImageValidationTests(unittest.TestCase):
             self.assertFalse(sniff_image(buffer.getvalue(), ".png"))
         self.assertTrue(sniff_image(b'<svg xmlns="http://www.w3.org/2000/svg"/>', ".svg"))
 
+    def test_exact_flowchart_name_precedes_backup(self):
+        from app.services.flowchart import detect_flowcharts
+        from tools.smoke_test import PNG_1PX
+        with tempfile.TemporaryDirectory(prefix="tracelight-priority-") as temp:
+            root = Path(temp)
+            for name in ("flowchart-backup.png", "workflow.png", "flowchart.png", "flow-chart.PNG"):
+                (root / name).write_bytes(PNG_1PX)
+            (root / "docs").mkdir()
+            (root / "docs/flowchart.png").write_bytes(PNG_1PX)
+            names = [item["rel"] for item in detect_flowcharts(temp)]
+            self.assertEqual(names, ["flow-chart.PNG", "flowchart.png", "flowchart-backup.png",
+                                     "workflow.png", "docs/flowchart.png"])
+
 
 class AutostartTests(unittest.TestCase):
     def test_enable_disable_and_legacy_names(self):

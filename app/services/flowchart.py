@@ -93,12 +93,12 @@ def detect_flowcharts(project_path: str) -> list[dict]:
                 continue   # stat/遍历中文件消失或不可读：跳过即可
 
     walk(root, 0, "")
-    # 排序：根目录 flowchart 系命名 → 根目录其他相关命名 → 子目录候选；
+    # 排序：根目录精确 flowchart 命名 → 根目录其他相关命名 → 子目录候选；
     # 同层内先浅后深、再按稳定文件名顺序。
     def _rank(c: dict) -> tuple:
         stem = _norm_stem(c["name"])
         if c["rel"].count("/") == 0:
-            tier = 0 if "flowchart" in stem else 1
+            tier = 0 if stem in ("flowchart", "flow chart") else 1
         else:
             tier = 2
         return (tier, c["rel"].count("/"), c["rel"].lower())
