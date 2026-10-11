@@ -1404,36 +1404,46 @@ body.modal-open { overflow: hidden; }
 }
 .launch-note-edit textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .launch-note-actions { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-2); }
-.launch-group-label { font-size: 13px; font-weight: 600; color: var(--text); margin: var(--s-3) 0 var(--s-2); }
-.launch-grid { display: flex; flex-wrap: wrap; gap: 10px; }
-.launch-entry { display: flex; align-items: stretch; gap: 8px; }
-.launch-btn {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--r-md);
-  background: var(--panel-2); color: var(--text); cursor: pointer; text-align: left;
-  transition: border-color .15s, box-shadow .15s, transform .15s;
+/* ---- 统一启动项列表：自定义 + 自动检测混排，每行完整命令 ----
+   拖动手柄独立于操作按钮：只有手柄可拖（draggable 在手柄上），按钮不触发拖动。 */
+.launch-list { display: flex; flex-direction: column; gap: 8px; }
+.launch-row {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--panel-2);
 }
-.launch-btn:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
-.launch-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.launch-btn:disabled { opacity: .55; cursor: default; transform: none; box-shadow: none; }
-.lb-mode { margin-left: 4px; color: var(--muted); vertical-align: -1px; }
-.lb-ico { color: var(--accent); flex: none; }
-.lb-body { min-width: 0; }
-.lb-body b { display: block; font-size: 14px; }
-.lb-cmd {
-  display: block; margin-top: 2px; font-family: var(--mono); font-size: 11.5px;
-  color: var(--muted); max-width: 320px; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap;
+.launch-row.dragging { opacity: .45; }
+.launch-handle {
+  flex: none; margin-top: 3px; padding: 2px;
+  color: var(--muted); cursor: grab; line-height: 0;
 }
+.launch-handle:active { cursor: grabbing; }
+.launch-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.launch-info { flex: 1; min-width: 0; }
+.launch-info-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.launch-name { font-size: 14px; }
+.launch-cmd {
+  display: block; margin-top: 4px;
+  font-family: var(--mono); font-size: 12px; color: var(--muted);
+  word-break: break-all; white-space: normal;
+}
+.launch-meta {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px;
+  font-size: 12px; color: var(--muted);
+}
+.lb-mode { color: var(--muted); flex: none; }
 .lb-tag, .lb-primary {
-  margin-left: 6px; font-size: 10px; font-weight: 600; color: var(--accent);
-  border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; vertical-align: 1px;
+  font-size: 10px; font-weight: 600; color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px;
 }
-.lb-ops { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
-/* 拖动调序：整张入口卡片可拖（与顶部标签栏同款手感，未引入拖拽库）。
-   cursor: grab 是这里唯一的「可拖动」提示——不再往 tooltip 里塞操作说明。 */
-.launch-entry { cursor: grab; }
-.launch-entry.dragging { opacity: .45; cursor: grabbing; }
+.lb-tag-src { color: var(--muted); border-color: var(--border); }
+.lb-ops { display: flex; align-items: center; gap: 6px; }
+.launch-ops { flex: none; flex-wrap: wrap; justify-content: flex-end; }
+/* 窄屏：操作区自然换到信息块下方整行排列，长命令继续可读 */
+@media (max-width: 640px) {
+  .launch-row { flex-wrap: wrap; }
+  .launch-ops { width: 100%; justify-content: flex-end; }
+}
 
 /* ---- 顶部「启动」分体按钮：主按钮直接跑默认入口，右侧箭头用来换默认项 ---- */
 .launch-split { position: relative; display: inline-flex; }

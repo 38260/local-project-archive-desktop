@@ -383,80 +383,63 @@
         </div>
       </div>
 
-      <!-- 自定义启动项（可拖动调整前后顺序；第一项即顶部「启动」按钮默认跑的入口） -->
-      <template v-if="orderedLaunchers.length">
-        <div class="launch-group-label">自定义启动项</div>
-        <div class="launch-grid" @dragover="onLaunchGridDragOver" @drop.prevent="onLaunchDragEnd">
-          <div class="launch-entry" v-for="l in orderedLaunchers" :key="entryKey(l)"
-               draggable="true"
-               :class="{ dragging: launchDragKey === entryKey(l) }"
-               @dragstart="onLaunchDragStart(l, $event)"
-               @dragover="onLaunchDragOver(l, $event)"
-               @dragend="onLaunchDragEnd">
-            <button type="button" class="launch-btn" @click="runEntry(l)" :disabled="!!launchBusyKey"
-                    :title="l.command + (l.cwd ? '（子目录 ' + l.cwd + '）' : '')">
-              <tl-icon name="zap" :size="15" class="lb-ico"></tl-icon>
-              <span class="lb-body">
-                <b>{{ l.name }}<span class="lb-primary" v-if="isPrimaryEntry(l)"
-                     title="顶部「启动」按钮跑的就是这个">顶部启动</span>
-                  <tl-icon :name="l.mode === 'open' ? 'external' : 'terminal'" :size="11" class="lb-mode"
-                            :title="l.mode === 'open' ? '直接运行' : '新终端窗口'"></tl-icon>
-                </b>
-                <code class="lb-cmd">{{ l.command }}</code>
-              </span>
-            </button>
-            <span class="lb-ops">
-              <button class="icon-btn" title="编辑" aria-label="编辑启动项" @click="openLaunchForm(l)">
-                <tl-icon name="pencil" :size="13"></tl-icon>
-              </button>
-              <button class="icon-btn" title="删除" aria-label="删除启动项" @click="deleteLauncher(l)">
-                <tl-icon name="trash" :size="13"></tl-icon>
-              </button>
+      <!-- 统一启动项列表：自定义 + 自动检测混排（顺序由拖动手柄决定，存 launch_prefs）。
+           每行完整展示命令；来源用标签区分；操作按钮不触发拖动 -->
+      <template v-if="orderedEntries.length">
+        <div class="launch-list" @dragover="onLaunchGridDragOver" @drop.prevent="onLaunchDragEnd">
+          <div class="launch-row" v-for="x in orderedEntries" :key="x.key"
+               :class="{ dragging: launchDragKey === x.key }"
+               @dragover="onLaunchDragOver(x.entry, $event)">
+            <span class="launch-handle" draggable="true" tabindex="0" role="button"
+                  :aria-label="'拖动调整「' + x.entry.name + '」的顺序'"
+                  title="拖动调整顺序"
+                  @dragstart="onLaunchDragStart(x.entry, $event)"
+                  @dragend="onLaunchDragEnd">
+              <tl-icon name="more" :size="14"></tl-icon>
             </span>
-          </div>
-        </div>
-      </template>
-
-      <!-- 自动检测入口（同样可拖动调序，与自定义项共用一个顺序） -->
-      <template v-if="orderedSuggestions.length">
-        <div class="launch-group-label">
-          自动检测
-          <span class="section-note">
-            来自{{ {direct: "项目内可执行文件", direct_weak: "项目内脚本（未能确认是否为启动方式，建议核对后再点）", inferred: "构建配置推断"}[launch.detect_kind] || "自动检测" }}
-            · 点击即运行，可转存为自定义
-          </span>
-        </div>
-        <div class="launch-grid" @dragover="onLaunchGridDragOver" @drop.prevent="onLaunchDragEnd">
-          <div class="launch-entry" v-for="s in orderedSuggestions" :key="entryKey(s)"
-               draggable="true"
-               :class="{ dragging: launchDragKey === entryKey(s) }"
-               @dragstart="onLaunchDragStart(s, $event)"
-               @dragover="onLaunchDragOver(s, $event)"
-               @dragend="onLaunchDragEnd">
-            <button type="button" class="launch-btn" @click="runEntry(s)" :disabled="!!launchBusyKey"
-                    :title="s.command + '（' + s.source + '）'">
-              <tl-icon name="zap" :size="15" class="lb-ico"></tl-icon>
-              <span class="lb-body">
-                <b>{{ s.name }}<span class="lb-primary" v-if="isPrimaryEntry(s)"
-                     title="顶部「启动」按钮跑的就是这个">顶部启动</span><span class="lb-tag">自动</span>
-                  <tl-icon :name="s.mode === 'open' ? 'external' : 'terminal'" :size="11" class="lb-mode"
-                            :title="s.mode === 'open' ? '直接运行' : '新终端窗口'"></tl-icon>
-                </b>
-                <code class="lb-cmd">{{ s.command }}</code>
-              </span>
-            </button>
-            <span class="lb-ops">
-              <button class="icon-btn" title="转存为自定义启动项" aria-label="转存为自定义启动项"
-                      @click="openLaunchForm(null, s)">
-                <tl-icon name="plus" :size="13"></tl-icon>
+            <div class="launch-info">
+              <div class="launch-info-head">
+                <b class="launch-name">{{ x.entry.name }}</b>
+                <span class="lb-tag" :class="{ 'lb-tag-src': x.kind === 'l' }" :title="x.kind === 's'
+                        ? '来自自动检测：' + (detectKindText || '项目内扫描') + '，可编辑后转存为自定义'
+                        : '手动添加的启动项'">{{ x.kind === "l" ? "自定义" : "自动检测" }}</span>
+                <span class="lb-primary" v-if="isPrimaryEntry(x.entry)"
+                      title="顶部「启动」按钮跑的就是这个">顶部启动</span>
+                <tl-icon :name="x.entry.mode === 'open' ? 'external' : 'terminal'" :size="12"
+                         class="lb-mode" :title="x.entry.mode === 'open' ? '直接运行' : '新终端窗口'"></tl-icon>
+              </div>
+              <code class="launch-cmd">{{ x.entry.command }}</code>
+              <div class="launch-meta">
+                <span v-if="x.entry.cwd">工作目录：{{ x.entry.cwd }}</span>
+                <span>运行方式：{{ x.entry.mode === "open" ? "直接运行" : "新终端窗口" }}</span>
+              </div>
+            </div>
+            <span class="lb-ops launch-ops">
+              <button class="btn sm" @click="runEntry(x.entry)" :disabled="!!launchBusyKey"
+                      :title="'启动：' + x.entry.command">
+                <tl-icon name="zap" :size="12"></tl-icon>启动
               </button>
+              <template v-if="x.kind === 'l'">
+                <button class="icon-btn" title="编辑" aria-label="编辑启动项" @click="openLaunchForm(x.entry)">
+                  <tl-icon name="pencil" :size="13"></tl-icon>
+                </button>
+                <button class="icon-btn" title="删除" aria-label="删除启动项" @click="deleteLauncher(x.entry)">
+                  <tl-icon name="trash" :size="13"></tl-icon>
+                </button>
+              </template>
+              <template v-else>
+                <button class="icon-btn" title="转存为自定义启动项" aria-label="转存为自定义启动项"
+                        @click="openLaunchForm(null, x.entry)">
+                  <tl-icon name="plus" :size="13"></tl-icon>
+                </button>
+              </template>
             </span>
           </div>
         </div>
       </template>
 
       <div class="section-note" style="margin-top:10px"
-           v-if="launch && launch.supported && !launch.launchers.length && !visibleSuggestions.length">
+           v-if="launch && launch.supported && !orderedEntries.length">
         未检测到启动入口（.bat/.cmd/.exe/.ps1 或可推断的构建配置）。可以把常用的启动命令添加为自定义启动项。
       </div>
 

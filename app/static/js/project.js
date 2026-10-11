@@ -453,11 +453,14 @@
           .map(x => ({ ...x, at: pos.has(x.key) ? pos.get(x.key) : Infinity }))
           .sort((a, b) => (a.at - b.at) || (a.nat - b.nat));
       },
-      orderedLaunchers() {
-        return this.orderedEntries.filter(x => x.kind === "l").map(x => x.entry);
-      },
-      orderedSuggestions() {
-        return this.orderedEntries.filter(x => x.kind === "s").map(x => x.entry);
+      // 自动检测入口的来源说明（统一列表里的「自动检测」标签悬浮提示用）
+      detectKindText() {
+        const map = {
+          direct: "项目内可执行文件",
+          direct_weak: "项目内脚本（未能确认是否为启动方式，建议核对后再点）",
+          inferred: "构建配置推断",
+        };
+        return (this.launch && map[this.launch.detect_kind]) || "项目内扫描";
       },
       // 顶部「启动」主按钮跑哪一个：优先用下拉里显式指定的那个；
       // 没指定（或指定的入口已不存在）就取顺序里的第一项。
