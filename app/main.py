@@ -424,7 +424,7 @@ app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 
 @app.middleware("http")
 async def _static_no_cache(request, call_next):
-    """静态资源与页面外壳使用协商缓存（no-cache）。
+    """静态资源协商缓存与 SVG 文档隔离。
 
     no-cache 表示浏览器可以缓存但每次必须向服务器校验：文件没变返回 304
     （快），文件一变立即拿到新版本（避免升级后浏览器仍用旧 JS/CSS）。
@@ -437,4 +437,10 @@ async def _static_no_cache(request, call_next):
     path = request.url.path
     if path.startswith("/static") or path == "/" or path.startswith("/project/"):
         response.headers["Cache-Control"] = "no-cache"
+    # SVG 在新标签页中会作为文档运行，不能只依赖 <img> 的脚本限制。
+    if (response.headers.get("content-type", "").startswith("image/svg+xml")
+            or (path.startswith("/media/") and path.lower().endswith(".svg"))):
+        response.headers["Content-Security-Policy"] = (
+            "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'")
+        response.headers["X-Content-Type-Options"] = "nosniff"
     return response
