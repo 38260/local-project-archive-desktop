@@ -12,6 +12,7 @@ import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 from urllib.parse import quote
 
@@ -1566,7 +1567,7 @@ def export_project_html(project_id: int):
             if _fc["kind"] == "custom":
                 _fc_file = FLOWCHART_DIR / str(project_id) / _fc["file"]
             else:
-                _fc_file = _resolve_project_rel(row["path"], _fc["rel"])
+                _fc_file = Path(_resolve_project_rel(row["path"], _fc["rel"]))
             # 导出内嵌给 8MB 的余量（上传上限 5MB，历史大图兜底），
             # 再大就放弃内嵌，避免导出文件膨胀到打不开
             if _fc_file.is_file() and _fc_file.stat().st_size <= 8 * 1024 * 1024:

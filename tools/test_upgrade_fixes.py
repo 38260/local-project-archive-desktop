@@ -144,6 +144,21 @@ class UpgradeApiTests(unittest.TestCase):
             "GET", f"/api/projects/{self.pid}/file?rel=flowchart.svg&raw=1")
         self.assertEqual((status, content), (200, svg))
 
+    def test_html_export_embeds_auto_and_uploaded_flowcharts(self):
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"/>'
+        (self.project_path / "flowchart.svg").write_bytes(svg)
+        url = f"/api/projects/{self.pid}/export-html"
+        status, content, _ = self.request("GET", url)
+        self.assertEqual(status, 200, content)
+        self.assertIn(b"data:image/svg+xml;base64,", content)
+        self.assertIn(b"flowchart.svg", content)
+        status, uploaded, _ = self.upload("workflow.svg", svg)
+        self.assertEqual(status, 201, uploaded)
+        status, content, _ = self.request("GET", url)
+        self.assertEqual(status, 200, content)
+        self.assertIn(b"data:image/svg+xml;base64,", content)
+        self.assertIn(uploaded["saved"]["file"].encode(), content)
+
 
 class AutostartTests(unittest.TestCase):
     def test_enable_disable_and_legacy_names(self):
