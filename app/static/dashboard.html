@@ -192,7 +192,7 @@
       <span class="section-note">共 {{ filtered.length }} 个项目</span>
     </div>
     <p class="section-note order-hint" v-if="filtered.length > 1">
-      {{ orderSaving ? "正在保存顺序…" : "拖动卡片右上角调整顺序，自动保存；置顶项目与其他项目分别排序。" }}
+      {{ orderSaving ? "正在保存顺序…" : "拖动卡片右上角调整顺序（同状态组内），自动保存；排序下拉用于一键整理，之后仍可拖动覆盖。" }}
     </p>
 
     <!-- 已生效的筛选条件（可单个移除） -->

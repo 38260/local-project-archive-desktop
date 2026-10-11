@@ -3,8 +3,8 @@
   "use strict";
   const { createApp } = Vue;
 
-  // 排序下拉的中文标签 → 内部排序键
-  const SORT_LABELS = ["手动排序", "最近更新", "最近修改", "名称", "创建时间", "状态"];
+  // 排序下拉：规则只做「一键整理」，拖动卡片随时覆盖排列（没有独立的手动排序模式）
+  const SORT_LABELS = ["最近更新", "最近修改", "名称", "创建时间", "状态"];
   const SORT_KEYS = {
     "最近更新": "updated", "最近修改": "modified", "名称": "name",
     "创建时间": "created", "状态": "status",
@@ -126,14 +126,14 @@
           status: (a, b) => (STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status))
                             || byTime("updated_at")(a, b),
         }[key];
-        // 置顶项目优先，其余按所选排序
+        // 置顶优先 → 拖动过的项目按保存的顺序 → 其余按所选规则。
+        // 顺序只影响**同状态组内**的先后（展示永远按状态分组，见 displayGroups）；
+        // 顺序里没有的项目（新增导入）落在组内末尾，不打乱已拖好的相对位置。
         const positions = new Map(this.projectOrder.map((id, index) => [id, index]));
         return this.projects.slice().sort(
           (a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
-            || (this.sortBy === "手动排序"
-              ? (positions.get(a.id) ?? Infinity) - (positions.get(b.id) ?? Infinity)
-                || cmp(a, b)
-              : cmp(a, b)));
+            || ((positions.get(a.id) ?? Infinity) - (positions.get(b.id) ?? Infinity))
+            || cmp(a, b));
       },
       filtered() {
         const q = this.q.toLowerCase();
@@ -170,14 +170,9 @@
       checkedCount() {
         return this.candidates ? this.candidates.candidates.filter(c => c.checked).length : 0;
       },
-      // 有搜索或筛选时合成单个"搜索结果"组（平铺），默认视图按状态分组
+      // 永远保留状态分组；有搜索或筛选时合成单个"搜索结果"组（平铺）。
+      // 拖动顺序只作用于组内先后，不再切换到「置顶项目 / 项目」的另一种视图。
       displayGroups() {
-        if (this.sortBy === "手动排序") {
-          return [
-            { status: "置顶项目", items: this.filtered.filter(p => p.pinned) },
-            { status: "项目", items: this.filtered.filter(p => !p.pinned) },
-          ].filter(g => g.items.length);
-        }
         if (this.q || this.statusFilter || this.tagFilter || this.catFilter || this.quickFilter) {
           return [{ status: "搜索结果", items: this.filtered }];
         }
@@ -207,14 +202,22 @@
       },
       // 走统一出口（common.js 的软导航）：同文档切换，不整页重载
       goto(p) { window.tlNavigate("/project/" + p.id); },
+      // 选择整理规则：立即按规则重排并清掉旧的拖动顺序（重新整理后再拖可随时覆盖）。
       async saveSort(value) {
         if (this.orderSaving) return;
         const previous = this.sortBy;
+        const previousOrder = this.projectOrder;
         this.sortBy = value;
+        this.projectOrder = [];
         this.orderSaving = true;
         try {
-          await api("/api/settings", { method: "PUT", body: { "ui.project_sort": value } });
-        } catch (e) { this.sortBy = previous; }
+          await api("/api/settings", { method: "PUT", body: {
+            "ui.project_sort": value, "ui.project_order": [],
+          } });
+        } catch (e) {
+          this.sortBy = previous;
+          this.projectOrder = previousOrder;
+        }
         finally { this.orderSaving = false; }
       },
       onProjectDragStart(p, ev) {
@@ -225,7 +228,10 @@
       },
       onProjectDragOver(p, ev) {
         const source = this.projects.find(item => item.id === this.dragProjectId);
-        if (!source || source.id === p.id || !!source.pinned !== !!p.pinned) return;
+        // 只允许同状态组内移动（含置顶边界）：跨组拖动不改分类/状态，
+        // 搜索结果平铺视图里同样不允许跨状态换位
+        if (!source || source.id === p.id
+            || source.status !== p.status || !!source.pinned !== !!p.pinned) return;
         ev.preventDefault();
         ev.dataTransfer.dropEffect = "move";
         this.dropProjectId = p.id;
@@ -238,7 +244,9 @@
         await this.moveProject(id, p.id, ev.clientX >= rect.left + rect.width / 2);
       },
       moveProjectByKey(p, direction) {
-        const items = this.filtered.filter(item => !!item.pinned === !!p.pinned);
+        // 同状态 + 同置顶边界内的相邻项（组内移动）
+        const items = this.filtered.filter(item =>
+          item.status === p.status && !!item.pinned === !!p.pinned);
         const target = items[items.findIndex(item => item.id === p.id) + direction];
         if (target) return this.moveProject(p.id, target.id, direction > 0);
       },
@@ -246,27 +254,22 @@
         if (this.orderSaving || id === targetId) return;
         const source = this.projects.find(p => p.id === id);
         const target = this.projects.find(p => p.id === targetId);
-        if (!source || !target || !!source.pinned !== !!target.pinned) return;
-        // 从完整列表移动，筛选隐藏的项目仍保留在顺序中。
-        const grouped = this.sortBy !== "手动排序" && !this.q && !this.statusFilter
-          && !this.tagFilter && !this.catFilter && !this.quickFilter;
-        const all = grouped
-          ? STATUS_ORDER.flatMap(status => this.sorted.filter(p => p.status === status)) : this.sorted;
+        if (!source || !target
+            || source.status !== target.status
+            || !!source.pinned !== !!target.pinned) return;
+        // 从完整列表移动（跨状态按展示分组还原），筛选隐藏的项目仍保留在顺序中：
+        // 顺序只决定组内先后，跨状态部分怎么排不影响分组展示
+        const all = STATUS_ORDER.flatMap(status => this.sorted.filter(p => p.status === status));
         const order = all.map(p => p.id).filter(key => key !== id);
         order.splice(order.indexOf(targetId) + (after ? 1 : 0), 0, id);
         const previousOrder = this.projectOrder;
-        const previousSort = this.sortBy;
         this.projectOrder = order;
-        this.sortBy = "手动排序";
         this.orderSaving = true;
         try {
-          await api("/api/settings", { method: "PUT", body: {
-            "ui.project_order": order, "ui.project_sort": "手动排序",
-          } });
+          await api("/api/settings", { method: "PUT", body: { "ui.project_order": order } });
           toast("项目顺序已保存", "ok");
         } catch (e) {
           this.projectOrder = previousOrder;
-          this.sortBy = previousSort;
           toast("顺序保存失败，已恢复原顺序", "error");
         } finally { this.orderSaving = false; }
       },
