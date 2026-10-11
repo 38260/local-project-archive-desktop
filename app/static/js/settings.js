@@ -239,7 +239,8 @@
       },
     },
     template: `
-      <div class="modal-mask" v-if="visible" @click.self="close">
+      <div class="modal-mask" v-if="visible" @mousedown="maskPress($event)"
+           @mouseup="maskRelease($event, close)">
         <div class="modal" v-modal role="dialog" aria-modal="true" aria-labelledby="settings-title">
           <h3 id="settings-title">设置</h3>
           <div class="settings-tabs" role="tablist" aria-label="设置分区">

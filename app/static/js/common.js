@@ -118,6 +118,22 @@
     scheduleRemove(el, type);
   };
 
+  // ---------- 弹窗遮罩关闭：只认「按下与松开都在遮罩上」的完整点击 ----------
+  // 场景：在弹窗的输入框里按下并拖选文字、指针移出弹窗后在遮罩上松开——浏览器会把
+  // click 派发到按下/松开目标的公共祖先（遮罩）上，@click.self 误判为「点击遮罩」
+  // 而把弹窗关掉，未保存的内容随之丢失。改为配对检查 mousedown/mouseup 的起点与
+  // 终点：从遮罩开始的拖选不会关闭弹窗，从弹窗内部拖到遮罩松手也不会关闭。
+  window.tlMaskPress = function (e) {
+    e.currentTarget._maskPressed = e.target === e.currentTarget;
+  };
+  window.tlMaskRelease = function (e, onClose) {
+    const pressed = !!e.currentTarget._maskPressed;
+    e.currentTarget._maskPressed = false;
+    if (pressed && e.target === e.currentTarget && typeof onClose === "function") {
+      onClose();
+    }
+  };
+
   // ---------- 统一确认弹窗（替代原生 confirm，风格与应用一致） ----------
   // 用法：const ok = await confirmDialog("确定删除？", { danger: true, okText: "删除" });
   // 可选复选框：opts.checkbox = { label, checked }，确认时返回 { ok:true, checked }；
@@ -189,7 +205,10 @@
       document.addEventListener("keydown", onKey, true);
       mask.querySelector(".c-cancel").onclick = () => done(false);
       okBtn.onclick = () => done(confirmValue());
-      mask.addEventListener("mousedown", e => { if (e.target === mask) done(false); });
+      // 遮罩关闭走配对检查（见 tlMaskPress/tlMaskRelease）：在弹窗内拖选文字、
+      // 移出遮罩松手时保持弹窗打开；从遮罩按下、拖进弹窗内松手也不误关
+      mask.addEventListener("mousedown", e => { window.tlMaskPress(e); });
+      mask.addEventListener("mouseup", e => { window.tlMaskRelease(e, () => done(false)); });
       document.body.appendChild(mask);
       // 默认焦点：危险操作聚焦「取消」，防止用户随手回车直接执行删除；
       // 输入确认模式聚焦输入框，普通确认聚焦「确定」保持高效
@@ -606,6 +625,7 @@
     themeName, cycleTheme, tagClass,
     commitType, commitMsgText, commitTypeClass, userColor, fileColor,
     editorIcon, editorName,
+    maskPress: window.tlMaskPress, maskRelease: window.tlMaskRelease,
   };
 
   // ---------- 自定义下拉组件（替代原生 select：统一样式 + 键盘可达） ----------

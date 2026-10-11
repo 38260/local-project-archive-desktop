@@ -333,7 +333,8 @@
   </footer>
 
   <!-- 手动录入 -->
-  <div class="modal-mask" v-if="showAdd" @click.self="showAdd = false">
+  <div class="modal-mask" v-if="showAdd" @mousedown="maskPress($event)"
+       @mouseup="maskRelease($event, () => { showAdd = false; })">
     <div class="modal" v-modal role="dialog" aria-modal="true" aria-labelledby="add-title">
       <h3 id="add-title">手动录入项目</h3>
       <div class="field">
@@ -379,7 +380,8 @@
   </div>
 
   <!-- 批量扫描 -->
-  <div class="modal-mask" v-if="showScan" @click.self="closeScan">
+  <div class="modal-mask" v-if="showScan" @mousedown="maskPress($event)"
+       @mouseup="maskRelease($event, closeScan)">
     <div class="modal wide" v-modal role="dialog" aria-modal="true" aria-labelledby="scan-title">
       <h3 id="scan-title">批量扫描导入</h3>
       <div class="field" v-if="!candidates">
@@ -442,7 +444,8 @@
   </div>
 
   <!-- 当日提交明细（点击开发活动热力图某天） -->
-  <div class="modal-mask" v-if="showDay" @click.self="closeDay">
+  <div class="modal-mask" v-if="showDay" @mousedown="maskPress($event)"
+       @mouseup="maskRelease($event, closeDay)">
     <div class="modal day-modal" v-modal role="dialog" aria-modal="true" aria-labelledby="day-title">
       <h3 id="day-title">
         <tl-icon name="commit" :size="16"></tl-icon>
