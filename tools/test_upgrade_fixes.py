@@ -113,6 +113,35 @@ class UpgradeApiTests(unittest.TestCase):
         self.assertEqual(status, 304)
         self.assertEqual(cached["content-security-policy"], policy)
 
+    def test_project_links_cannot_escape_root(self):
+        outside = self.root / ("outside-" + uuid.uuid4().hex)
+        outside.mkdir()
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"/>'
+        (outside / "workflow.svg").write_bytes(svg)
+        link = self.project_path / "linked"
+        if os.name == "nt":
+            subprocess.run(["cmd.exe", "/c", "mklink", "/J", str(link), str(outside)],
+                           check=True, capture_output=True)
+            self.addCleanup(os.rmdir, link)
+        else:
+            link.symlink_to(outside, target_is_directory=True)
+            self.addCleanup(link.unlink)
+        status, flow, _ = self.request("GET", f"/api/projects/{self.pid}/flowchart")
+        self.assertEqual(status, 200)
+        self.assertEqual(flow["candidates"], [])
+        rel = "linked/workflow.svg"
+        status, _, _ = self.request("GET", f"/api/projects/{self.pid}/file?rel={rel}&raw=1")
+        self.assertEqual(status, 422)
+        status, _, _ = self.request("PUT", f"/api/projects/{self.pid}/flowchart-prefs",
+                                    {"choice": {"kind": "auto", "rel": rel}})
+        self.assertEqual(status, 422)
+        status, _, _ = self.request("POST", f"/api/projects/{self.pid}/open-file", {"rel": rel})
+        self.assertEqual(status, 422)
+        (self.project_path / "flowchart.svg").write_bytes(svg)
+        status, content, _ = self.request(
+            "GET", f"/api/projects/{self.pid}/file?rel=flowchart.svg&raw=1")
+        self.assertEqual((status, content), (200, svg))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

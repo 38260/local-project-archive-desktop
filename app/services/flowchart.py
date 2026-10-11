@@ -43,7 +43,7 @@ def detect_flowcharts(project_path: str) -> list[dict]:
     排序规则：根目录精确命名 → 相关命名 → 路径深度 → 稳定文件名顺序。
     每项含 rel（项目内相对路径，正斜杠）/ name / size / mtime。
     """
-    root = Path(project_path)
+    root = Path(project_path).resolve()
     if not root.is_dir():
         return []
     junk = {j.lower() for j in JUNK_DIRS if not j.startswith("*")}
@@ -65,8 +65,10 @@ def detect_flowcharts(project_path: str) -> list[dict]:
             if name.startswith("."):
                 continue   # 隐藏目录/文件不参与识别
             try:
-                if entry.is_symlink():
-                    continue   # 不跟符号链接，防越界
+                if (entry.is_symlink()
+                        or os.path.normcase(os.path.realpath(entry))
+                        != os.path.normcase(os.path.abspath(entry))):
+                    continue   # 同时跳过 Windows junction，避免越界与循环
                 if entry.is_dir():
                     if depth >= MAX_DEPTH or name.lower() in junk:
                         continue

@@ -543,9 +543,13 @@ def _resolve_project_rel(project_path: str, rel: str) -> str:
     rel = re.sub(r"^(?:\./|/+)+", "", rel)
     if not rel or rel.startswith(".."):
         raise HTTPException(422, "引用的路径越出了项目范围")
-    base = os.path.normpath(project_path)
-    full = os.path.normpath(os.path.join(base, rel))
-    if full != base and not full.startswith(base + os.sep):
+    base = os.path.realpath(project_path)
+    full = os.path.realpath(os.path.join(base, rel))
+    try:
+        inside = os.path.normcase(os.path.commonpath([base, full])) == os.path.normcase(base)
+    except ValueError:
+        inside = False
+    if not inside:
         raise HTTPException(422, f"引用的路径越出了项目范围：{rel}")
     return full
 
