@@ -18,7 +18,8 @@ RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 VALUE_NAME = "tracelight"
 
 # 改名前用过的注册表值名：读取时自动搬迁，写入时顺手清理
-_LEGACY_VALUE_NAMES = ("LocalProjectArchive", "Tracelight")
+# 注册表名称不区分大小写，Tracelight 已由当前名称覆盖，不能再清理它。
+_LEGACY_VALUE_NAMES = ("LocalProjectArchive",)
 
 
 def exe_command() -> str | None:

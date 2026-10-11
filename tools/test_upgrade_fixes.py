@@ -8,7 +8,9 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 import uuid
@@ -141,6 +143,52 @@ class UpgradeApiTests(unittest.TestCase):
         status, content, _ = self.request(
             "GET", f"/api/projects/{self.pid}/file?rel=flowchart.svg&raw=1")
         self.assertEqual((status, content), (200, svg))
+
+
+class AutostartTests(unittest.TestCase):
+    def test_enable_disable_and_legacy_names(self):
+        from app.services import autostart
+        values = {}
+
+        class Key:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        def query(key, name):
+            try:
+                return values[name.casefold()], 1
+            except KeyError:
+                raise FileNotFoundError(name)
+
+        def delete(key, name):
+            try:
+                del values[name.casefold()]
+            except KeyError:
+                raise FileNotFoundError(name)
+
+        registry = types.SimpleNamespace(
+            HKEY_CURRENT_USER=1, REG_SZ=1,
+            OpenKey=lambda *args: Key(), CreateKey=lambda *args: Key(),
+            QueryValueEx=query, DeleteValue=delete,
+            SetValueEx=lambda key, name, reserved, kind, value:
+                values.__setitem__(name.casefold(), value))
+        command = '"D:/sample/tracelight.exe"'
+        with patch.dict(sys.modules, {"winreg": registry}), \
+                patch.object(autostart, "exe_command", return_value=command):
+            self.assertTrue(autostart.set_enabled(True))
+            self.assertTrue(autostart.get_enabled())
+            self.assertEqual(values, {"tracelight": command})
+            self.assertTrue(autostart.set_enabled(False))
+            self.assertFalse(autostart.get_enabled())
+            values["Tracelight".casefold()] = command
+            self.assertTrue(autostart.get_enabled())
+            values.clear()
+            values["localprojectarchive"] = '"D:/old/LocalProjectArchive.exe"'
+            autostart.self_heal()
+            self.assertEqual(values, {"tracelight": command})
 
 
 if __name__ == "__main__":
