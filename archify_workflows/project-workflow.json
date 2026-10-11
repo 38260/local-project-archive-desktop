@@ -1,0 +1,178 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Local Project Archive Desktop - Workflow",
+    "subtitle": "归迹拾光 - 项目管理与代码归档系统",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "locale": "zh-CN",
+    "views": [
+      { "id": "project-lifecycle", "label": "项目生命周期管理", "focus": ["add-project", "view-project", "edit-project", "launch-project"], "note": "从添加项目到启动项目的完整流程" },
+      { "id": "git-analysis", "label": "Git代码分析功能", "focus": ["view-project", "heatmap-view", "commits-view", "detail-stats"], "note": "查看项目的Git提交历史和热力图分析" },
+      { "id": "project-launch", "label": "项目启动与执行", "focus": ["view-project", "launch-options", "launch-execution", "run-history"], "note": "从选择启动方式到查看运行历史的完整流程" }
+    ]
+  },
+  "lanes": [
+    { "id": "user", "label": "用户操作" },
+    { "id": "frontend", "label": "前端界面" },
+    { "id": "backend", "label": "后端服务" },
+    { "id": "storage", "label": "数据存储" },
+    { "id": "system", "label": "系统集成" }
+  ],
+  "mainPath": ["add-project", "view-project", "launch-project", "run-history"],
+  "nodes": [
+    {
+      "id": "add-project",
+      "lane": "user",
+      "col": 0,
+      "type": "backend",
+      "label": "添加项目",
+      "sublabel": "手动输入或自动扫描"
+    },
+    {
+      "id": "view-project",
+      "lane": "frontend",
+      "col": 1,
+      "type": "frontend",
+      "label": "项目列表/详情",
+      "sublabel": "查看项目信息和状态"
+    },
+    {
+      "id": "edit-project",
+      "lane": "frontend",
+      "col": 1.5,
+      "type": "frontend",
+      "label": "编辑项目",
+      "sublabel": "修改项目属性和标签"
+    },
+    {
+      "id": "launch-project",
+      "lane": "frontend",
+      "col": 2,
+      "type": "frontend",
+      "label": "启动项目",
+      "sublabel": "选择启动方式和参数"
+    },
+    {
+      "id": "launch-options",
+      "lane": "frontend",
+      "col": 2.5,
+      "type": "frontend",
+      "label": "启动选项",
+      "sublabel": "资源管理器/编辑器/自定义命令"
+    },
+    {
+      "id": "launch-execution",
+      "lane": "backend",
+      "col": 3,
+      "type": "backend",
+      "label": "执行启动",
+      "sublabel": "调用系统API启动应用"
+    },
+    {
+      "id": "run-history",
+      "lane": "frontend",
+      "col": 4,
+      "type": "frontend",
+      "label": "运行历史",
+      "sublabel": "查看捕获运行的输出和状态"
+    },
+    {
+      "id": "heatmap-view",
+      "lane": "frontend",
+      "col": 2,
+      "type": "frontend",
+      "label": "热力图视图",
+      "sublabel": "Git提交时间分布分析"
+    },
+    {
+      "id": "commits-view",
+      "lane": "frontend",
+      "col": 2.5,
+      "type": "frontend",
+      "label": "提交记录",
+      "sublabel": "查看详细的Git提交历史"
+    },
+    {
+      "id": "detail-stats",
+      "lane": "frontend",
+      "col": 3,
+      "type": "frontend",
+      "label": "提交统计",
+      "sublabel": "按类型和时间范围的提交分析"
+    },
+    {
+      "id": "settings-config",
+      "lane": "user",
+      "col": 0,
+      "type": "backend",
+      "label": "系统设置",
+      "sublabel": "配置编辑器、启动偏好等"
+    },
+    {
+      "id": "git-analysis-service",
+      "lane": "backend",
+      "col": 2,
+      "type": "backend",
+      "label": "Git分析服务",
+      "sublabel": "收集和处理Git元数据"
+    },
+    {
+      "id": "project-db",
+      "lane": "storage",
+      "col": 1,
+      "type": "database",
+      "label": "项目数据库",
+      "sublabel": "SQLite存储项目信息"
+    },
+    {
+      "id": "fs-integration",
+      "lane": "system",
+      "col": 3,
+      "type": "external",
+      "label": "文件系统集成",
+      "sublabel": "调用OS API打开文件和目录"
+    }
+  ],
+  "edges": [
+    { "from": "add-project", "to": "project-db", "label": "存储项目信息", "variant": "emphasis" },
+    { "from": "project-db", "to": "view-project", "label": "检索项目列表", "variant": "emphasis" },
+    { "from": "view-project", "to": "edit-project", "label": "编辑项目", "role": "branch" },
+    { "from": "view-project", "to": "launch-project", "label": "启动项目", "variant": "emphasis" },
+    { "from": "launch-project", "to": "launch-options", "label": "选择启动方式" },
+    { "from": "launch-options", "to": "launch-execution", "label": "执行启动命令" },
+    { "from": "launch-execution", "to": "fs-integration", "label": "调用系统启动" },
+    { "from": "launch-execution", "to": "run-history", "label": "记录运行历史", "variant": "emphasis" },
+    { "from": "view-project", "to": "heatmap-view", "label": "查看热力图", "role": "branch" },
+    { "from": "heatmap-view", "to": "git-analysis-service", "label": "请求Git分析" },
+    { "from": "git-analysis-service", "to": "heatmap-view", "label": "返回热力图数据" },
+    { "from": "view-project", "to": "commits-view", "label": "查看提交记录", "role": "branch" },
+    { "from": "commits-view", "to": "git-analysis-service", "label": "请求提交数据" },
+    { "from": "git-analysis-service", "to": "commits-view", "label": "返回提交记录" },
+    { "from": "commits-view", "to": "detail-stats", "label": "查看详细统计", "role": "branch" },
+    { "from": "detail-stats", "to": "git-analysis-service", "label": "请求统计数据" },
+    { "from": "git-analysis-service", "to": "detail-stats", "label": "返回统计结果" },
+    { "from": "settings-config", "to": "project-db", "label": "保存系统设置", "variant": "emphasis" },
+    { "from": "project-db", "to": "settings-config", "label": "读取系统配置" }
+  ],
+  "groups": [
+    { "id": "project-mgmt", "label": "项目管理流程", "lane": "user", "fromCol": 0, "toCol": 2, "variant": "default" },
+    { "id": "git-analysis-flow", "label": "Git分析功能", "lane": "frontend", "fromCol": 2, "toCol": 4, "variant": "emphasis" },
+    { "id": "launch-flow", "label": "项目启动流程", "lane": "frontend", "fromCol": 2, "toCol": 4, "variant": "dashed" }
+  ],
+  "semanticChecks": {
+    "allowedRoots": ["add-project", "settings-config"],
+    "allowedTerminals": ["run-history", "heatmap-view", "commits-view", "detail-stats"],
+    "requiredEdges": [
+      { "from": "add-project", "to": "project-db" },
+      { "from": "view-project", "to": "launch-project" },
+      { "from": "launch-execution", "to": "fs-integration" }
+    ]
+  },
+  "cards": [
+    { "dot": "emerald", "title": "核心功能", "items": ["项目集中管理与归档", "多种项目启动方式支持", "Git提交历史可视化分析"] },
+    { "dot": "rose", "title": "技术架构", "items": ["FastAPI后端服务", "SQLite数据库存储", "跨平台桌面应用"] },
+    { "dot": "cyan", "title": "用户工作流", "items": ["添加项目 → 查看详情 → 启动项目 → 查看历史", "实时Git分析而不修改原项目"] }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Local Project Archive - Simple Workflow",
+    "output": "simple-workflow.html",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    { "id": "user", "label": "用户" },
+    { "id": "app", "label": "应用" },
+    { "id": "system", "label": "系统" }
+  ],
+  "mainPath": ["start", "view-projects", "select-project", "launch-project", "end"],
+  "nodes": [
+    { "id": "start", "lane": "user", "col": 0, "type": "backend", "label": "开始" },
+    { "id": "view-projects", "lane": "app", "col": 1, "type": "frontend", "label": "查看项目列表" },
+    { "id": "select-project", "lane": "user", "col": 2, "type": "backend", "label": "选择项目" },
+    { "id": "launch-project", "lane": "app", "col": 3, "type": "backend", "label": "启动项目" },
+    { "id": "end", "lane": "system", "col": 4, "type": "external", "label": "项目运行" }
+  ],
+  "edges": [
+    { "from": "start", "to": "view-projects", "label": "打开应用" },
+    { "from": "view-projects", "to": "select-project", "label": "选择项目" },
+    { "from": "select-project", "to": "launch-project", "label": "确认启动" },
+    { "from": "launch-project", "to": "end", "label": "在系统中运行" }
+  ]
+}

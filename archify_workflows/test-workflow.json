@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Test Workflow",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    { "id": "A", "label": "Lane A" },
+    { "id": "B", "label": "Lane B" }
+  ],
+  "mainPath": ["start", "process", "end"],
+  "nodes": [
+    { "id": "start", "lane": "A", "col": 0, "type": "backend", "label": "Start" },
+    { "id": "process", "lane": "B", "col": 1, "type": "backend", "label": "Process" },
+    { "id": "end", "lane": "A", "col": 2, "type": "backend", "label": "End" }
+  ],
+  "edges": [
+    { "from": "start", "to": "process", "label": "Begin" },
+    { "from": "process", "to": "end", "label": "Complete" }
+  ]
+}

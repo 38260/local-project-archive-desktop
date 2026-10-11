@@ -1,0 +1,37 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "归迹拾光 - 简化工作流程图",
+    "subtitle": "Local Project Archive Desktop - Simplified Workflow",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    { "id": "user", "label": "用户" },
+    { "id": "frontend", "label": "前端" },
+    { "id": "backend", "label": "后端" },
+    { "id": "system", "label": "系统" }
+  ],
+  "mainPath": ["start", "view-project", "launch-project", "run-history", "end"],
+  "nodes": [
+    { "id": "start", "lane": "user", "col": 0, "type": "backend", "label": "启动应用" },
+    { "id": "view-project", "lane": "frontend", "col": 1, "type": "frontend", "label": "查看项目" },
+    { "id": "launch-project", "lane": "frontend", "col": 2, "type": "frontend", "label": "启动项目" },
+    { "id": "run-history", "lane": "frontend", "col": 3, "type": "frontend", "label": "运行历史" },
+    { "id": "end", "lane": "system", "col": 4, "type": "external", "label": "项目运行中" },
+    { "id": "project-db", "lane": "backend", "col": 1, "type": "database", "label": "项目数据库" },
+    { "id": "execute-launch", "lane": "backend", "col": 2, "type": "backend", "label": "执行启动" },
+    { "id": "fs-integration", "lane": "system", "col": 2, "type": "external", "label": "文件系统集成" }
+  ],
+  "edges": [
+    { "from": "start", "to": "view-project", "label": "打开应用", "variant": "emphasis" },
+    { "from": "view-project", "to": "project-db", "label": "读取项目数据", "variant": "emphasis" },
+    { "from": "project-db", "to": "view-project", "label": "返回项目列表", "variant": "emphasis" },
+    { "from": "view-project", "to": "launch-project", "label": "选择启动项目", "variant": "emphasis" },
+    { "from": "launch-project", "to": "execute-launch", "label": "确认启动参数", "variant": "emphasis" },
+    { "from": "execute-launch", "to": "fs-integration", "label": "调用系统启动API", "variant": "emphasis" },
+    { "from": "fs-integration", "to": "run-history", "label": "记录启动历史", "variant": "emphasis" },
+    { "from": "execute-launch", "to": "end", "label": "在系统中运行项目" }
+  ]
+}

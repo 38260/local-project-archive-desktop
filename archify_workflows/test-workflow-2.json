@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Test Workflow with Column Sharing",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    { "id": "A", "label": "Lane A" },
+    { "id": "B", "label": "Lane B" }
+  ],
+  "mainPath": ["start", "process1", "process2", "end"],
+  "nodes": [
+    { "id": "start", "lane": "A", "col": 0, "type": "backend", "label": "Start" },
+    { "id": "process1", "lane": "B", "col": 1, "type": "backend", "label": "Process 1" },
+    { "id": "process2", "lane": "B", "col": 1, "type": "backend", "label": "Process 2", "yOffset": 40 },
+    { "id": "end", "lane": "A", "col": 2, "type": "backend", "label": "End" }
+  ],
+  "edges": [
+    { "from": "start", "to": "process1", "label": "Begin" },
+    { "from": "process1", "to": "process2", "label": "Intermediate" },
+    { "from": "process2", "to": "end", "label": "Complete" }
+  ]
+}
