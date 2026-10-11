@@ -1,4 +1,5 @@
 """项目档案 API：增删改查、重新解析、README、目录树、系统打开。"""
+import base64
 import json
 import logging
 import mimetypes
@@ -22,12 +23,13 @@ from app.config import (
 )
 from app.db import get_db
 from app.models import (
-    ChangelogCreate, ChangelogUpdate, LaunchNoteUpdate, LaunchPrefsUpdate,
-    LaunchRequest, LauncherCreate, LauncherUpdate, NoteCreate, NoteUpdate,
-    OpenFileRequest, OpenRequest, ProjectCreate, ProjectUpdate,
+    ChangelogCreate, ChangelogUpdate, FlowchartPrefsUpdate, LaunchNoteUpdate,
+    LaunchPrefsUpdate, LaunchRequest, LauncherCreate, LauncherUpdate, NoteCreate,
+    NoteUpdate, OpenFileRequest, OpenRequest, ProjectCreate, ProjectUpdate,
 )
-from app.services import (duplicates, gitinfo, launcher as launcher_service,
-                          parser, recent, runlog, settings_store)
+from app.services import (duplicates, flowchart as flowchart_service, gitinfo,
+                          launcher as launcher_service, parser, recent, runlog,
+                          settings_store)
 from app.services.paths import (
     PathError, basename, dir_not_exists_hint, is_wsl_path, normalize_input_path,
 )
@@ -245,6 +247,7 @@ def delete_all_projects():
     if SHOT_DIR.is_dir():
         shutil.rmtree(SHOT_DIR, ignore_errors=True)
         SHOT_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(FLOWCHART_DIR, ignore_errors=True)
     logger.warning("已清空全部档案，共 %d 条记录", n)
     return {"ok": True, "deleted": n,
             "note": "仅删除档案记录与截图，原项目文件未做任何改动"}
@@ -349,8 +352,9 @@ def delete_project(project_id: int):
     with get_db() as conn:
         row = _get_row_or_404(conn, project_id)
         conn.execute("DELETE FROM projects WHERE id=?", (project_id,))
-    # 级联清理本系统内保存的截图（位于 data/screenshots，与原项目无关）
+    # 级联清理本系统内保存的截图与流程图（位于 data 目录，与原项目无关）
     shutil.rmtree(SHOT_DIR / str(project_id), ignore_errors=True)
+    shutil.rmtree(FLOWCHART_DIR / str(project_id), ignore_errors=True)
     return {"ok": True, "deleted": row["name"],
             "note": "仅删除档案记录，原项目文件未做任何改动"}
 
@@ -1288,6 +1292,180 @@ def delete_screenshot(project_id: int, filename: str):
 
 
 # ---------------------------------------------------------------------------
+# 流程图：自动识别 / 选择替换 / 上传（上传图存档案数据目录，原项目只读不动）
+# ---------------------------------------------------------------------------
+
+FLOWCHART_DIR = DATA_DIR / "flowcharts"
+# 与截图同一上限：单张 5MB
+FLOWCHART_MAX_SIZE = SHOT_MAX_SIZE
+
+
+def _flowchart_dir(project_id: int):
+    d = FLOWCHART_DIR / str(project_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _parse_flowchart_prefs(raw) -> dict:
+    """解析流程图选择记录；任何脏数据都降级为「自动识别」，不拖垮详情页。"""
+    try:
+        data = json.loads(raw or "{}")
+    except (TypeError, ValueError):
+        return {"choice": None}
+    if not isinstance(data, dict):
+        return {"choice": None}
+    choice = data.get("choice")
+    if isinstance(choice, dict) and choice.get("kind") in ("auto", "custom"):
+        return {"choice": choice}
+    return {"choice": None}
+
+
+def _custom_flowchart_list(project_id: int) -> list[dict]:
+    """本项目已上传的流程图（历史替换图），供换回时选择。"""
+    d = FLOWCHART_DIR / str(project_id)
+    items = []
+    if d.is_dir():
+        for f in d.iterdir():
+            if not (f.is_file()
+                    and f.suffix.lower() in flowchart_service.FLOWCHART_IMAGE_EXTS):
+                continue
+            try:
+                st = f.stat()
+            except OSError:
+                continue   # 列表期间被并发删除，跳过即可
+            items.append({
+                "kind": "custom", "file": f.name, "name": f.name,
+                "url": f"/media/flowcharts/{project_id}/{quote(f.name)}",
+                "size": st.st_size,
+                "mtime": datetime.fromtimestamp(st.st_mtime).astimezone().isoformat(),
+            })
+    items.sort(key=lambda x: x["mtime"], reverse=True)
+    return items
+
+
+def _flowchart_current(project_id: int, prefs: dict,
+                       candidates: list[dict]) -> Optional[dict]:
+    """当前应展示的流程图：用户选择优先，选中的图失效/缺失时回落自动识别。
+
+    原项目路径更新或重新解析都不会动这里：自动候选是每次现扫的，
+    上传图存在档案目录，与项目内文件互不影响。
+    """
+    choice = (prefs or {}).get("choice")
+    if choice and choice.get("kind") == "custom":
+        safe = os.path.basename(str(choice.get("file") or ""))
+        f = FLOWCHART_DIR / str(project_id) / safe
+        if safe and f.is_file() \
+                and f.suffix.lower() in flowchart_service.FLOWCHART_IMAGE_EXTS:
+            st = f.stat()
+            return {"kind": "custom", "file": safe, "name": safe,
+                    "url": f"/media/flowcharts/{project_id}/{quote(safe)}",
+                    "size": st.st_size,
+                    "mtime": datetime.fromtimestamp(st.st_mtime).astimezone().isoformat()}
+        # 上传图被清理：回落自动候选（choice 保留，重传同名文件即可恢复）
+    if choice and choice.get("kind") == "auto":
+        rel = str(choice.get("rel") or "")
+        hit = next((c for c in candidates if c["rel"] == rel), None)
+        if hit:
+            return {"kind": "auto", **hit}
+        # 项目内文件被移动/删除：回落第一张自动候选
+    return {"kind": "auto", **candidates[0]} if candidates else None
+
+
+@router.get("/{project_id}/flowchart")
+def get_flowchart(project_id: int):
+    """流程图面板数据：自动候选 + 用户选择记录 + 当前展示 + 已上传历史。"""
+    with get_db() as conn:
+        row = _get_row_or_404(conn, project_id)
+    if not os.path.isdir(row["path"]):
+        raise HTTPException(409, dir_not_exists_hint(row["path"]))
+    prefs = _parse_flowchart_prefs(row["flowchart_prefs"])
+    candidates = flowchart_service.detect_flowcharts(row["path"])
+    for c in candidates:
+        c["url"] = f"/api/projects/{project_id}/file?rel={quote(c['rel'])}&raw=1"
+    return {
+        "candidates": candidates,
+        "choice": prefs["choice"],
+        "current": _flowchart_current(project_id, prefs, candidates),
+        "custom_files": _custom_flowchart_list(project_id),
+    }
+
+
+@router.put("/{project_id}/flowchart-prefs")
+def update_flowchart_prefs(project_id: int, body: FlowchartPrefsUpdate):
+    """保存流程图选择记录；choice=None 表示恢复自动识别。
+
+    auto 必须是项目内真实存在的图片（复用 README 引用同款路径边界校验）；
+    custom 必须是本项目档案目录里已有的上传图。不修改原项目文件。
+    """
+    choice = body.choice
+    if choice is not None:
+        with get_db() as conn:
+            row = _get_row_or_404(conn, project_id)
+        kind = choice.get("kind")
+        if kind == "auto":
+            rel = str(choice.get("rel") or "")
+            try:
+                full = _resolve_project_rel(row["path"], rel)
+            except HTTPException:
+                raise HTTPException(422, "流程图路径越出了项目范围")
+            if (not os.path.isfile(full)
+                    or os.path.splitext(full)[1].lower()
+                    not in flowchart_service.FLOWCHART_IMAGE_EXTS):
+                raise HTTPException(404, f"图片不存在或不是支持的格式：{rel}")
+            choice = {"kind": "auto", "rel": rel}
+        elif kind == "custom":
+            safe = os.path.basename(str(choice.get("file") or ""))
+            f = FLOWCHART_DIR / str(project_id) / safe
+            if not safe or not f.is_file():
+                raise HTTPException(404, "上传的流程图不存在，可能已被清理")
+            choice = {"kind": "custom", "file": safe}
+        else:
+            raise HTTPException(422, "无效的流程图选择类型")
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+        conn.execute("UPDATE projects SET flowchart_prefs=? WHERE id=?",
+                     (json.dumps({"choice": choice}, ensure_ascii=False), project_id))
+    return {"ok": True, "choice": choice}
+
+
+@router.post("/{project_id}/flowchart/upload", status_code=201)
+async def upload_flowchart(project_id: int, file: UploadFile = File(...)):
+    """上传流程图（≤5MB，png/jpg/webp/gif/bmp/svg），存档案数据目录并立即启用。
+
+    内容按魔数校验（防伪造扩展名）；保存成功即写入选择记录；
+    失败时不改动任何记录，前端继续显示之前的有效图片。
+    """
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in flowchart_service.FLOWCHART_IMAGE_EXTS:
+        raise HTTPException(422, "仅支持 png/jpg/jpeg/webp/gif/bmp/svg 图片")
+    # 分块读取，超过大小上限立即终止，避免超大文件整体读入内存
+    chunks, total = [], 0
+    too_big = False
+    while chunk := await file.read(1024 * 1024):
+        total += len(chunk)
+        if total > FLOWCHART_MAX_SIZE:
+            too_big = True
+            break
+        chunks.append(chunk)
+    if too_big:
+        raise HTTPException(413, "图片超过 5MB 限制")
+    data = b"".join(chunks)
+    if not data or not flowchart_service.sniff_image(data, ext):
+        raise HTTPException(422, "文件内容不是有效的图片")
+    name = uuid.uuid4().hex + ext
+    (_flowchart_dir(project_id) / name).write_bytes(data)
+    choice = {"kind": "custom", "file": name}
+    with get_db() as conn:
+        conn.execute("UPDATE projects SET flowchart_prefs=? WHERE id=?",
+                     (json.dumps({"choice": choice}, ensure_ascii=False), project_id))
+    return {"saved": {"kind": "custom", "file": name, "name": name,
+                      "url": f"/media/flowcharts/{project_id}/{quote(name)}",
+                      "size": len(data)}, "choice": choice}
+
+
+# ---------------------------------------------------------------------------
 # 导出单个项目为静态 HTML 档案（自包含单文件，可直接浏览器打开/分享）
 # ---------------------------------------------------------------------------
 
@@ -1361,6 +1539,30 @@ def export_project_html(project_id: int):
       </div>
       <p class="dim lc-line">最近：<code class="mono">{esc(lc.get('hash') or '－')}</code> {first_line(lc.get('message'))}</p>
     </section>"""
+
+    # ---- 流程图：当前选中的那张，base64 内嵌，导出文件离线可看 ----
+    flow_section = ""
+    try:
+        _fc_prefs = _parse_flowchart_prefs(
+            row["flowchart_prefs"] if "flowchart_prefs" in row.keys() else "")
+        _fc_cands = flowchart_service.detect_flowcharts(row["path"])
+        _fc = _flowchart_current(project_id, _fc_prefs, _fc_cands)
+        if _fc:
+            if _fc["kind"] == "custom":
+                _fc_file = FLOWCHART_DIR / str(project_id) / _fc["file"]
+            else:
+                _fc_file = _resolve_project_rel(row["path"], _fc["rel"])
+            # 导出内嵌给 8MB 的余量（上传上限 5MB，历史大图兜底），
+            # 再大就放弃内嵌，避免导出文件膨胀到打不开
+            if _fc_file.is_file() and _fc_file.stat().st_size <= 8 * 1024 * 1024:
+                _fc_mime = mimetypes.guess_type(_fc["name"])[0] or "application/octet-stream"
+                _fc_b64 = base64.b64encode(_fc_file.read_bytes()).decode("ascii")
+                flow_section = (f"\n  <section><h2>流程图</h2>"
+                                f"<p class='dim'>{esc(_fc['name'])}</p>"
+                                f"<img class='flow-img' src='data:{_fc_mime};base64,{_fc_b64}' "
+                                f"alt='流程图'></section>")
+    except (OSError, HTTPException):
+        flow_section = ""   # 图片读不到就不展示，不影响其余导出内容
 
     # ---- 构建配置与依赖 ----
     deps_sections = []
@@ -1449,6 +1651,8 @@ code.path { background: #f0f2f4; border: 1px solid var(--bd); border-radius: 6px
 .mini-k { display: block; font-size: 12px; color: var(--mut); }
 .lc-line { margin: 12px 0 0; font-size: 13.5px; }
 .lc-line code { background: #f0f2f4; border-radius: 5px; padding: 1px 6px; font-size: 12.5px; }
+.flow-img { display: block; max-width: 100%; height: auto; margin: 8px auto;
+      border: 1px solid var(--bd); border-radius: 10px; background: #fff; }
 .card { background: var(--bg); border: 1px solid var(--bd); border-radius: 10px;
       padding: 14px 18px; margin-bottom: 12px; }
 .card-head b { margin-right: 8px; }
@@ -1500,6 +1704,7 @@ code.path { background: #f0f2f4; border: 1px solid var(--bd); border-radius: 6px
 <div class="wrap">
   <section><h2>基础信息</h2>{overview_html}</section>
   {git_section}
+  {flow_section}
   <section><h2>依赖与脚本</h2>{deps_html}</section>
   <section><h2>项目描述</h2><div class="md">{desc_html}</div></section>
   <section><h2>开发笔记{notes_count}</h2>{notes_html}</section>

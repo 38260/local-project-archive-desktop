@@ -8,7 +8,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.db import BACKUP_DIR, DB_PATH, _backup_db, backup_file_name_ok, normalize_statuses
+from app.db import BACKUP_DIR, DB_PATH, _backup_db, backup_file_name_ok, init_db
 from app.services import autostart, settings_store
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -124,8 +124,9 @@ def restore_backup(body: BackupNameBody):
         shutil.copy2(src, DB_PATH)
     except OSError as exc:
         raise HTTPException(502, f"恢复失败：{exc}")
-    # 老备份可能还带旧状态「归档废弃」，恢复后立即归一，不等下次重启
-    normalize_statuses()
+    # 恢复的可能是旧版本备份：缺列（如 flowchart_prefs）与旧状态「归档废弃」
+    # 都在这里补齐/归一。init_db 幂等，重复执行无副作用。
+    init_db()
     return {"ok": True, "restored_from": body.name, "safety_backup": pre,
             "note": "已恢复，请刷新页面查看数据"}
 

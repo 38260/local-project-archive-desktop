@@ -197,6 +197,13 @@
         runLines: [],           // 已拉取到的输出行
         runOffset: 0,           // 已拉取行数（增量轮询用）
         runStopping: false,
+        // 流程图（GET /flowchart：candidates 自动候选 / current 当前展示 / custom_files 上传历史）
+        flowchart: null,
+        flowchartLoading: false,
+        flowchartError: false,
+        showFlowPicker: false,
+        flowUploading: false,
+        flowZoom: null,         // 流程图放大预览（null=关闭；打开时为当前展示对象）
         // 截图
         screenshots: [],
         shotsError: false,
@@ -473,6 +480,7 @@
         const list = [
           { id: "sec-info", label: "基础信息" },
           { id: "sec-git", label: "Git 信息", hide: !this.gitInfo.is_repo },
+          { id: "sec-flowchart", label: "流程图", hide: !!(this.p && this.p.is_lost) },
           { id: "sec-launch", label: "启动", hide: !!(this.p && this.p.is_lost) },
           { id: "sec-configs", label: "构建配置", hide: !(this.meta && this.meta.configs && this.meta.configs.length) },
           { id: "sec-stats", label: "文件统计", hide: false },
@@ -492,7 +500,7 @@
         const pick = ids => ids.filter(id => byId[id]).map(id => ({ id, label: byId[id] }));
         return [
           { id: "g-overview", icon: "folder", label: "概览",
-            items: pick(["sec-info", "sec-git", "sec-launch"]) },
+            items: pick(["sec-info", "sec-git", "sec-flowchart", "sec-launch"]) },
           { id: "g-build", icon: "package", label: "构建与统计",
             items: pick(["sec-configs", "sec-stats"]) },
           { id: "g-records", icon: "file-text", label: "内容记录",
@@ -697,6 +705,7 @@
           this.loadNotes();
           this.loadChangelogs();
           this.loadShots();
+          this.loadFlowchart();
           this.loadLaunch();
           this.loadRuns();
           // 先拿设置（决定提交记录加载数），再加载提交与热力图
@@ -732,6 +741,51 @@
         this.themeTick++;   // 主题可能被设置弹窗改过，顶栏按钮文字/图标需刷新
         if (kind === "data") { this.load(); return; }
         this.loadPrefs();
+      },
+      // ---- 流程图（自动识别 / 选择替换 / 上传） ----
+      async loadFlowchart() {
+        if (this.p && this.p.is_lost) { this.flowchart = null; return; }
+        this.flowchartLoading = true;
+        try {
+          this.flowchart = await api(`/api/projects/${this.projectId}/flowchart`,
+            { silent: true });
+          this.flowchartError = false;
+        } catch (e) {
+          this.flowchart = null;
+          this.flowchartError = true;   // 失败与「真没有流程图」分开显示
+        } finally { this.flowchartLoading = false; }
+      },
+      // 选择候选 / 上传历史图 / 恢复自动识别（choice=null）
+      async chooseFlowchart(choice) {
+        try {
+          await api(`/api/projects/${this.projectId}/flowchart-prefs`, {
+            method: "PUT", body: { choice },
+          });
+          await this.loadFlowchart();
+          toast(choice ? "流程图已更新" : "已恢复自动识别", "ok");
+        } catch (e) { /* toast 已提示 */ }
+      },
+      async uploadFlowchart(e) {
+        const file = (e.target.files || [])[0];
+        e.target.value = "";
+        if (!file) return;
+        await this.postFlowchart(file);
+      },
+      async postFlowchart(file) {
+        this.flowUploading = true;
+        try {
+          const fd = new FormData();
+          fd.append("file", file);
+          const resp = await fetch(`/api/projects/${this.projectId}/flowchart/upload`, {
+            method: "POST", body: fd,
+          });
+          const r = await resp.json();
+          if (!resp.ok) throw new Error(r.detail || "上传失败");
+          toast("流程图已保存并启用", "ok");
+          await this.loadFlowchart();   // 失败时不会走到这里，旧图继续展示
+        } catch (err) {
+          toast("流程图上传失败：" + err.message, "error");
+        } finally { this.flowUploading = false; }
       },
       // ---- 快速启动（检测/说明/自定义项/执行） ----
       async loadLaunch() {
@@ -1552,6 +1606,7 @@
         if (e.key !== "Escape") return;
         if (this.docView) { this.docView = null; return; }
         if (this.$refs.settings && this.$refs.settings.visible) { this.$refs.settings.close(); return; }
+        if (this.flowZoom) { this.flowZoom = null; return; }
         if (this.previewShot) { this.previewShot = null; return; }
         if (this.showLaunchForm) { this.showLaunchForm = false; return; }
         if (this.launchMenuOpen) { this.launchMenuOpen = false; return; }

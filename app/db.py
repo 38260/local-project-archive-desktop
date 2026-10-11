@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS projects (
     pinned       INTEGER NOT NULL DEFAULT 0,           -- 1=置顶（列表内优先展示）
     launch_note  TEXT NOT NULL DEFAULT '',             -- 启动说明 Markdown（怎么跑这个项目）
     launch_prefs TEXT NOT NULL DEFAULT '{}',           -- 启动面板偏好 JSON：入口顺序 + 顶部默认项
+    flowchart_prefs TEXT NOT NULL DEFAULT '{}',        -- 流程图选择记录 JSON：自动候选/上传覆盖/恢复自动
     fs_created   TEXT NOT NULL DEFAULT '',             -- 磁盘创建时间
     fs_modified  TEXT NOT NULL DEFAULT '',             -- 磁盘最后修改时间
     created_at   TEXT NOT NULL,                        -- 档案创建时间
@@ -176,6 +177,9 @@ def init_db() -> None:
         if "launch_prefs" not in cols:
             conn.execute("ALTER TABLE projects "
                          "ADD COLUMN launch_prefs TEXT NOT NULL DEFAULT '{}'")
+        if "flowchart_prefs" not in cols:
+            conn.execute("ALTER TABLE projects "
+                         "ADD COLUMN flowchart_prefs TEXT NOT NULL DEFAULT '{}'")
         # 轻量迁移：旧「归档废弃」拆分为「归档」（归档=有意收尾留档，应可展示；
         # 废弃=彻底不要）。更新语句幂等，迁移后无残留旧值。
         conn.execute("UPDATE projects SET status='归档' WHERE status='归档废弃'")

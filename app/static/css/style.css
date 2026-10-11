@@ -941,6 +941,43 @@ body.modal-open { overflow: hidden; }
 .shots-empty-ico { opacity: .85; }
 .shots-empty-title { font-size: 15px; font-weight: 600; color: var(--text); }
 .shots-empty-note { font-size: 12.5px; color: var(--muted); }
+
+/* ---- 流程图面板：当前图 + 候选/上传选择 ----
+   图片以 <img> 方式展示（含 SVG）：浏览器在此模式下不执行其内脚本、
+   不加载其外链资源，天然满足「SVG 限制脚本与外部资源」的要求。 */
+.flow-img {
+  display: block; max-width: 100%; max-height: 460px; margin: 0 auto;
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--panel-2); cursor: zoom-in;
+}
+.flow-meta { margin-top: var(--s-2); text-align: center; }
+.flow-empty { margin-top: 0; }
+.flow-picker {
+  margin-top: var(--s-3); padding-top: var(--s-3);
+  border-top: 1px dashed var(--border);
+}
+.flow-picker-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-2);
+  font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: var(--s-2);
+}
+.flow-cand-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: var(--s-3); }
+.flow-cand {
+  width: 150px; padding: 6px; text-align: center;
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--panel-2); cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.flow-cand:hover { border-color: var(--accent); }
+.flow-cand.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.flow-cand img {
+  width: 100%; height: 90px; object-fit: contain; display: block;
+  background: var(--panel); border-radius: 4px;
+}
+.flow-cand-name {
+  display: block; margin-top: 4px; font-size: 11px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.flow-upload-row { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
 /* 上传中：覆盖一层，避免大图/多图时无反馈导致重复拖拽 */
 .upload-veil {
   position: absolute; inset: 0; z-index: 2;

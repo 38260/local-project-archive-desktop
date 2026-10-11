@@ -247,6 +247,101 @@
       <div class="section-note" v-else>非 Git 仓库<span v-if="gitInfo.error">（{{ gitInfo.error }}）</span></div>
     </section>
 
+    <!-- 流程图：自动识别 flowchart / workflow / 流程图 等命名的图片；可替换为候选或上传图 -->
+    <section class="panel" id="sec-flowchart" v-if="p && !p.is_lost">
+      <h2>流程图
+        <span class="count" v-if="flowchart && flowchart.candidates.length">{{ flowchart.candidates.length }} 张候选</span>
+        <span class="right">
+          <button class="btn sm" @click="showFlowPicker = !showFlowPicker"
+                  :aria-expanded="showFlowPicker ? 'true' : 'false'">
+            <tl-icon name="image" :size="13"></tl-icon>{{ flowchart && flowchart.current ? "更换流程图" : "选择流程图" }}
+          </button>
+        </span>
+      </h2>
+
+      <div class="skel-stack" v-if="flowchartLoading">
+        <span class="skel" style="width:60%;height:22px"></span>
+        <span class="skel" style="width:100%;height:220px"></span>
+      </div>
+      <div class="panel-compact-bar" v-else-if="flowchartError">
+        流程图信息加载失败，可重试
+        <span class="fill"></span>
+        <button class="btn sm" @click="loadFlowchart">
+          <tl-icon name="refresh" :size="13"></tl-icon>重试
+        </button>
+      </div>
+      <template v-else-if="flowchart">
+        <!-- 当前展示：点击放大 -->
+        <div class="flow-view" v-if="flowchart.current">
+          <img :src="flowchart.current.url" :alt="flowchart.current.name"
+               class="flow-img" title="点击放大查看" @click="flowZoom = flowchart.current">
+          <div class="section-note flow-meta">
+            {{ flowchart.current.kind === "custom" ? "手动上传" : "自动识别" }} ·
+            {{ flowchart.current.name }}（点击图片放大）
+          </div>
+        </div>
+        <!-- 空状态：说明 + 上传入口 -->
+        <label class="shots-empty flow-empty" v-else>
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/svg+xml"
+                 class="shots-empty-input" @change="uploadFlowchart">
+          <tl-icon name="image" :size="28" :stroke="1.4" class="shots-empty-ico"></tl-icon>
+          <span class="shots-empty-title">未识别到流程图，点击上传一张</span>
+          <span class="shots-empty-note">
+            按文件名自动识别 flowchart / workflow / 流程图 / 工作流
+            （PNG / JPG / WebP / GIF / BMP / SVG，根目录与 3 层以内子目录）；
+            上传的图片存入档案数据目录，不写入原项目
+          </span>
+        </label>
+
+        <!-- 选择 / 上传 -->
+        <div class="flow-picker" v-if="showFlowPicker">
+          <div class="flow-picker-head">
+            <span>项目内候选</span>
+            <button class="btn sm" v-if="flowchart.current"
+                    @click="chooseFlowchart(null)" title="清除手动选择，重新展示自动识别的第一张">
+              <tl-icon name="refresh" :size="13"></tl-icon>恢复自动识别
+            </button>
+          </div>
+          <div class="flow-cand-grid" v-if="flowchart.candidates.length">
+            <button type="button" class="flow-cand"
+                    v-for="c in flowchart.candidates" :key="c.rel"
+                    :class="{ on: flowchart.current && flowchart.current.kind === 'auto'
+                                && flowchart.current.rel === c.rel }"
+                    @click="chooseFlowchart({ kind: 'auto', rel: c.rel })" :title="c.rel">
+              <img :src="c.url" :alt="c.name" loading="lazy">
+              <span class="flow-cand-name">{{ c.name }}</span>
+            </button>
+          </div>
+          <div class="section-note" v-else style="margin-bottom:10px">
+            项目内未发现流程图图片（按文件名匹配，跳过 node_modules 等依赖与构建目录）。
+          </div>
+
+          <template v-if="flowchart.custom_files.length">
+            <div class="flow-picker-head">本机上传的历史图</div>
+            <div class="flow-cand-grid">
+              <button type="button" class="flow-cand"
+                      v-for="f in flowchart.custom_files" :key="f.file"
+                      :class="{ on: flowchart.current && flowchart.current.kind === 'custom'
+                                  && flowchart.current.file === f.file }"
+                      @click="chooseFlowchart({ kind: 'custom', file: f.file })" :title="f.name">
+                <img :src="f.url" :alt="f.name" loading="lazy">
+                <span class="flow-cand-name">{{ f.name }}</span>
+              </button>
+            </div>
+          </template>
+
+          <div class="flow-upload-row">
+            <label class="btn sm" style="cursor:pointer">
+              <tl-icon name="upload" :size="13"></tl-icon>{{ flowUploading ? "上传中…" : "上传新图片" }}
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/svg+xml"
+                     style="display:none" @change="uploadFlowchart">
+            </label>
+            <span class="section-note">≤5MB；上传后自动启用，原项目图片保持不变</span>
+          </div>
+        </div>
+      </template>
+    </section>
+
     <!-- 快速启动：自动检测入口 + 自定义启动项 + 启动说明 -->
     <section class="panel" id="sec-launch">
       <h2>启动
@@ -991,6 +1086,14 @@
       <span class="skel" style="width:100%;height:120px"></span>
       <span class="skel" style="width:100%;height:200px"></span>
     </div>
+  </div>
+
+  <!-- 流程图放大查看 -->
+  <div class="lightbox" v-if="flowZoom" @click="flowZoom = null" role="dialog" aria-modal="true" aria-label="流程图预览">
+    <img :src="flowZoom.url" alt="流程图预览">
+    <button class="lb-close" aria-label="关闭预览" @click="flowZoom = null">
+      <tl-icon name="x" :size="20"></tl-icon>
+    </button>
   </div>
 
   <!-- 截图预览 -->

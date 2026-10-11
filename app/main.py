@@ -234,6 +234,8 @@ def export_all():
                 "launch_note": r["launch_note"] if "launch_note" in r.keys() else "",
                 "launch_prefs": json.loads(r["launch_prefs"] or "{}")
                 if "launch_prefs" in r.keys() else {},
+                "flowchart_prefs": json.loads(r["flowchart_prefs"] or "{}")
+                if "flowchart_prefs" in r.keys() else {},
                 "fs_created": r["fs_created"], "fs_modified": r["fs_modified"],
                 "created_at": r["created_at"], "updated_at": r["updated_at"],
                 "launchers": [
@@ -309,12 +311,16 @@ def import_backup(payload: dict):
             raw_prefs = item.get("launch_prefs")
             launch_prefs = json.dumps(raw_prefs if isinstance(raw_prefs, dict) else {},
                                       ensure_ascii=False)
+            # 流程图选择记录（自动候选 / 上传覆盖）：同口径，只认对象
+            raw_flow = item.get("flowchart_prefs")
+            flowchart_prefs = json.dumps(raw_flow if isinstance(raw_flow, dict) else {},
+                                         ensure_ascii=False)
             try:
                 cur = conn.execute(
                     "INSERT INTO projects (path, name, alias, category, status, tags, "
                     "description, auto_meta, is_lost, lost_reason, pinned, launch_note, "
-                    "launch_prefs, fs_created, fs_modified, created_at, updated_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "launch_prefs, flowchart_prefs, fs_created, fs_modified, created_at, updated_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (path, name,
                      str(item.get("alias") or ""), str(item.get("category") or ""),
                      status,
@@ -326,6 +332,7 @@ def import_backup(payload: dict):
                      1 if item.get("pinned") else 0,
                      str(item.get("launch_note") or ""),
                      launch_prefs,
+                     flowchart_prefs,
                      str(item.get("fs_created") or ""), str(item.get("fs_modified") or ""),
                      str(item.get("created_at") or now), str(item.get("updated_at") or now)),
                 )
@@ -401,7 +408,15 @@ def project_page(project_id: int):
 # 其余静态资源（css / js / vendor）
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# 截图等用户媒体文件（位于 data/screenshots，运行时生成，不入库不入 Git）
+# 用户媒体文件（位于 data 下，运行时生成，不入库不入 Git）。
+# 流程图挂载必须写在 /media 之前：Starlette 按注册顺序匹配，
+# /media 会把 /media/flowcharts/... 的前缀吃掉导致 404。
+FLOWCHART_MEDIA_DIR = DATA_DIR / "flowcharts"
+FLOWCHART_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/media/flowcharts", StaticFiles(directory=FLOWCHART_MEDIA_DIR),
+          name="media-flowcharts")
+
+# 截图等用户媒体文件（位于 data/screenshots）
 MEDIA_DIR = DATA_DIR / "screenshots"
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")

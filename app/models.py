@@ -141,6 +141,13 @@ class LaunchPrefsUpdate(BaseModel):
         return [key.strip() for key in v]
 
 
+class FlowchartPrefsUpdate(BaseModel):
+    """流程图选择记录。choice=None 表示恢复自动识别；
+    否则为 {"kind": "auto", "rel": <项目内相对路径>} 或
+    {"kind": "custom", "file": <档案目录内文件名>}（结构细节由路由层校验）。"""
+    choice: Optional[dict] = None
+
+
 class LaunchRequest(BaseModel):
     """执行启动：要么指定 launcher_id，要么给完整 command+mode（自动检测直跑用）。
 
