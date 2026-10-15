@@ -384,7 +384,7 @@
       </div>
 
       <!-- 统一启动项列表：自定义 + 自动检测混排（顺序由拖动手柄决定，存 launch_prefs）。
-           每行完整展示命令；来源用标签区分；操作按钮不触发拖动 -->
+           卡片网格完整展示命令；来源用标签区分；操作按钮不触发拖动 -->
       <template v-if="orderedEntries.length">
         <div class="launch-list" @dragover="onLaunchGridDragOver" @drop.prevent="onLaunchDragEnd">
           <div class="launch-row" v-for="x in orderedEntries" :key="x.key"

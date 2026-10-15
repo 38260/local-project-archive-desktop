@@ -1416,31 +1416,35 @@ body.modal-open { overflow: hidden; }
 }
 .launch-note-edit textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .launch-note-actions { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-2); }
-/* ---- 统一启动项列表：自定义 + 自动检测混排，每行完整命令 ----
+/* ---- 启动项卡片网格：自定义 + 自动检测混排，完整展示命令 ----
    拖动手柄独立于操作按钮：只有手柄可拖（draggable 在手柄上），按钮不触发拖动。 */
-.launch-list { display: flex; flex-direction: column; gap: 4px; }
+.launch-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 8px;
+}
 .launch-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--r-sm);
+  display: grid; grid-template-columns: 16px minmax(0, 1fr); grid-template-rows: 1fr auto;
+  align-items: start; gap: 8px; min-width: 0;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md);
   background: var(--panel-2);
 }
 .launch-row.dragging { opacity: .45; }
 .launch-handle {
-  flex: none; padding: 2px;
+  padding: 2px; margin-top: 3px;
   color: var(--muted); cursor: grab; line-height: 0;
 }
 .launch-handle:active { cursor: grabbing; }
 .launch-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-.launch-info { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px 16px; }
-.launch-info-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.launch-info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.launch-info-head { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .launch-name { font-size: 14px; overflow-wrap: anywhere; }
 .launch-cmd {
-  display: block; flex: 1 1 140px; min-width: 0;
+  display: block; min-width: 0;
   font-family: var(--mono); font-size: 12px; color: var(--muted);
   word-break: break-all; white-space: normal;
 }
 .launch-meta {
-  display: flex; gap: 2px 8px; flex-wrap: wrap; max-width: 100%;
+  display: flex; flex-direction: column; gap: 2px; max-width: 100%;
   font-size: 12px; color: var(--muted); overflow-wrap: anywhere;
 }
 .lb-mode { color: var(--muted); flex: none; }
@@ -1450,12 +1454,11 @@ body.modal-open { overflow: hidden; }
 }
 .lb-tag-src { color: var(--muted); border-color: var(--border); }
 .lb-ops { display: flex; align-items: center; gap: 6px; }
-.launch-ops { flex: none; flex-wrap: wrap; justify-content: flex-end; }
-/* 窄屏：操作区自然换到信息块下方整行排列，长命令继续可读 */
+.launch-ops { grid-column: 1 / -1; flex-wrap: wrap; justify-content: flex-end; }
+.launch-ops > .btn { margin-right: auto; }
+/* 窄屏：卡片网格自动变为单列，标题操作单独换行 */
 @media (max-width: 640px) {
   #sec-launch > h2 .right { flex-basis: 100%; margin-left: 0; }
-  .launch-row { flex-wrap: wrap; }
-  .launch-ops { width: 100%; justify-content: flex-end; }
 }
 /* 已移除的自动检测入口：恢复入口一行平铺 */
 .launch-removed {
