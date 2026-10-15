@@ -1398,8 +1398,16 @@ body.modal-open { overflow: hidden; }
 }
 
 /* ---- 快速启动面板 ---- */
-.launch-note { padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); margin-bottom: var(--s-3); }
-.launch-note .md-body { font-size: 14px; }
+#sec-launch { padding: 14px 16px; }
+#sec-launch > h2 { align-items: center; flex-wrap: wrap; margin-bottom: 8px; white-space: nowrap; }
+#sec-launch > h2 .right { display: flex; flex-wrap: wrap; gap: 4px; }
+.launch-note {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;
+}
+.launch-note .md-body { flex-basis: 100%; min-width: 0; font-size: 14px; }
+.launch-note .section-note { flex: 1 1 240px; }
+.launch-note > .btn { flex: none; }
 .launch-note-edit textarea {
   width: 100%; padding: 9px 12px; font: inherit; font-family: var(--mono);
   font-size: 13px; line-height: 1.6; border: 1px solid var(--border);
@@ -1445,6 +1453,7 @@ body.modal-open { overflow: hidden; }
 .launch-ops { flex: none; flex-wrap: wrap; justify-content: flex-end; }
 /* 窄屏：操作区自然换到信息块下方整行排列，长命令继续可读 */
 @media (max-width: 640px) {
+  #sec-launch > h2 .right { flex-basis: 100%; margin-left: 0; }
   .launch-row { flex-wrap: wrap; }
   .launch-ops { width: 100%; justify-content: flex-end; }
 }

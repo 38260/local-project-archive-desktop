@@ -367,7 +367,7 @@
         <div class="section-note" v-else>
           还没有启动说明。把「先起后端再起前端」「需要先配置 .env」这类步骤写在这里。
         </div>
-        <button class="btn sm" @click="toggleLaunchNoteEdit" style="margin-top:8px">
+        <button class="btn sm" @click="toggleLaunchNoteEdit">
           <tl-icon name="pencil" :size="13"></tl-icon>{{ launch && launch.note ? "编辑说明" : "写启动说明" }}
         </button>
       </div>
