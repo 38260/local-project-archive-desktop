@@ -110,6 +110,11 @@ def make_samples(root: str):
         "devDependencies": {"vite": "^5.0.0"},
     }, indent=2))
     write(os.path.join(node, "README.md"), "# Demo Node App\n\n本地测试项目。\n\n```bash\nnpm install\nnpm run dev\n```\n")
+    # 多语言 README：详情页面板右上角应能在这三份之间切换
+    write(os.path.join(node, "README_EN.md"),
+          "# Demo Node App\n\nEnglish demo readme for language switching.\n")
+    write(os.path.join(node, "README.zh-TW.md"),
+          "# Demo Node App\n\n本地測試項目，繁體中文版本。\n")
     write(os.path.join(node, "src", "index.js"), "console.log('hi');\n")
     write(os.path.join(node, "node_modules", "fake-pkg", "package.json"), '{"name":"fake"}')
     subprocess.run(["git", "init", "-b", "main", node], check=True, capture_output=True)
@@ -233,6 +238,29 @@ def main():
         check("详情接口", st == 200 and detail["exists_now"] is True)
         st, readme = req("GET", f"/api/projects/{p1['id']}/readme")
         check("README 渲染（含 <h1>）", st == 200 and readme["exists"] and "<h1" in readme["html"])
+        # ---- README 多语言版本 ----
+        vs = {v["file"]: v for v in readme.get("variants", [])}
+        check("README 语言版本全部枚举",
+              set(vs) == {"README.md", "README_EN.md", "README.zh-TW.md"}, str(vs))
+        check("README 版本标签按语言标识/正文判定",
+              vs.get("README.md", {}).get("label") == "中文"
+              and vs.get("README_EN.md", {}).get("label") == "English"
+              and vs.get("README.zh-TW.md", {}).get("label") == "繁體中文", str(vs))
+        check("主版本排在首位并标记 primary",
+              readme["variants"][0]["file"] == "README.md"
+              and readme["variants"][0]["primary"] is True
+              and readme["active"] == "README.md" and "本地测试项目" in readme["html"])
+        st, en = req("GET", f"/api/projects/{p1['id']}/readme?file=README_EN.md")
+        check("按 file 切换到英文版本",
+              st == 200 and en["active"] == "README_EN.md"
+              and "language switching" in en["html"] and "本地测试项目" not in en["html"])
+        check("切换后版本列表不变（切换条不消失）",
+              [v["file"] for v in en["variants"]] == [v["file"] for v in readme["variants"]])
+        st, lower = req("GET", f"/api/projects/{p1['id']}/readme?file=readme_en.md")
+        check("版本文件名不区分大小写", st == 200 and lower["active"] == "README_EN.md")
+        st, bad = req("GET", f"/api/projects/{p1['id']}/readme?file=../demo-python-tool/README.md")
+        check("越界/失效版本回退主版本而不是报错",
+              st == 200 and bad["active"] == "README.md" and bad["exists"] is True, str(bad)[:120])
         st, tree = req("GET", f"/api/projects/{p1['id']}/tree")
         names = {c["name"] for c in tree["children"]}
         check("目录树包含 src", "src" in names)

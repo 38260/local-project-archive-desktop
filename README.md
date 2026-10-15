@@ -65,7 +65,7 @@
 
 ![详情 · 项目描述与开发笔记](docs/screenshots/12-详情-项目描述与开发笔记.png)
 
-**项目截图 / README / 目录树** —— 上传的截图可灯箱预览，README 就地渲染，右侧目录树只读浏览。
+**项目截图 / README / 目录树** —— 上传的截图可灯箱预览，README 就地渲染（根目录有多语言版本时，面板右上角可切换，选择按项目记住），右侧目录树只读浏览。
 
 ![详情 · 项目截图 / README / 目录树](docs/screenshots/13-详情-截图README目录树.png)
 
@@ -183,6 +183,7 @@ local-project-archive-desktop/
   切换标签是**同文档切换**（标签栏挂在页面主体之外，只替换内容区并重跑该页脚本），不再整页重载——顶部区域不重建、不闪白，主题也不会重置。任一环节异常会自动回退为整页跳转；排障时可在控制台执行 `localStorage.setItem("lpa-soft-nav","0")` 强制关闭该优化。
 - **开发活动总览**：首页 GitHub 风格提交热力图，聚合全部仓库按天提交，悬浮显示日期与来源项目；**默认收起**（折叠时仍显示「共 N 次提交」摘要，先把项目列表露出来），手动展开后按本机偏好记住；跨度半年/一年可调。
 - **项目详情页**：左侧目录树导航（分组可折叠）、右侧目录树只读预览；基础信息、Git 信息、构建配置与依赖、文件统计、项目描述、开发笔记、变更日志、提交记录、截图、README 各成面板。
+- **README 多语言版本**：根目录里同时放着 `README.md` / `README_EN.md` / `README.zh-TW.md` 这类多份说明时，README 面板右上角出现语言切换条（标签取自文件名语言标识，没有标识的按正文文字判定，主版本排首位），正文与「复制全文」都跟着当前版本走；README 里常见的 `[English](README_EN.md)` 语言链接直接切换面板版本，不再另开文档浮层；选过哪一份按项目记在本机，刷新与重开都保持。只有一份 README 时不显示切换条，观感与原来一致。
 - **目录树文件交互**：单击文件名复制其路径；**文档（.md/.markdown/.txt）、网页（.html/.htm）、图片（.png/.jpg/.jpeg/.gif/.webp/.svg/.bmp/.ico/.avif/.jfif/.apng）双击即用系统默认应用打开**（与在资源管理器里双击该文件等效，`.md` 若无关联程序会由系统弹出「打开方式」选择），其余类型双击会提示当前支持范围——可打开的文件带点状下划线提示。
 - **Git 提交可视化**：按月提交柱状图（全量历史聚合、当月高亮，一眼看出开发节奏；跨度半年/一年可调；**默认折叠**，折叠时仍显示"共 N 次提交"摘要）+ 时间线（哈希/类型/信息/作者/时间，点击展开完整详情）+ 类型筛选。
 - **提交构成分析**：在提交面板内直接回答"主要发力点在哪里"——类型分布**环状图**（含条数与占比图例）+ **类型 × 月份堆叠柱**（看出注意力何时从堆功能转向补 bug）+ 一句话结论（Top2 类型、峰值月份、活跃天数）。
@@ -240,7 +241,7 @@ local-project-archive-desktop/
 | GET | /api/projects/{id}/commit-stats | 提交构成分析（全量聚合：类型分布 / 类型×月份 / 活跃天数；`scope`、`include_merges`、`max_commits` 可选） |
 | GET | /api/heatmap | 全项目提交热力图聚合 |
 | GET/POST | /api/projects/{id}/notes、/changelogs | 笔记与变更日志（PUT/DELETE 同路径） |
-| GET | /api/projects/{id}/readme、/tree、/screenshots | README / 目录树 / 截图 |
+| GET | /api/projects/{id}/readme、/tree、/screenshots | README（`?file=README_EN.md` 选语言版本，返回 `variants`/`active`）/ 目录树 / 截图 |
 | POST | /api/projects/{id}/open | 资源管理器 / 所选编辑器打开 |
 | POST | /api/projects/{id}/open-file | 用系统默认应用打开项目内文件（目录树双击用，仅允许项目内已存在文件） |
 | GET | /api/projects/{id}/launch | 启动面板：说明+自动检测建议+自定义启动项 |

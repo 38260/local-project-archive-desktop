@@ -372,6 +372,12 @@ _README_CANDIDATES = ["README.md", "readme.md", "Readme.md", "README.markdown",
                       "readme.markdown", "README.en.md", "README.zh-CN.md", "README_EN.md"]
 
 
+def _is_readme_name(name: str) -> bool:
+    """文件名是否算 README（含各语言变体），与 find_readme 的兜底口径一致。"""
+    low = name.lower()
+    return low.startswith("readme") and low.endswith((".md", ".markdown"))
+
+
 def find_readme(path: str) -> str | None:
     """定位项目根目录 README.md（大小写常见变体）。"""
     root = Path(path)
@@ -382,12 +388,107 @@ def find_readme(path: str) -> str | None:
     # 兜底：不区分大小写再找一次 *.md 中以 readme 开头的文件
     try:
         for entry in os.scandir(path):
-            if entry.is_file() and entry.name.lower().startswith("readme") \
-                    and entry.name.lower().endswith((".md", ".markdown")):
+            if entry.is_file() and _is_readme_name(entry.name):
                 return entry.path
     except OSError:
         pass
     return None
+
+
+# 文件名里的语言标识 → 展示名：README.zh-CN.md / README_EN.md / README-en.md 都能认出。
+# 认不出的标识（README-final.md 等）退回正文推断，最终兜底显示文件名。
+_LANG_NAMES = {
+    "ar": "العربية", "de": "Deutsch", "en": "English", "es": "Español",
+    "fr": "Français", "hi": "हिन्दी", "id": "Bahasa Indonesia", "it": "Italiano",
+    "ja": "日本語", "ko": "한국어", "nl": "Nederlands", "pl": "Polski",
+    "pt": "Português", "ru": "Русский", "sv": "Svenska", "th": "ไทย",
+    "tr": "Türkçe", "uk": "Українська", "vi": "Tiếng Việt",
+    "zh": "中文", "zh-cn": "简体中文", "zh-hans": "简体中文",
+    "zh-hk": "繁體中文", "zh-hant": "繁體中文", "zh-tw": "繁體中文",
+}
+# README 与扩展名之间的语言标识（README.zh-CN.md / README_zh.md / README v2.md）
+_README_CODE_RE = re.compile(
+    r"^readme[ ._\-]*([a-z][a-z0-9]*(?:[ ._\-][a-z]{2,4})?)[ ._\-]*\.(?:md|markdown)$",
+    re.I)
+
+
+def detect_lang(text: str) -> str | None:
+    """按正文文字构成粗判语言：假名→ja、谚文→ko、汉字→zh、拉丁字母→en。
+
+    只判「有没有这种文字」而不算占比：中文 README 头部常带英文徽章、链接和代码，
+    按占比会被误判成英文；反过来英文 README 基本不会出现汉字。
+    """
+    head = text[:4096]
+
+    def count(first: str, last: str) -> int:
+        return sum(1 for c in head if first <= c <= last)
+
+    if count("぀", "ヿ") >= 3:
+        return "ja"          # 日文正文必带假名，其中的汉字不再判成中文
+    if count("가", "힣") >= 3:
+        return "ko"
+    if count("一", "鿿") >= 3:
+        return "zh"
+    if sum(1 for c in head if c.isascii() and c.isalpha()) >= 3:
+        return "en"
+    return None
+
+
+def _readme_lang(code: str | None, text: str) -> tuple[str, str | None]:
+    """返回 (展示标签, 语言码)：文件名标识优先，缺失时按正文推断。"""
+    if code:
+        key = code.lower().replace("_", "-")
+        label = _LANG_NAMES.get(key) or _LANG_NAMES.get(key.split("-")[0])
+        if label:
+            return label, key
+    lang = detect_lang(text)
+    return _LANG_NAMES.get(lang, lang or ""), lang
+
+
+def _read_head(path: str) -> str:
+    try:
+        with open(path, encoding="utf-8-sig", errors="replace") as f:
+            return f.read(4096)
+    except OSError:
+        return ""
+
+
+def list_readme_variants(path: str) -> list[dict]:
+    """列出项目根目录下的全部 README 版本（多语言/多变体），主版本排在首位。
+
+    返回 [{file, label, lang, primary}]；`file` 就是根目录内的文件名，
+    调用方按它取文件即可，不必再拼路径。
+    """
+    try:
+        entries = [e for e in os.scandir(path)
+                   if e.is_file() and _is_readme_name(e.name)]
+    except OSError:
+        return []
+    if not entries:
+        return []
+
+    primary = find_readme(path)
+    primary_name = os.path.basename(primary) if primary else ""
+    entries.sort(key=lambda e: (e.name.lower() != primary_name.lower(),
+                                e.name.lower()))
+
+    out: list[dict] = []
+    for e in entries:
+        m = _README_CODE_RE.match(e.name)
+        label, lang = _readme_lang(m.group(1) if m else None, _read_head(e.path))
+        out.append({"file": e.name,
+                    "label": label or e.name,
+                    "lang": lang,
+                    "primary": e.name == primary_name})
+
+    # 两份正文同语言（README.md 与 README.zh.md 都判成中文）时带上文件名区分
+    counts: dict[str, int] = {}
+    for o in out:
+        counts[o["label"]] = counts.get(o["label"], 0) + 1
+    for o in out:
+        if counts[o["label"]] > 1:
+            o["label"] = f"{o['label']}（{o['file']}）"
+    return out
 
 
 def render_readme_file(readme_path: str) -> dict:

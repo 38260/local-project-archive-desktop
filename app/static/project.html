@@ -395,7 +395,7 @@
                   title="拖动调整顺序"
                   @dragstart="onLaunchDragStart(x.entry, $event)"
                   @dragend="onLaunchDragEnd">
-              <tl-icon name="more" :size="14"></tl-icon>
+              <tl-icon name="more" :size="12"></tl-icon>
             </span>
             <div class="launch-info">
               <div class="launch-info-head">
@@ -405,7 +405,7 @@
                         : '手动添加的启动项'">{{ x.kind === "l" ? "自定义" : "自动检测" }}</span>
                 <span class="lb-primary" v-if="isPrimaryEntry(x.entry)"
                       title="顶部「启动」按钮跑的就是这个">顶部启动</span>
-                <tl-icon :name="x.entry.mode === 'open' ? 'external' : 'terminal'" :size="12"
+                <tl-icon :name="x.entry.mode === 'open' ? 'external' : 'terminal'" :size="11"
                          class="lb-mode" :title="x.entry.mode === 'open' ? '直接运行' : '新终端窗口'"></tl-icon>
               </div>
               <code class="launch-cmd">{{ x.entry.command }}</code>
@@ -417,25 +417,25 @@
             <span class="lb-ops launch-ops">
               <button class="btn sm" @click="runEntry(x.entry)" :disabled="!!launchBusyKey || launchPrefsSaving"
                       :title="'启动：' + x.entry.command">
-                <tl-icon name="zap" :size="12"></tl-icon>启动
+                <tl-icon name="zap" :size="11"></tl-icon>启动
               </button>
               <template v-if="x.kind === 'l'">
                 <button class="icon-btn" title="编辑" aria-label="编辑启动项" @click="openLaunchForm(x.entry)">
-                  <tl-icon name="pencil" :size="13"></tl-icon>
+                  <tl-icon name="pencil" :size="12"></tl-icon>
                 </button>
                 <button class="icon-btn" title="删除" aria-label="删除启动项" @click="deleteLauncher(x.entry)">
-                  <tl-icon name="trash" :size="13"></tl-icon>
+                  <tl-icon name="trash" :size="12"></tl-icon>
                 </button>
               </template>
               <template v-else>
                 <button class="icon-btn" title="编辑（保存后转存为自定义覆盖项，原建议不再出现）"
                         aria-label="编辑自动检测入口" @click="openLaunchForm(null, x.entry)">
-                  <tl-icon name="pencil" :size="13"></tl-icon>
+                  <tl-icon name="pencil" :size="12"></tl-icon>
                 </button>
                 <button class="icon-btn" title="从此列表移除（不删除脚本，可在下方恢复）"
                          aria-label="移除自动检测入口" @click="removeSuggestion(x.entry)"
                          :disabled="launchPrefsSaving">
-                  <tl-icon name="x" :size="13"></tl-icon>
+                  <tl-icon name="x" :size="12"></tl-icon>
                 </button>
               </template>
             </span>
@@ -997,14 +997,24 @@
     <section class="panel" id="sec-readme">
       <h2>项目 README
         <span class="right" style="display:inline-flex;align-items:center;gap:8px">
-          <span class="section-note" v-if="readme">{{ readme.file }}</span>
+          <!-- 根目录有多份 README（多语言/多变体）时给出切换条；单份时只显示文件名 -->
+          <span class="readme-langs" v-if="readmeVariants.length > 1"
+                role="group" aria-label="切换 README 语言版本">
+            <button v-for="v in readmeVariants" :key="v.file" class="readme-lang"
+                    :class="{ on: v.file === readmeActive }" :disabled="readmeSwitching"
+                    :aria-pressed="v.file === readmeActive ? 'true' : 'false'"
+                    :title="'根目录文件：' + v.file"
+                    @click="switchReadme(v)">{{ v.label }}</button>
+          </span>
+          <span class="section-note" v-if="readme && readmeVariants.length <= 1">{{ readme.file }}</span>
           <button class="btn sm" v-if="readme && readme.exists && readme.raw"
-                  @click="copyReadme" title="复制 README 原文（Markdown 源码）">
+                  @click="copyReadme" title="复制当前 README 原文（Markdown 源码）">
             <tl-icon name="copy" :size="13"></tl-icon>复制全文
           </button>
         </span>
       </h2>
-      <div class="md-body readme-selectable" v-if="readme && readme.exists" v-html="readme.html"></div>
+      <div class="md-body readme-selectable" :class="{ 'is-switching': readmeSwitching }"
+           v-if="readme && readme.exists" v-html="readme.html"></div>
       <div class="section-note" v-else-if="readme">项目根目录未找到 README.md 文件</div>
       <div class="skel-stack" v-else>
         <span class="skel" style="width:38%;height:22px"></span>

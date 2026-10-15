@@ -492,20 +492,34 @@ def rescan_project(project_id: int):
 
 
 @router.get("/{project_id}/readme")
-def get_readme(project_id: int):
-    """读取并渲染项目根目录 README.md。"""
+def get_readme(project_id: int,
+               file: str = Query("", max_length=200,
+                                 description="根目录内的 README 文件名（多语言版本切换用）")):
+    """读取并渲染项目根目录 README。
+
+    根目录里有多份 README（README.md / README_EN.md / README.zh-CN.md …）时，
+    variants 列出全部版本供前端切换，file 指定要渲染哪一份；实际渲染的文件名放在
+    active。file 只与扫描出的名单比对（不拼任意路径），名单里没有时静默回退主版本
+    ——用户本机记住的语言偏好可能因项目改名/删除而失效，此时看到默认版本比报错更好。
+    """
     with get_db() as conn:
         row = _get_row_or_404(conn, project_id)
     if not os.path.isdir(row["path"]):
         raise HTTPException(409, dir_not_exists_hint(row["path"]))
-    readme_path = parser.find_readme(row["path"])
-    if readme_path is None:
-        return {"exists": False, "file": None, "html": "", "raw": ""}
-    result = parser.render_readme_file(readme_path)
+    variants = parser.list_readme_variants(row["path"])
+    if not variants:
+        return {"exists": False, "file": None, "html": "", "raw": "",
+                "variants": [], "active": None}
+    want = (file or "").strip().lower()
+    chosen = next((v for v in variants if v["file"].lower() == want), None) \
+        or next((v for v in variants if v["primary"]), variants[0])
+    result = parser.render_readme_file(os.path.join(row["path"], chosen["file"]))
     # 相对图片改写为应用内 /file 接口（raw 输出），否则 <img src="docs/x.png">
     # 会在 WebView 里请求不存在路由而显示裂图/白屏残留
     if result.get("html"):
         result["html"] = _rewrite_md_images(result["html"], project_id)
+    result["variants"] = variants
+    result["active"] = result["file"]
     return result
 
 

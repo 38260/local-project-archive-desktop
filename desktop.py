@@ -893,7 +893,19 @@ def main() -> int:
     # expose 是运行时注册（js_api 需在 create_window 时传入，彼时窗口引用还不存在）
     _bridge = JsBridge(window)
     window.expose(_bridge.select_folder, _bridge.select_file)
-    webview.start(icon=icon_path(), debug=False)
+
+    # 前端偏好（项目标签栏、主题、目录树折叠、README 语言版本…）都存在 WebView2 的
+    # localStorage 里。pywebview 默认 private_mode=True，会把配置目录放到一次性临时目录，
+    # 于是每次启动都回到初始状态——用户删掉的标签下次又冒出来。给它一个数据目录下的
+    # 固定路径，偏好才真正跨启动保留。目录建不出来（只读盘/权限）时退回默认行为。
+    start_kwargs = {"icon": icon_path(), "debug": False}
+    storage_dir = DATA_DIR / "webview-profile"
+    try:
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        start_kwargs.update(private_mode=False, storage_path=str(storage_dir))
+    except OSError as exc:
+        logger.warning("WebView2 偏好存储目录不可用，本次启动不持久化前端偏好：%s", exc)
+    webview.start(**start_kwargs)
     return 0
 
 

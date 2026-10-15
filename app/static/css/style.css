@@ -1051,6 +1051,25 @@ body.modal-open { overflow: hidden; }
    的拖选会被浏览器拖拽行为打断，表现为"选不中" */
 .readme-selectable { user-select: text; -webkit-user-select: text; cursor: text; }
 .readme-selectable img, .readme-selectable a { -webkit-user-drag: none; user-drag: none; }
+/* README 多语言版本切换条（面板标题右侧）：常显可点，窄屏换行不挤压标题 */
+.readme-langs {
+  display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px;
+  padding: 2px; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--panel-2); font-weight: 400;
+}
+.readme-lang {
+  appearance: none; border: none; background: none; color: var(--muted);
+  font: inherit; font-size: 12.5px; line-height: 1.4; padding: 3px 9px;
+  border-radius: var(--r-sm); cursor: pointer; max-width: 170px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.readme-lang:hover:not(:disabled) { color: var(--text); background: var(--bg); }
+.readme-lang.on { background: var(--accent); color: #fff; font-weight: 600; }
+.readme-lang:disabled { opacity: .55; cursor: default; }
+.readme-lang:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* 切换中：旧内容压暗而不是清空，避免面板高度突变 */
+.readme-selectable { transition: opacity .15s ease; }
+.readme-selectable.is-switching { opacity: .45; }
 .md-body h1, .md-body h2, .md-body h3, .md-body h4 { margin: 20px 0 var(--s-2); line-height: 1.4; }
 .md-body h1 { font-size: 26px; font-weight: 800; border-bottom: 2px solid var(--border); padding-bottom: var(--s-2); }
 .md-body h2 { font-size: 20px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 5px; }

@@ -68,6 +68,12 @@ def make_samples(root: Path):
     def alpha_extra(d):
         write(d / "notes.md", "# Alpha 笔记\n\n用于文字选择验证的第二段文字。\n")
         (d / "flowchart.png").write_bytes(PNG_1PX)
+        # 多语言 README：详情页面板右上角应出现版本切换条
+        write(d / "README_EN.md",
+              "# Alpha Project (English)\n\nEnglish readme body for language switching.\n\n"
+              "[中文](README.md) | [English](README_EN.md)\n")
+        write(d / "README.zh-TW.md",
+              "# Alpha 專案（繁體）\n\n用於語言切換驗證的繁體中文說明。\n")
 
     def beta_extra(d):
         write(d / "package.json", json.dumps(

@@ -4,6 +4,8 @@
   const { createApp } = Vue;
 
   const DRAFT_PREFIX = "tl-draft-desc-";
+  // 每个项目记住自己看过的那份 README 语言版本（多语言项目切换后刷新仍保持）
+  const README_LANG_KEY = "tl-readme-lang-";
   // 描述预览防抖定时器（非响应式，放组件外即可）
   let descTimer = null;
 
@@ -116,6 +118,7 @@
         statuses: [],
         meta: null,
         readme: null,
+        readmeSwitching: false,
         tree: undefined, // undefined=加载中, null=失败
         notFound: false,
         // 非 404 的加载失败（500/网络断）：显示错误态+重试，避免永远停在骨架屏
@@ -515,6 +518,9 @@
         ];
         return list.filter(x => !x.hide);
       },
+      // README 语言版本：候选列表（根目录内所有 README*）与实际渲染的那一份
+      readmeVariants() { return (this.readme && this.readme.variants) || []; },
+      readmeActive() { return (this.readme && this.readme.active) || ""; },
       // 目录树分组：条目沿用 sections 的空面板过滤，空组整组隐藏
       sectionGroups() {
         const byId = {};
@@ -602,6 +608,27 @@
       async copyReadme() {
         if (this.readme && this.readme.raw) await this.copyText(this.readme.raw, "README 原文");
       },
+      // 切换 README 语言版本：偏好按项目记在 localStorage，下次进来还是看这一份
+      async switchReadme(v) {
+        if (this.readmeSwitching || !this.readme || this.readme.active === v.file) return;
+        this.readmeSwitching = true;
+        try {
+          this.readme = await api(
+            `/api/projects/${this.projectId}/readme?file=${encodeURIComponent(v.file)}`);
+          localStorage.setItem(README_LANG_KEY + this.projectId, v.file);
+        } catch (e) {
+          // 读取失败（文件被删/无权限）：保留当前版本，不让面板塌成「未找到 README」
+        } finally {
+          this.readmeSwitching = false;
+        }
+      },
+      // README 头部常见的「[English](README_EN.md) | [中文](README.md)」语言切换链接：
+      // 命中根目录内的某个 README 版本时直接换面板内容，不再盖一层文档查看器浮层。
+      readmeVariantByRel(rel) {
+        if (!rel || rel.indexOf("/") >= 0) return null;   // 只认根目录内的版本文件
+        const low = rel.toLowerCase();
+        return this.readmeVariants.find(v => v.file.toLowerCase() === low) || null;
+      },
       // ---- 引用文档：Markdown 里的链接统一在应用内处理，杜绝整页跳走白屏 ----
       // 事件委托捕获阶段拦截：只处理 Markdown 渲染区（.md-body）里的 <a>，
       // 其余站内链接（返回首页/上一项目/页面目录等）不受影响。
@@ -637,6 +664,8 @@
         const rel = this.normalizeRel(
           baseDir ? baseDir + "/" + rawHref : rawHref);
         if (!rel) { toast("链接路径越出了项目范围，无法打开", "error"); return; }
+        const variant = this.readmeVariantByRel(rel);
+        if (variant) { this.switchReadme(variant); return; }
         this.openDoc(rel);
       },
       // 规范化相对路径：去 ./ 前导、合并 ../，得到项目内相对路径
@@ -1515,11 +1544,15 @@
         this.activeSection = current || secs[0].id;
       },
       async loadReadme() {
-        if (this.p.is_lost) { this.readme = { exists: false }; return; }
+        if (this.p.is_lost) { this.readme = { exists: false, variants: [] }; return; }
+        // 带上本机记住的语言版本；该文件已不在根目录时后端自动回退主版本
+        const pref = localStorage.getItem(README_LANG_KEY + this.projectId) || "";
         try {
-          this.readme = await api(`/api/projects/${this.projectId}/readme`, { silent: true });
+          this.readme = await api(
+            `/api/projects/${this.projectId}/readme` +
+            (pref ? `?file=${encodeURIComponent(pref)}` : ""), { silent: true });
         } catch (e) {
-          this.readme = { exists: false };
+          this.readme = { exists: false, variants: [] };
         }
       },
       async loadTree() {
