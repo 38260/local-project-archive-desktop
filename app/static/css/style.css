@@ -1410,30 +1410,30 @@ body.modal-open { overflow: hidden; }
 .launch-note-actions { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-2); }
 /* ---- 统一启动项列表：自定义 + 自动检测混排，每行完整命令 ----
    拖动手柄独立于操作按钮：只有手柄可拖（draggable 在手柄上），按钮不触发拖动。 */
-.launch-list { display: flex; flex-direction: column; gap: 8px; }
+.launch-list { display: flex; flex-direction: column; gap: 4px; }
 .launch-row {
-  display: flex; align-items: flex-start; gap: 8px;
-  padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md);
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--r-sm);
   background: var(--panel-2);
 }
 .launch-row.dragging { opacity: .45; }
 .launch-handle {
-  flex: none; margin-top: 3px; padding: 2px;
+  flex: none; padding: 2px;
   color: var(--muted); cursor: grab; line-height: 0;
 }
 .launch-handle:active { cursor: grabbing; }
 .launch-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-.launch-info { flex: 1; min-width: 0; }
+.launch-info { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px 16px; }
 .launch-info-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.launch-name { font-size: 14px; }
+.launch-name { font-size: 14px; overflow-wrap: anywhere; }
 .launch-cmd {
-  display: block; margin-top: 4px;
+  display: block; flex: 1 1 140px; min-width: 0;
   font-family: var(--mono); font-size: 12px; color: var(--muted);
   word-break: break-all; white-space: normal;
 }
 .launch-meta {
-  display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px;
-  font-size: 12px; color: var(--muted);
+  display: flex; gap: 2px 8px; flex-wrap: wrap; max-width: 100%;
+  font-size: 12px; color: var(--muted); overflow-wrap: anywhere;
 }
 .lb-mode { color: var(--muted); flex: none; }
 .lb-tag, .lb-primary {
