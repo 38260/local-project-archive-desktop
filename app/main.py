@@ -136,78 +136,81 @@ def show_window():
         raise HTTPException(500, f"唤出窗口失败：{exc}")
 
 
-@app.get("/api/heatmap")
-def heatmap_all(weeks: int = Query(53, ge=8, le=104)):
-    """全部 git 项目的按天提交聚合（首页总热力图）。
-
-    并行收集各仓库，按天累加提交数并记录来源项目名，供悬浮提示展示。
-    """
+def _personal_activity(weeks: int = 53, day: str | None = None):
+    """两个首页入口共用身份快照与轻量提交源，保证去重口径相同。"""
     from concurrent.futures import ThreadPoolExecutor
 
-    from app.services import gitinfo
-
-    with get_db() as conn:
-        rows = [dict(r) for r in
-                conn.execute("SELECT path, name FROM projects ORDER BY id").fetchall()]
-
-    def collect(row: dict):
-        try:
-            res = gitinfo.collect_heatmap(row["path"], weeks=weeks)
-        except Exception:
-            res = {"is_repo": False, "days": {}}
-        res["name"] = row["name"]
-        return res
-
-    days: dict = {}
-    repos = 0
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        for res in pool.map(collect, rows):
-            if not res.get("is_repo"):
-                continue
-            repos += 1
-            for day, n in (res.get("days") or {}).items():
-                entry = days.setdefault(day, {"count": 0, "names": []})
-                entry["count"] += n
-                entry["names"].append(res["name"])
-    total = sum(e["count"] for e in days.values())
-    return {"days": days, "total": total, "repos": repos, "weeks": weeks,
-            "project_count": len(rows)}
-
-
-@app.get("/api/day-commits")
-def day_commits(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")):
-    """全部项目在指定日期的提交明细（首页热力图点击某天查看）。
-
-    并行收集各仓库当天提交，按项目分组返回；项目带 id/name 供跳转详情页。
-    """
-    from concurrent.futures import ThreadPoolExecutor
-
-    from app.services import gitinfo
+    from app.services import gitinfo, settings_store
 
     with get_db() as conn:
         rows = [dict(r) for r in
                 conn.execute("SELECT id, path, name FROM projects ORDER BY id").fetchall()]
+    emails = settings_store.git_author_emails()
+    if not emails:
+        return rows, [], True
 
     def collect(row: dict):
         try:
-            res = gitinfo.collect_commit_log(row["path"], limit=200, date=date)
+            res = gitinfo.collect_heatmap(row["path"], weeks=weeks,
+                                          author_emails=emails, include_commits=True, day=day)
         except Exception:
-            res = {"is_repo": False, "commits": []}
-        return row, res
+            res = {"is_repo": False, "commits": [], "error": "仓库读取失败"}
+        res["project"] = {"id": row["id"], "name": row["name"]}
+        return res
 
-    groups = []
-    total = 0
     with ThreadPoolExecutor(max_workers=8) as pool:
-        for row, res in pool.map(collect, rows):
-            commits = res.get("commits") or []
-            if not commits:
+        return rows, list(pool.map(collect, rows)), False
+
+
+@app.get("/api/heatmap")
+def heatmap_all(weeks: int = Query(53, ge=8, le=104)):
+    """本人提交按天聚合，同一完整哈希跨仓库只计一次。"""
+    rows, results, identity_required = _personal_activity(weeks=weeks)
+    days: dict = {}
+    seen = set()
+    for res in results:
+        for commit in res.get("commits", []):
+            day = commit["date"][:10]
+            entry = days.setdefault(day, {"count": 0, "names": []})
+            if res["project"]["name"] not in entry["names"]:
+                entry["names"].append(res["project"]["name"])
+            if commit["hash"] not in seen:
+                seen.add(commit["hash"])
+                entry["count"] += 1
+    total = sum(e["count"] for e in days.values())
+    return {"days": days, "total": total,
+            "repos": sum(bool(r.get("is_repo")) for r in results), "weeks": weeks,
+            "project_count": len(rows), "authors": "mine", "identity_required": identity_required,
+            "failed_repos": sum(bool(r.get("error")) for r in results)}
+
+
+@app.get("/api/day-commits")
+def day_commits(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")):
+    """本人当日明细按完整哈希去重，每条提交保留全部关联项目。"""
+    from datetime import date as calendar_date
+    try:
+        calendar_date.fromisoformat(date)
+    except ValueError as exc:
+        raise HTTPException(422, "日期不合法") from exc
+    _, results, identity_required = _personal_activity(day=date)
+    unique = {}
+    groups = {}
+    for res in results:
+        project = res["project"]
+        for commit in res.get("commits", []):
+            key = commit["hash"]
+            if key in unique:
+                unique[key]["projects"].append(project)
                 continue
-            total += len(commits)
-            groups.append({
-                "id": row["id"], "name": row["name"],
-                "count": len(commits), "commits": commits,
-            })
-    return {"date": date, "total": total, "projects": groups}
+            commit["projects"] = [project]
+            unique[key] = commit
+            group = groups.setdefault(project["id"], {**project, "commits": [], "count": 0})
+            group["commits"].append(commit)
+            group["count"] += 1
+    return {"date": date, "total": len(unique), "projects": list(groups.values()),
+            "project_count": len({p["id"] for c in unique.values() for p in c["projects"]}),
+            "authors": "mine", "identity_required": identity_required,
+            "failed_repos": sum(bool(r.get("error")) for r in results)}
 
 
 @app.get("/api/export")

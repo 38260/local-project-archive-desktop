@@ -1077,7 +1077,8 @@ def clear_runs(project_id: int):
 
 @router.get("/{project_id}/commits")
 def get_commits(project_id: int, limit: int = Query(50, ge=1, le=200),
-                date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$")):
+                date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+                authors: str = Query("all", pattern="^(all|mine)$")):
     """读取最近 git 提交记录，供前端时间线与简易统计展示。
 
     date 传 "YYYY-MM-DD" 时只返回当天提交（热力图点击查看用）。
@@ -1086,24 +1087,30 @@ def get_commits(project_id: int, limit: int = Query(50, ge=1, le=200),
         row = _get_row_or_404(conn, project_id)
     if not os.path.isdir(row["path"]):
         raise HTTPException(409, dir_not_exists_hint(row["path"]))
-    return gitinfo.collect_commit_log(row["path"], limit=limit, date=date)
+    emails = settings_store.git_author_emails() if authors == "mine" else None
+    result = gitinfo.collect_commit_log(row["path"], limit=limit, date=date, author_emails=emails)
+    return {**result, "authors": authors, "identity_required": emails == []}
 
 
 @router.get("/{project_id}/heatmap")
-def get_heatmap(project_id: int, weeks: int = Query(53, ge=8, le=104)):
+def get_heatmap(project_id: int, weeks: int = Query(53, ge=8, le=104),
+                authors: str = Query("all", pattern="^(all|mine)$")):
     """按天聚合最近 N 周提交数，供 GitHub 风格贡献热力图。"""
     with get_db() as conn:
         row = _get_row_or_404(conn, project_id)
     if not os.path.isdir(row["path"]):
         raise HTTPException(409, dir_not_exists_hint(row["path"]))
-    return gitinfo.collect_heatmap(row["path"], weeks=weeks)
+    emails = settings_store.git_author_emails() if authors == "mine" else None
+    result = gitinfo.collect_heatmap(row["path"], weeks=weeks, author_emails=emails)
+    return {**result, "authors": authors, "identity_required": emails == []}
 
 
 @router.get("/{project_id}/commit-stats")
 def get_commit_stats(project_id: int,
                      scope: str = Query("all", pattern="^(all|year)$"),
                      include_merges: bool = Query(False),
-                     max_commits: int = Query(COMMIT_STATS_MAX, ge=100, le=50000)):
+                     max_commits: int = Query(COMMIT_STATS_MAX, ge=100, le=50000),
+                     authors: str = Query("all", pattern="^(all|mine)$")):
     """提交构成分析：分类计数 + 发力点（类型分布 / 类型 × 月份堆叠）。
 
     与 /commits 的分工：那个返回最近 N 条**明细**（默认 50、上限 200），供时间线展示；
@@ -1117,9 +1124,11 @@ def get_commit_stats(project_id: int,
         row = _get_row_or_404(conn, project_id)
     if not os.path.isdir(row["path"]):
         raise HTTPException(409, dir_not_exists_hint(row["path"]))
-    return gitinfo.collect_commit_stats(
+    emails = settings_store.git_author_emails() if authors == "mine" else None
+    result = gitinfo.collect_commit_stats(
         row["path"], scope=scope, include_merges=include_merges,
-        max_commits=max_commits)
+        max_commits=max_commits, author_emails=emails)
+    return {**result, "authors": authors, "identity_required": emails == []}
 
 
 # ---------------------------------------------------------------------------

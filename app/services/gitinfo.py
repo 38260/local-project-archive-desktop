@@ -45,6 +45,14 @@ def _run_git(args: list[str], cwd: str, timeout: int = _GIT_TIMEOUT) -> str | No
 _NUMSTAT_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.+)$")
 
 
+def _author_args(author_emails: list[str] | None) -> list[str]:
+    # 尖括号限定完整邮箱；转义正则，多个 --author 按 Git 的或关系匹配。
+    if not author_emails:
+        return []
+    return ["--extended-regexp", "--regexp-ignore-case",
+            *(f"--author=<{re.escape(email)}>" for email in author_emails)]
+
+
 def collect_git_info(path: str) -> dict:
     """读取指定目录的 git 基础信息（分支、最近提交、提交总数、远端、历史概况）。"""
     result = {"is_repo": False, "branch": None, "last_commit": None,
@@ -129,7 +137,8 @@ def collect_git_info(path: str) -> dict:
     return result
 
 
-def collect_commit_log(path: str, limit: int = 50, date: str | None = None) -> dict:
+def collect_commit_log(path: str, limit: int = 50, date: str | None = None,
+                       author_emails: list[str] | None = None) -> dict:
     """读取 git 提交记录（时间线可视化用），只读操作。
 
     date 传 "YYYY-MM-DD" 时只返回当天（提交时区）的提交，供热力图点击查看。
@@ -151,7 +160,11 @@ def collect_commit_log(path: str, limit: int = 50, date: str | None = None) -> d
         return result
 
     result["is_repo"] = True
-    raw = _run_git(["rev-list", "--count", "HEAD"], path)
+    if author_emails == []:
+        result["total_count"] = 0
+        return result
+    author_args = _author_args(author_emails)
+    raw = _run_git(["rev-list", "--count", *author_args, "HEAD"], path)
     if raw:
         try:
             result["total_count"] = int(raw.strip())
@@ -164,7 +177,7 @@ def collect_commit_log(path: str, limit: int = 50, date: str | None = None) -> d
         date_args = [f"--since={date} 00:00:00", f"--until={date} 23:59:59"]
 
     # \x1e 分隔提交，\x1f 分隔字段；%B 为完整提交信息，其后跟 numstat 行
-    raw = _run_git(["log", f"--max-count={limit}", "--numstat", *date_args,
+    raw = _run_git(["log", *author_args, f"--max-count={limit}", "--numstat", *date_args,
                     "--pretty=format:%x1e%H%x1f%an%x1f%ae%x1f%cI%x1f%B"], path)
     if raw is None:
         # rev-list --count 同样失败多半是空仓库（尚无任何提交），否则按超时/异常降级
@@ -213,7 +226,9 @@ def collect_commit_log(path: str, limit: int = 50, date: str | None = None) -> d
     return result
 
 
-def collect_heatmap(path: str, weeks: int = 53) -> dict:
+def collect_heatmap(path: str, weeks: int = 53,
+                    author_emails: list[str] | None = None,
+                    include_commits: bool = False, day: str | None = None) -> dict:
     """按天聚合最近 N 周的全部提交次数（GitHub 风格贡献热力图数据源）。
 
     与 collect_commit_log 的 200 条上限无关：这里只取提交日期不展开 diff，
@@ -226,6 +241,8 @@ def collect_heatmap(path: str, weeks: int = 53) -> dict:
 
     result = {"is_repo": False, "days": {}, "total": 0, "weeks": weeks,
               "start": None, "end": None}
+    if include_commits:
+        result["commits"] = []
     if not _GITPY_AVAILABLE:
         result["error"] = "GitPython 未安装，无法读取 git 信息"
         return result
@@ -244,25 +261,41 @@ def collect_heatmap(path: str, weeks: int = 53) -> dict:
         # 网格终点 = 本周周日；起点 = weeks 周前的周日（周日起始，与 GitHub 一致）
         end = today + timedelta(days=(6 - today.weekday()) % 7 if today.weekday() != 6 else 0)
         start = end - timedelta(days=7 * weeks - 1)
+        if day:
+            start = end = date.fromisoformat(day)
+        result["start"] = start.isoformat()
+        result["end"] = end.isoformat()
+        if author_emails == []:
+            return result
         days: dict = {}
-        # %cI = committer 日期（严格 ISO）；--since 限定到网格起点，避免全历史遍历
-        raw = _run_git(["log", "--pretty=format:%cI", f"--since={start.isoformat()}"], path)
+        # 先按绝对时间宽取，再按提交自带时区的日期筛选，跨时区也不漏当天提交。
+        args = ["log", *_author_args(author_emails),
+                "--pretty=format:%H%x1f%cI%x1f%an%x1f%ae%x1f%s",
+                f"--since={(start - timedelta(days=2)).isoformat()}"]
+        if day:
+            args.append(f"--until={(end + timedelta(days=2)).isoformat()}")
+        raw = _run_git(args, path)
         if raw is None:
             result["error"] = "提交历史读取失败（仓库为空或 git 命令超时）"
             return result
         for line in raw.splitlines():
-            line = line.strip()
-            if len(line) < 10:
+            parts = line.split("\x1f", 4)
+            if len(parts) != 5:
                 continue
+            commit_hash, iso, author, email, subject = parts
             try:
-                d = date.fromisoformat(line[:10])
+                d = date.fromisoformat(iso[:10])
             except ValueError:
                 continue
-            if d > end:
+            if d < start or d > end:
                 continue
             key = d.isoformat()
             n = days.get(key)
             days[key] = 1 if n is None else n + 1
+            if include_commits:
+                result["commits"].append({"hash": commit_hash, "short": commit_hash[:8],
+                                          "date": iso, "author": author, "email": email,
+                                          "message": subject})
         # 范围内提交总数（范围外的历史提交不计入网格与总数）
         total = sum(n for k, n in days.items() if date.fromisoformat(k) >= start)
         result["days"] = days
@@ -344,7 +377,8 @@ def _is_known_type(ctype: str) -> bool:
 
 def collect_commit_stats(path: str, scope: str = "all",
                          include_merges: bool = False,
-                         max_commits: int = COMMIT_STATS_MAX) -> dict:
+                         max_commits: int = COMMIT_STATS_MAX,
+                         author_emails: list[str] | None = None) -> dict:
     """聚合提交构成，供详情页「提交构成分析」（分类计数 + 发力点）。
 
     只取「提交时间 + 首行」两个字段，**不带 --numstat/diff**——与 collect_heatmap
@@ -379,8 +413,10 @@ def collect_commit_stats(path: str, scope: str = "all",
         return result
 
     result["is_repo"] = True
+    if author_emails == []:
+        return result
     try:
-        args = ["log", f"--max-count={max_commits + 1}",   # 多取 1 条用于判断截断
+        args = ["log", *_author_args(author_emails), f"--max-count={max_commits + 1}",   # 多取 1 条用于判断截断
                 "--pretty=format:%cI%x1f%s"]
         # 合并提交用 git 自己的 --no-merges 排除（按父提交数判定），
         # 比"看 subject 是不是以 Merge 开头"准确；白名单里的 merge 类型
