@@ -227,7 +227,7 @@
       <h2>Git 信息 <span class="right section-note">解析于 {{ fmtTime(meta.parsed_at) }}</span></h2>
       <div class="meta-grid" v-if="gitInfo.is_repo">
         <div class="kv"><span class="k">当前分支</span><span class="v"><span class="chip-value">{{ gitInfo.branch || "－" }}</span></span></div>
-        <div class="kv"><span class="k">提交总数</span><span class="v" style="font-size:16px;font-weight:700">{{ fmtNum(gitInfo.commit_count) }}</span></div>
+        <div class="kv"><span class="k">仓库提交总数</span><span class="v" style="font-size:16px;font-weight:700">{{ fmtNum(gitInfo.commit_count) }}</span></div>
         <div class="kv"><span class="k">远端仓库</span><span class="v">{{ gitInfo.remote || "（无远端）" }}</span></div>
         <div class="kv" v-if="gitInfo.first_commit_date"><span class="k">首次提交</span><span class="v">{{ fmtTime(gitInfo.first_commit_date) }}</span></div>
         <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.branches && gitInfo.branches.length">
@@ -235,7 +235,7 @@
           <span class="v"><span class="chip-soft" v-for="b in gitInfo.branches" :key="b">{{ b }}</span></span>
         </div>
         <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.contributors && gitInfo.contributors.length">
-          <span class="k">贡献者</span>
+          <span class="k">仓库贡献者</span>
           <span class="v"><span class="chip-soft" v-for="c in gitInfo.contributors" :key="c.name">{{ c.name }} · {{ c.commits }} 次</span></span>
         </div>
         <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.last_commit">
@@ -258,7 +258,6 @@
           </button>
         </span>
       </h2>
-
       <div class="skel-stack" v-if="flowchartLoading">
         <span class="skel" style="width:60%;height:22px"></span>
         <span class="skel" style="width:100%;height:220px"></span>
@@ -791,6 +790,14 @@
           显示最近 {{ commitData.commits.length }} 条 · 点击单条展开详情
         </span>
       </h2>
+      <div class="commit-filters" role="group" aria-label="提交作者范围">
+        <button type="button" class="tfilter" :class="{on: commitAuthors === 'mine'}"
+                :aria-pressed="commitAuthors === 'mine'" @click="setCommitAuthors('mine')">仅本人</button>
+        <button type="button" class="tfilter" :class="{on: commitAuthors === 'all'}"
+                :aria-pressed="commitAuthors === 'all'" @click="setCommitAuthors('all')">全部作者</button>
+        <span class="section-note">{{ commitAuthors === 'mine' ? '按我的 Git 邮箱统计' : '包含 fork 继承的完整仓库历史' }}</span>
+      </div>
+      <div class="section-note" v-if="heat && heat.error">活动图读取失败：{{ heat.error }}</div>
       <!-- 按月提交柱状图：全量历史按日历月聚合，比逐日网格更直观。
            默认折叠（与下方「提交构成分析」的类型×月份堆叠柱信息重叠，两处都展开太占高度），
            折叠时仍保留"共 N 次提交"的摘要；折叠状态跨项目记忆。
@@ -807,7 +814,7 @@
               <b>{{ fmtNum(monthTotal) }}</b> 次提交
             </span>
           </span>
-          <span class="section-note">全量历史</span>
+          <span class="section-note">{{ commitAuthors === 'mine' ? '本人历史' : '全部作者历史' }}</span>
         </button>
         <div class="month-bars" v-show="!monthCollapsed" role="img" :aria-label="monthChartLabel">
           <div class="mb-col" v-for="m in monthBars" :key="m.key"
@@ -827,6 +834,7 @@
       <div class="ci-block" v-if="commitStatsLoading">
         <span class="skel" style="width:100%;height:104px"></span>
       </div>
+      <div class="section-note" v-else-if="commitStats && commitStats.error">提交构成分析不可用：{{ commitStats.error }}</div>
       <div class="ci-block" v-else-if="statsRows.length">
         <div class="ci-head">
           <span class="ci-title">提交构成分析</span>
@@ -943,7 +951,12 @@
           </span>
         </div>
       </template>
-      <div class="section-note" v-else-if="commitData && commitData.is_repo">该仓库还没有任何提交。</div>
+      <div class="section-note" v-else-if="commitData && commitData.identity_required">
+        请在设置中填写「我的 Git 邮箱」，以统计本人提交。
+        <button type="button" class="btn sm" @click="openSettings">设置 Git 邮箱</button>
+      </div>
+      <div class="section-note" v-else-if="commitData && commitData.error">{{ commitData.error }}</div>
+      <div class="section-note" v-else-if="commitData && commitData.is_repo">{{ commitAuthors === 'mine' ? '未找到匹配我的 Git 邮箱的提交。' : '该仓库还没有任何提交。' }}</div>
       <div class="section-note" v-else-if="commitData">当前目录不是 Git 仓库，无法展示提交记录。</div>
       <div class="section-note" v-else>提交记录不可用（路径丢失或读取失败）。</div>
     </section>

@@ -154,6 +154,8 @@
         editingLogId: null,
         editLogForm: { title: "", content: "", entry_date: "" },
         // Git 提交记录
+        commitAuthors: localStorage.getItem("tl-commit-authors") === "all" ? "all" : "mine",
+        gitRevision: 0,
         commitData: null,
         commitLoading: true,
         commitLoadingMore: false,
@@ -400,7 +402,8 @@
         const st = this.commitStats;
         if (!st || !st.is_repo) return "";
         const n = this.fmtNum(st.scanned);
-        return st.truncated ? `基于最近 ${n} 次提交（已截断）` : `全量 ${n} 次提交`;
+        const authors = this.commitAuthors === "mine" ? "仅本人" : "全部作者";
+        return authors + " · " + (st.truncated ? `基于最近 ${n} 次提交（已截断）` : `全量 ${n} 次提交`);
       },
       // 一句话结论：主要发力点 = 占比最高的类型 + 峰值月份 + 活跃天数
       statsConclusion() {
@@ -512,7 +515,7 @@
           { id: "sec-desc", label: "项目描述", hide: false },
           { id: "sec-notes", label: "开发笔记", hide: this.notes.length === 0 && this.noteDraft === null },
           { id: "sec-changelogs", label: "变更日志", hide: this.changelogs.length === 0 && this.logDraft === null },
-          { id: "sec-commits", label: "提交记录", hide: !(this.commitData && this.commitData.is_repo && this.commitData.commits.length) },
+          { id: "sec-commits", label: "提交记录", hide: !(this.gitInfo.is_repo || (this.commitData && this.commitData.is_repo)) },
           { id: "sec-shots", label: "截图", hide: false },
           { id: "sec-readme", label: "README", hide: !(this.readme && this.readme.exists) },
         ];
@@ -761,10 +764,7 @@
           this.loadRuns();
           // 先拿设置（决定提交记录加载数），再加载提交与热力图
           await this.loadPrefs();
-          this.loadCommits();
-          // 与分析块并行发起、互不 await：两者数据源独立，
-          // 分析块慢/失败都不该拖住时间线（反之亦然）
-          this.loadCommitStats();
+          this.reloadGit();
         } catch (e) {
           if (e.status === 404) this.notFound = true;
           else this.loadError = e.message || "加载失败";
@@ -782,16 +782,28 @@
             this.launchConfirm = s["launch.confirm"] !== false;
           }
         } catch (e) { /* 设置读取失败不影响详情页 */ }
-        this.loadHeatmap();
       },
       // ---- 设置（共享弹窗，见 js/settings.js；首页同款） ----
       openSettings() { this.$refs.settings.open(); },
       // 设置变更联动：prefs=编辑器命令/提交加载数/热力图范围随改随生效；
       // data=数据被恢复/清空，整页重载（load 自带 404 处理）
-      onSettingsChanged(kind) {
+      async onSettingsChanged(kind) {
         this.themeTick++;   // 主题可能被设置弹窗改过，顶栏按钮文字/图标需刷新
         if (kind === "data") { this.load(); return; }
-        this.loadPrefs();
+        await this.loadPrefs();
+        this.reloadGit();
+      },
+      setCommitAuthors(authors) {
+        if (authors === this.commitAuthors) return;
+        this.commitAuthors = authors;
+        localStorage.setItem("tl-commit-authors", authors);
+        this.reloadGit();
+      },
+      reloadGit() {
+        this.gitRevision++;
+        this.commitData = this.commitStats = this.heat = null;
+        this.commitTypeFilter = "";
+        return Promise.all([this.loadCommits(), this.loadCommitStats(), this.loadHeatmap()]);
       },
       // ---- 流程图（自动识别 / 选择替换 / 上传） ----
       async loadFlowchart() {
@@ -1213,11 +1225,13 @@
       // 提交活动数据：固定取一年按天聚合（足以覆盖 12 个完整日历月），
       // 半年/一年视图由前端从同一份数据聚合，切换跨度不再重新请求
       async loadHeatmap() {
+        const revision = this.gitRevision;
         try {
-          this.heat = await api(
-            `/api/projects/${this.projectId}/heatmap?weeks=53`, { silent: true });
+          const result = await api(
+            `/api/projects/${this.projectId}/heatmap?weeks=53&authors=${this.commitAuthors}`, { silent: true });
+          if (revision === this.gitRevision) this.heat = result;
         } catch (e) {
-          this.heat = null;
+          if (revision === this.gitRevision) this.heat = null;
         }
       },
       // 点击热力图某天：按日期取当天提交并在弹窗展示
@@ -1466,28 +1480,34 @@
       // 提交构成分析：全量分类计数 + 类型×月份（后端只回计数，不回明细）
       // 失败时置 null，模板据此整块隐藏或显示降级文案，不影响时间线与其它面板
       async loadCommitStats() {
+        const revision = this.gitRevision;
         this.commitStatsLoading = true;
         try {
-          this.commitStats = await api(
-            `/api/projects/${this.projectId}/commit-stats`, { silent: true });
+          const result = await api(
+            `/api/projects/${this.projectId}/commit-stats?authors=${this.commitAuthors}`, { silent: true });
+          if (revision === this.gitRevision) this.commitStats = result;
         } catch (e) {
-          this.commitStats = null;
+          if (revision === this.gitRevision) this.commitStats = null;
         } finally {
-          this.commitStatsLoading = false;
+          if (revision === this.gitRevision) this.commitStatsLoading = false;
         }
       },
       async loadCommits(more) {
+        const revision = this.gitRevision;
         if (more) this.commitLoadingMore = true;
         else this.commitLoading = true;
         if (!more) this.expandedCommits = [];
         try {
-          this.commitData = await api(
-            `/api/projects/${this.projectId}/commits?limit=${this.commitLimit}`, { silent: true });
+          const result = await api(
+            `/api/projects/${this.projectId}/commits?limit=${this.commitLimit}&authors=${this.commitAuthors}`, { silent: true });
+          if (revision === this.gitRevision) this.commitData = result;
         } catch (e) {
-          this.commitData = null;
+          if (revision === this.gitRevision) this.commitData = null;
         } finally {
-          this.commitLoading = false;
-          this.commitLoadingMore = false;
+          if (revision === this.gitRevision) {
+            this.commitLoading = false;
+            this.commitLoadingMore = false;
+          }
         }
       },
       loadMoreCommits() {

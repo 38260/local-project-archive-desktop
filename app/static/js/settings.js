@@ -64,7 +64,8 @@
       async loadPrefs() {
         try {
           this.prefs = await api("/api/settings", { silent: true });
-          this.gitEmailsText = (this.prefs["git.author_emails"] || []).join("\n");
+          this.gitEmailsText = Array.isArray(this.prefs["git.author_emails"])
+            ? this.prefs["git.author_emails"].join("\n") : "";
         } catch (e) { this.prefs = {}; }
       },
       async saveGitEmails() {
@@ -77,7 +78,7 @@
           });
           this.gitEmailsText = this.prefs["git.author_emails"].join("\n");
           this.$emit("changed", "prefs", "git.author_emails");
-          toast("Git 邮箱已保存，个人贡献已重新统计", "ok");
+          toast("Git 邮箱已保存", "ok");
         } catch (e) { /* 保留输入，便于修正后重试 */ }
         finally { this.gitEmailsSaving = false; }
       },

@@ -123,9 +123,9 @@
         <tl-icon name="chevron-down" :size="13" class="heat-chev"
                   :class="{ folded: heatCollapsed }"></tl-icon>
         <span class="heat-title">
-          开发活动
-          <span class="heat-sub">
-            最近 {{ heatWeeks === 26 ? "半年" : "一年" }} {{ heatGrid.repos }} 个仓库共
+          开发活动 · 仅本人
+          <span class="heat-sub" v-if="!heat.identity_required">
+            最近 {{ heatWeeks === 26 ? "半年" : "一年" }} · {{ heatGrid.repos }} 个仓库共
             <b>{{ fmtNum(heatGrid.total) }}</b> 次提交
           </span>
         </span>
@@ -137,7 +137,13 @@
           <span>多</span>
         </span>
       </button>
-      <div class="heat-body" v-show="!heatCollapsed">
+      <div class="heat-body section-note" v-if="heat.identity_required">
+        请填写「我的 Git 邮箱」后统计个人贡献。
+        <button type="button" class="btn sm" @click="openSettings">设置 Git 邮箱</button>
+      </div>
+      <div class="heat-body section-note" v-if="heat.failed_repos">{{ heat.failed_repos }} 个仓库读取失败，当前统计可能不完整。</div>
+      <div class="heat-body" v-show="!heatCollapsed && !heat.identity_required">
+        <div class="section-note" style="margin-bottom:8px">仅统计本人作者邮箱，相同提交跨项目只计一次。</div>
         <!-- 流体布局：格子随面板宽度等比缩放（上限约 19px），月份标签按百分比定位 -->
         <div class="gh-heat gh-heat--fluid">
           <div class="gh-heat-inner" :style="{ maxWidth: (heatWeeks * 21 + 30) + 'px' }">
@@ -152,7 +158,7 @@
               </div>
               <div class="gh-grid" role="img"
                    :style="{ aspectRatio: heatWeeks + ' / 7' }"
-                   :aria-label="`全部项目提交热力图，共 ${fmtNum(heatGrid.total)} 次提交`">
+                   :aria-label="`本人提交热力图，共 ${fmtNum(heatGrid.total)} 次提交`">
                 <template v-for="(col, ci) in heatGrid.cols" :key="'hc' + ci">
                   <template v-for="(cell, ri) in col" :key="ci + '-' + ri">
                     <span v-if="cell" class="hm-cell gh"
@@ -459,8 +465,9 @@
         <template v-else-if="dayData">
           <p class="day-summary">
             共 <b>{{ fmtNum(dayData.total) }}</b> 次提交，来自
-            {{ dayData.projects.length }} 个项目
+            {{ dayData.project_count ?? dayData.projects.length }} 个项目（相同提交只计一次）
           </p>
+          <div class="section-note" v-if="dayData.failed_repos">{{ dayData.failed_repos }} 个仓库读取失败，明细可能不完整。</div>
           <div v-if="!dayData.projects.length" class="day-empty">这一天没有提交记录</div>
           <div class="day-group" v-for="g in dayData.projects" :key="g.id">
             <div class="day-group-head">
@@ -480,6 +487,10 @@
                     <span class="ct-user-dot" :style="{ background: userColor(c.author) }"></span>
                     {{ c.author }} · {{ fmtTime(c.date) }}
                   </span>
+                </div>
+                <div class="section-note" v-if="c.projects && c.projects.length > 1">
+                  也在：<a v-for="p in c.projects.slice(1)" :key="p.id" :href="'/project/' + p.id"
+                          style="margin-right:8px">{{ p.name }}</a>
                 </div>
               </li>
             </ul>

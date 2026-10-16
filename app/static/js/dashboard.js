@@ -40,6 +40,8 @@
         dropProjectId: null,
         // 首页总热力图（全部项目提交聚合）
         heat: null,
+        heatRevision: 0,
+        dayRevision: 0,
         heatWeeks: 53,
         // 折叠状态：**默认收起**，先把下面的项目列表露出来；用户手动展开后按本机偏好记住。
         // 存储语义取「已展开」而不是「已收起」——这样「没存过」天然等于收起，无需额外迁移；
@@ -399,9 +401,11 @@
       },
       // 首页总热力图：全部 git 项目按天提交聚合
       async loadHeatmap() {
+        const revision = ++this.heatRevision;
         try {
-          this.heat = await api(`/api/heatmap?weeks=${this.heatWeeks}`, { silent: true });
-        } catch (e) { this.heat = null; }
+          const result = await api(`/api/heatmap?weeks=${this.heatWeeks}`, { silent: true });
+          if (revision === this.heatRevision) this.heat = result;
+        } catch (e) { if (revision === this.heatRevision) this.heat = null; }
       },
       toggleHeat() {
         this.heatCollapsed = !this.heatCollapsed;
@@ -411,15 +415,16 @@
       // 点击热力图某天：弹窗展示该日全部项目的提交明细
       openDayDetail(cell) {
         if (!cell || !cell.n) return;   // 无提交的日子不可点
+        const revision = ++this.dayRevision;
         this.showDay = true;
         this.dayData = null;
         this.dayLoading = true;
         api(`/api/day-commits?date=${cell.date}`, { silent: true })
-          .then(d => { this.dayData = d; })
-          .catch(() => { this.showDay = false; /* toast 已提示 */ })
-          .finally(() => { this.dayLoading = false; });
+          .then(d => { if (revision === this.dayRevision) this.dayData = d; })
+          .catch(() => { if (revision === this.dayRevision) this.showDay = false; /* toast 已提示 */ })
+          .finally(() => { if (revision === this.dayRevision) this.dayLoading = false; });
       },
-      closeDay() { this.showDay = false; this.dayData = null; },
+      closeDay() { this.dayRevision++; this.showDay = false; this.dayData = null; this.dayLoading = false; },
       // ---- 设置（共享弹窗，见 js/settings.js） ----
       openSettings() { this.$refs.settings.open(); },
       // 设置变更联动：prefs=刷新编辑器按钮/主题/热力图范围等联动状态；
@@ -428,6 +433,10 @@
         this.themeTick++;
         if (key === "ui.show_discarded_default") this.showDiscarded = !!value;
         this.loadPrefs();
+        if (key === "git.author_emails") {
+          this.closeDay();
+          this.loadHeatmap();
+        }
         if (kind === "data") this.load();
       },
       async openDataFolder() {
