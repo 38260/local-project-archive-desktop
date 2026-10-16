@@ -48,6 +48,17 @@ function page(file) {
   assert.equal(detail.commitData, null);
   assert.equal(detail.commitStats, null);
   assert.equal(detail.commitLoading, false);
+  const before = pending.length;
+  const theme = detail.onSettingsChanged("prefs", "theme");
+  pending[before].resolve({});
+  await theme;
+  assert.equal(pending.length, before + 1, "主题变化不重跑 Git 分析");
+  const identity = detail.onSettingsChanged("prefs", "git.author_emails");
+  pending[before + 1].resolve({});
+  await identity;
+  assert.equal(pending.length, before + 5, "身份变化同时刷新三个 Git 入口");
+  pending.slice(before + 2).forEach(p => p.resolve({ scope: "all" }));
+  await new Promise(resolve => setImmediate(resolve));
 
   const { instance: home, pending: requests } = page("dashboard.js");
   const first = home.loadHeatmap();

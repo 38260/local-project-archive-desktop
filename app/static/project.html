@@ -814,7 +814,6 @@
               <b>{{ fmtNum(monthTotal) }}</b> 次提交
             </span>
           </span>
-          <span class="section-note">{{ commitAuthors === 'mine' ? '本人历史' : '全部作者历史' }}</span>
         </button>
         <div class="month-bars" v-show="!monthCollapsed" role="img" :aria-label="monthChartLabel">
           <div class="mb-col" v-for="m in monthBars" :key="m.key"

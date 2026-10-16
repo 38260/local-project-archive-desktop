@@ -145,6 +145,7 @@ def collect_commit_log(path: str, limit: int = 50, date: str | None = None,
     一次 `git log --numstat` 取回提交与变更规模，避免逐提交算 diff（大仓库慢）。
     返回 {is_repo, total_count, commits: [{hash, short, author, email, date,
     message, stats}], error}；非 git 目录时 is_repo=False。
+    author_emails=None 表示全部作者，空列表表示未设置身份，不匹配任何人。
     """
     result = {"is_repo": False, "total_count": None, "commits": [], "error": None}
     if not _GITPY_AVAILABLE:
@@ -231,11 +232,12 @@ def collect_heatmap(path: str, weeks: int = 53,
                     include_commits: bool = False, day: str | None = None) -> dict:
     """按天聚合最近 N 周的全部提交次数（GitHub 风格贡献热力图数据源）。
 
-    与 collect_commit_log 的 200 条上限无关：这里只取提交日期不展开 diff，
+    与 collect_commit_log 的 200 条上限无关：只取提交元数据，不展开 diff，
     一年数千次提交也在毫秒级。--since 限定到网格起点（约 weeks 周），
     超大仓库不再全历史遍历；前端按月柱状图最多聚合 12 个日历月，网格
-    起点比它更早几天，覆盖足够。author 日期早于 since 的少量越界提交
-    仍由前端按范围过滤。
+    起点比它更早几天，覆盖足够。按提交自带时区的日期过滤范围。
+    include_commits=True 另返回去重所需的轻量提交，day 指定时只返回该日。
+    author_emails=None 表示全部作者，空列表不匹配任何人。
     """
     from datetime import date, timedelta
 

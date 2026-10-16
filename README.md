@@ -15,7 +15,7 @@
 
 ![首页 · 项目总览](docs/screenshots/01-首页-项目总览.png)
 
-**开发活动热力图** —— 聚合全部仓库的按天提交，悬浮显示日期与来源项目，跨度半年 / 一年可切换。
+**开发活动热力图** —— 聚合全部仓库中本人作者邮箱的按天提交，相同提交跨仓库只计一次；悬浮显示日期与来源项目，跨度半年 / 一年可切换。fork 继承的他人提交不计入个人贡献。
 
 ![首页 · 开发活动热力图](docs/screenshots/02-首页-开发活动热力图.png)
 
@@ -52,13 +52,17 @@
 
 ![详情 · 构建配置与文件统计](docs/screenshots/09-详情-构建配置与文件统计.png)
 
-**提交记录与月度分布** —— 按月提交柱状图（全量历史、当月高亮）+ 类型筛选 + 提交时间线（点击单条展开完整详情）。
+**提交记录与月度分布** —— 可切换「仅本人 / 全部作者」，同步影响按月提交柱状图、提交构成分析和时间线；点击单条展开完整详情。选择会在本机记住。
 
 ![详情 · 提交记录与月度分布](docs/screenshots/10-详情-提交记录与月度分布.png)
 
 **提交构成分析** —— 类型分布环状图 + 类型 × 月份堆叠柱 + 一句话结论，直接回答「主要发力点在哪里」。
 
 ![详情 · 提交构成分析](docs/screenshots/11-详情-提交构成分析.png)
+
+首次使用个人贡献统计，请进入「设置 → 通用 → 我的 Git 邮箱」，填写提交时使用的作者邮箱，每行一个并点击「保存 Git 邮箱」。支持最多 20 个邮箱，包括旧邮箱与 GitHub 隐私邮箱；邮箱忽略大小写并按完整地址匹配。未配置时显示设置提示，不自动把全部作者计为本人。保存后当前页立即刷新统计。
+
+首页按完整提交哈希去重，当日明细中的「也在」可打开同一提交关联的其他项目。项目详情统计当前 HEAD 的可达历史，基础信息里的仓库总数与仓库贡献者仍展示全部作者。提交构成分析延续默认排除合并提交的口径，所以可能少于提交列表总数。更改邮箱仅影响归迹的统计，不修改被收录仓库的配置或历史。
 
 **项目描述、开发笔记与变更日志** —— 描述是单篇 Markdown（左编辑右实时预览），笔记是多条可增删改的记录，
 变更日志独立于 git 提交手写。
@@ -236,10 +240,11 @@ local-project-archive-desktop/
 | GET/PUT/DELETE | /api/projects/{id} | 详情 / 更新（含改路径）/ 删除；DELETE `/all` 清空 |
 | POST | /api/projects/{id}/pin | 置顶切换 |
 | POST | /api/projects/{id}/rescan | 重新解析磁盘 |
-| GET | /api/projects/{id}/commits | git 提交记录（`limit`、`date` 按天过滤） |
-| GET | /api/projects/{id}/heatmap | 单项目提交热力图（按天聚合） |
-| GET | /api/projects/{id}/commit-stats | 提交构成分析（全量聚合：类型分布 / 类型×月份 / 活跃天数；`scope`、`include_merges`、`max_commits` 可选） |
-| GET | /api/heatmap | 全项目提交热力图聚合 |
+| GET | /api/projects/{id}/commits | git 提交记录（`limit`、`date` 按天过滤；`authors=mine/all`，默认 all） |
+| GET | /api/projects/{id}/heatmap | 单项目提交热力图；可选 authors=mine/all，默认 all |
+| GET | /api/projects/{id}/commit-stats | 提交构成分析（类型 / 月份 / 活跃天数；`scope`、`include_merges`、`max_commits`、`authors=mine/all` 可选，作者默认 all） |
+| GET | /api/heatmap | 全项目本人提交热力图，完整哈希去重；未设置邮箱返回 identity_required |
+| GET | /api/day-commits | 本人指定日期唯一提交，附全部关联项目入口 |
 | GET/POST | /api/projects/{id}/notes、/changelogs | 笔记与变更日志（PUT/DELETE 同路径） |
 | GET | /api/projects/{id}/readme、/tree、/screenshots | README（`?file=README_EN.md` 选语言版本，返回 `variants`/`active`）/ 目录树 / 截图 |
 | POST | /api/projects/{id}/open | 资源管理器 / 所选编辑器打开 |

@@ -787,11 +787,11 @@
       openSettings() { this.$refs.settings.open(); },
       // 设置变更联动：prefs=编辑器命令/提交加载数/热力图范围随改随生效；
       // data=数据被恢复/清空，整页重载（load 自带 404 处理）
-      async onSettingsChanged(kind) {
+      async onSettingsChanged(kind, key) {
         this.themeTick++;   // 主题可能被设置弹窗改过，顶栏按钮文字/图标需刷新
         if (kind === "data") { this.load(); return; }
         await this.loadPrefs();
-        this.reloadGit();
+        if (["git.author_emails", "commits.limit", "ui.heatmap_weeks"].includes(key)) this.reloadGit();
       },
       setCommitAuthors(authors) {
         if (authors === this.commitAuthors) return;

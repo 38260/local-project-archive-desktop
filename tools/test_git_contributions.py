@@ -102,6 +102,14 @@ class GitContributionTests(unittest.TestCase):
         self.assertEqual(result["total"], 1)
         self.assertEqual(result["commits"][0]["message"], "fix: offset")
 
+    def test_literal_brackets_and_dot_in_email(self):
+        for email in ("dev[bot]@example.com", "devb@exampleXcom"):
+            git(self.repo, "commit", "--allow-empty", "-m", "fix: literal mailbox",
+                GIT_AUTHOR_NAME="Same Name", GIT_AUTHOR_EMAIL=email)
+        result = gitinfo.collect_commit_log(str(self.repo), author_emails=["dev[bot]@example.com"])
+        self.assertEqual(result["total_count"], 1)
+        self.assertEqual(result["commits"][0]["email"], "dev[bot]@example.com")
+
     def test_read_only_and_degraded_results(self):
         before = git(self.repo, "status", "--porcelain=v1"), git(self.repo, "rev-parse", "HEAD")
         gitinfo.collect_commit_log(str(self.repo), author_emails=self.emails)
