@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import tempfile
 
 from app.config import DATA_DIR
@@ -39,6 +40,7 @@ DEFAULTS: dict = {
     "ui.project_sort": "最近更新",  # 首页当前排序方式
     # 详情页
     "commits.limit": 200,            # 提交记录单次加载数（后端上限 200）
+    "git.author_emails": [],         # 个人贡献使用的作者邮箱，可包含旧邮箱和隐私邮箱
     "ui.heatmap_weeks": 53,          # 提交热力图范围（26=半年 / 53=一年）
     # 导出
     "export.html_include_notes": True,  # 导出 HTML 是否包含笔记与变更日志
@@ -74,6 +76,30 @@ def all() -> dict:
 def get(key: str, default=None):
     """读单个设置；未知键返回 default。"""
     return all().get(key, default)
+
+
+def normalize_git_emails(value) -> list[str]:
+    """校验完整邮箱并去重，避免无效身份被误用于贡献筛选。"""
+    if not isinstance(value, list) or len(value) > 20:
+        raise ValueError("我的 Git 邮箱必须是列表，最多 20 个")
+    emails = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError("Git 邮箱必须是文本")
+        email = item.strip().lower()
+        if len(email) > 254 or not re.fullmatch(r"[^\s<>@,;]+@[^\s<>@,;]+", email):
+            raise ValueError("请填写完整 Git 邮箱，每行一个")
+        if email not in emails:
+            emails.append(email)
+    return emails
+
+
+def git_author_emails() -> list[str]:
+    """无效的旧配置按未配置处理，绝不放宽到全部作者。"""
+    try:
+        return normalize_git_emails(get("git.author_emails", []))
+    except ValueError:
+        return []
 
 
 def update(pairs: dict) -> dict:

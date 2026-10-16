@@ -65,6 +65,11 @@ def put_settings(body: Dict[str, Any]):
             raise HTTPException(400, "设置键必须是非空字符串")
         if isinstance(v, str) and len(v) > _MAX_STR_LEN:
             raise HTTPException(400, f"设置值过长：{k}")
+    if "git.author_emails" in body:
+        try:
+            body["git.author_emails"] = settings_store.normalize_git_emails(body["git.author_emails"])
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
     return settings_store.update(body)
 
 

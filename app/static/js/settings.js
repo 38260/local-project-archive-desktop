@@ -18,6 +18,8 @@
         visible: false,   // 弹窗开关（不得叫 open：会与 open() 方法同名冲突，data 会遮蔽方法）
         tab: "general",   // general | desktop | data | danger
         prefs: {},        // 通用设置键值（来自 /api/settings）
+        gitEmailsText: "",
+        gitEmailsSaving: false,
         themeTick: 0,     // 主题按钮响应 window.themePref() 的开关
         tabbarVisible: window.tlTabbarVisible(),  // 顶部标签栏显隐（纯界面偏好，走 localStorage）
         editorOptions: [],
@@ -62,7 +64,22 @@
       async loadPrefs() {
         try {
           this.prefs = await api("/api/settings", { silent: true });
+          this.gitEmailsText = (this.prefs["git.author_emails"] || []).join("\n");
         } catch (e) { this.prefs = {}; }
+      },
+      async saveGitEmails() {
+        if (this.gitEmailsSaving) return;
+        this.gitEmailsSaving = true;
+        try {
+          const emails = this.gitEmailsText.split(/[\s,;，；]+/).filter(Boolean);
+          this.prefs = await api("/api/settings", {
+            method: "PUT", body: { "git.author_emails": emails },
+          });
+          this.gitEmailsText = this.prefs["git.author_emails"].join("\n");
+          this.$emit("changed", "prefs", "git.author_emails");
+          toast("Git 邮箱已保存，个人贡献已重新统计", "ok");
+        } catch (e) { /* 保留输入，便于修正后重试 */ }
+        finally { this.gitEmailsSaving = false; }
       },
       async savePref(key) {
         try {
@@ -307,6 +324,18 @@
                 <input type="number" class="keep-input" min="1" max="6"
                        v-model.number="prefs['scan.default_depth']"
                        @change="savePref('scan.default_depth')" aria-label="默认扫描深度">
+              </div>
+              <div class="setting-row" style="margin-top:10px">
+                <div>
+                  <span class="setting-title">我的 Git 邮箱</span>
+                  <span class="setting-desc">只统计这些作者邮箱的个人贡献；支持旧邮箱和 GitHub 隐私邮箱。每行一个，留空则不统计本人提交。</span>
+                  <textarea class="pref-input" style="width:100%;margin-top:8px" rows="3"
+                            v-model="gitEmailsText" :disabled="gitEmailsSaving"
+                            placeholder="me@example.com" aria-label="我的 Git 邮箱"></textarea>
+                  <button type="button" class="btn sm" @click="saveGitEmails" :disabled="gitEmailsSaving">
+                    {{ gitEmailsSaving ? "保存中…" : "保存 Git 邮箱" }}
+                  </button>
+                </div>
               </div>
               <div class="setting-row" style="margin-top:10px">
                 <div>
