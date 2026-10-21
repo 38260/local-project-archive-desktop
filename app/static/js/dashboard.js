@@ -658,6 +658,8 @@
   app.component("tl-settings-dialog", window.TlSettingsDialog);
   app.directive("modal", window.TlModal);
   const root = app.mount("#app");
+  // 根实例挂在 window 上：托盘「打开设置」与自动化验证（首页自动更新）共用
+  window.__tlHomeVM = root;
   // 软导航切换页面时要卸载本应用（见 common.js 的 softNavigate），
   // 否则旧实例的事件监听 / 定时器会跟着页面残留下来
   window.__tlPageApp = app;

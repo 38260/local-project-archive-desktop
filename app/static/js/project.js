@@ -138,6 +138,9 @@
         // 子块每次进入详情页都收起——「需要记录时再打开」。
         personalOpen: localStorage.getItem("tl-personal-open") === "1",
         recordOpen: { desc: false, notes: false, logs: false },
+        // 自动更新：进入页面 / 回到前台 / 桌面恢复时后台刷新采集数据。
+        // state: idle 静默 | running 更新中 | done 已更新（短暂） | error 失败可重试
+        autoRefresh: { state: "idle", reason: "", changed: false, at: "" },
         // 其他
         rescanning: false,
         showEdit: false,
@@ -802,6 +805,106 @@
           if (e.status === 404) this.notFound = true;
           else this.loadError = e.message || "加载失败";
         }
+      },
+      // ---- 自动更新（进入页面 / 回到前台 / 桌面恢复）----
+      // 先渲染已有内容，后台刷新采集数据，完成后只替换受影响的部分；
+      // 描述 / 笔记 / 日志 / 启动项这些带草稿的状态一律不动。
+      autoRefreshStart(force) {
+        if (this._disposed) return;
+        clearTimeout(this._refreshTimer);
+        // focus 与 visibilitychange 往往同时来，合并成一次请求（服务端还有 30s 冷却）
+        this._refreshTimer = setTimeout(() => this.runAutoRefresh(!!force), force ? 0 : 300);
+      },
+      async runAutoRefresh(force) {
+        if (this._disposed || !this.p || this._refreshing) return;
+        const pid = this.projectId;
+        this._refreshing = true;
+        this.autoRefresh.state = "running";
+        this.autoRefresh.reason = "";
+        try {
+          const r = await api("/api/refresh", {
+            method: "POST", body: { ids: [pid], force: !!force }, silent: true,
+          });
+          if (this._disposed || pid !== this.projectId) return;
+          if (!r || !r.job_id) {          // 冷却中：静默结束，不打扰
+            this.autoRefresh.state = "idle";
+            return;
+          }
+          const job = await this.pollRefreshJob(r.job_id, pid);
+          if (this._disposed || pid !== this.projectId) return;
+          if (!job) throw new Error("刷新任务超时");
+          const item = (job.items || []).find(x => x.id === pid);
+          if (!item) { this.autoRefresh.state = "idle"; return; }
+          if (item.ok === false) {
+            this.autoRefresh.state = "error";
+            this.autoRefresh.reason = item.reason || "刷新失败";
+            return;
+          }
+          this.autoRefresh.at = item.refreshed_at || "";
+          this.autoRefresh.changed = !!item.changed;
+          if (item.changed) await this.applyAutoRefresh(pid);
+          this.autoRefresh.state = "done";
+          setTimeout(() => {
+            if (!this._disposed && this.autoRefresh.state === "done") this.autoRefresh.state = "idle";
+          }, 2500);
+        } catch (e) {
+          if (!this._disposed && pid === this.projectId) {
+            this.autoRefresh.state = "error";
+            const raw = (e && e.message) || "";
+            // fetch 层失败的原文（Failed to fetch）对用户没有意义，换成能行动的提示
+            this.autoRefresh.reason = /Failed to fetch|NetworkError|Load failed/i.test(raw)
+              ? "无法连接本地服务，请确认程序仍在运行"
+              : (raw || "刷新失败");
+          }
+        } finally {
+          this._refreshing = false;
+        }
+      },
+      // 轮询任务；切换项目 / 页面卸载 / 任务过期都立即放弃
+      async pollRefreshJob(jobId, pid) {
+        const deadline = Date.now() + 60000;
+        while (Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 600));
+          if (this._disposed || pid !== this.projectId) return null;
+          try {
+            const j = await api(`/api/refresh/${jobId}`, { silent: true });
+            if (j.state === "done") return j;
+          } catch (e) {
+            if (e.status === 404) return null;
+          }
+        }
+        return null;
+      },
+      // 局部替换：只换采集数据与派生视图，保留所有编辑中的草稿
+      async applyAutoRefresh(pid) {
+        const latest = await api(`/api/projects/${pid}`, { silent: true });
+        if (this._disposed || pid !== this.projectId) return;
+        const dirty = this.descDirty;
+        this.p = Object.assign({}, latest, {
+          // 有未保存描述时保留用户输入；否则用服务端最新值
+          description: dirty ? this.p.description : latest.description,
+        });
+        this.meta = latest.auto_meta || {};
+        this.statuses = latest.statuses || this.statuses;
+        this.newPath = latest.is_lost ? "" : latest.path;
+        // 脏状态下不动基线/预览，否则草稿会被误判成已保存
+        if (!dirty) {
+          this.descBaseline = latest.description || "";
+          this.descLive = latest.description_html || "";
+        }
+        this.loadReadme();
+        this.loadTree();
+        this.loadFlowchart();
+        await this.reloadGitQuiet();
+      },
+      // 静默重载 Git 视图：不显示骨架屏，也不清用户的类型筛选与展开状态
+      async reloadGitQuiet() {
+        this.gitRevision++;
+        await Promise.all([
+          this.loadCommits(false, true),
+          this.loadCommitStats(true),
+          this.loadHeatmap(),
+        ]);
       },
       // 读取通用设置：提交记录加载数 / 热力图范围（设置里改了立即生效于下次加载）
       async loadPrefs() {
@@ -1516,9 +1619,10 @@
       // ---- Git 提交记录 ----
       // 提交构成分析：全量分类计数 + 类型×月份（后端只回计数，不回明细）
       // 失败时置 null，模板据此整块隐藏或显示降级文案，不影响时间线与其它面板
-      async loadCommitStats() {
+      // quiet=true：自动更新用，不显示骨架屏、不清空展开状态（局部替换，不闪烁）
+      async loadCommitStats(quiet) {
         const revision = this.gitRevision;
-        this.commitStatsLoading = true;
+        if (!quiet) this.commitStatsLoading = true;
         try {
           const result = await api(
             `/api/projects/${this.projectId}/commit-stats?authors=${this.commitAuthors}`, { silent: true });
@@ -1529,11 +1633,11 @@
           if (revision === this.gitRevision) this.commitStatsLoading = false;
         }
       },
-      async loadCommits(more) {
+      async loadCommits(more, quiet) {
         const revision = this.gitRevision;
         if (more) this.commitLoadingMore = true;
-        else this.commitLoading = true;
-        if (!more) this.expandedCommits = [];
+        else if (!quiet) this.commitLoading = true;
+        if (!more && !quiet) this.expandedCommits = [];
         try {
           const result = await api(
             `/api/projects/${this.projectId}/commits?limit=${this.commitLimit}&authors=${this.commitAuthors}`, { silent: true });
@@ -1783,7 +1887,19 @@
       },
     },
     mounted() {
-      this.load();
+      // 第一屏用库里的旧数据先渲染；渲染完再后台刷新采集数据（不阻塞、不闪烁）
+      this.load().then(() => {
+        if (!this._disposed && this.p) this.autoRefreshStart();
+      });
+      // 回到前台：切窗口、最小化恢复都会触发；focus 与 visibilitychange 由去抖合并
+      this._onVisible = () => {
+        if (document.visibilityState === "visible") this.autoRefreshStart();
+      };
+      document.addEventListener("visibilitychange", this._onVisible);
+      this._onFocus = () => this.autoRefreshStart();
+      window.addEventListener("focus", this._onFocus);
+      // 桌面壳（desktop.py）把窗口从最小化/托盘真正唤到前台后调用
+      window.tlOnWindowResume = () => this.autoRefreshStart();
       // 顶部标签栏 / 其它共享组件的跳转统一走 tlNavigate，避免绕过「未保存内容」确认
       window.tlNavigate = (url) => this.leaveConfirm(url);
       window.addEventListener("scroll", this.onScroll, { passive: true });
@@ -1810,6 +1926,11 @@
       document.addEventListener("click", this._onMdClick, true);
     },
     beforeUnmount() {
+      this._disposed = true;                    // 停止自动更新的轮询与回填
+      clearTimeout(this._refreshTimer);
+      document.removeEventListener("visibilitychange", this._onVisible);
+      window.removeEventListener("focus", this._onFocus);
+      window.tlOnWindowResume = null;
       window.removeEventListener("scroll", this.onScroll);
       document.removeEventListener("keydown", this._onKey);
       document.removeEventListener("click", this._onMdClick, true);
@@ -1825,7 +1946,8 @@
   app.directive("modal", window.TlModal);
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用
   Object.assign(app.config.globalProperties, window.TL_HELPERS);
-  app.mount("#app");
+  // 根实例挂在 window 上：桌面壳诊断、自动化验证（自动更新/草稿保护）都从这里取组件
+  window.__tlProjectVM = app.mount("#app");
   // 软导航切换页面时要卸载本应用（见 common.js 的 softNavigate）：
   // beforeUnmount 里负责清掉滚动 / 键盘 / 全局点击监听与运行输出轮询
   window.__tlPageApp = app;

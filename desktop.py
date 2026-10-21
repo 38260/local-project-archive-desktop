@@ -859,6 +859,20 @@ def main() -> int:
     # 窗口大小/位置：变化时防抖持久化（closing/closed 时机窗口已不可读，见 track_geometry）
     track_geometry(window, logger)
 
+    # 从最小化/托盘恢复到前台后，通知页面做一次后台刷新（前端自带去抖与 30 秒冷却，
+    # 重复触发无害）。页面若没有注册钩子（例如还在加载）则静默跳过。
+    def _on_resumed(*_args):
+        try:
+            window.evaluate_js("window.tlOnWindowResume && window.tlOnWindowResume();")
+        except Exception as exc:
+            logger.debug("通知页面恢复失败：%s", exc)
+
+    try:
+        window.events.restored += _on_resumed
+    except Exception:
+        pass          # 某些后端没有 restored 事件：退回只靠前端 focus/visibilitychange
+    window.events.shown += _on_resumed
+
     if start_maximized:
         # 启动时自愈一次：清掉历史上被误记成窗口尺寸的最大化范围，
         # 否则用户以后关掉「启动时最大化」，点「还原」会得到一个铺满屏幕的普通窗口。

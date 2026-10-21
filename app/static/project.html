@@ -149,6 +149,24 @@
       </div>
     </div>
 
+    <!-- 自动更新提示：轻量状态条，正常更新不打断阅读，失败可重试 -->
+    <div class="auto-refresh-strip" v-if="autoRefresh.state !== 'idle'"
+         :class="{ error: autoRefresh.state === 'error' }" role="status" aria-live="polite">
+      <template v-if="autoRefresh.state === 'running'">
+        <tl-icon name="refresh" :size="13" class="spin"></tl-icon>
+        <span>正在后台更新采集数据…（当前内容可继续操作）</span>
+      </template>
+      <template v-else-if="autoRefresh.state === 'done'">
+        <tl-icon name="check" :size="13"></tl-icon>
+        <span>采集数据已更新</span>
+      </template>
+      <template v-else>
+        <tl-icon name="warning" :size="13"></tl-icon>
+        <span>自动更新失败：{{ autoRefresh.reason }}</span>
+        <button class="btn sm" @click="runAutoRefresh(true)">重试</button>
+      </template>
+    </div>
+
     <!-- 丢失项目提示与路径修复 -->
     <div class="banner-lost" v-if="p.is_lost">
       <tl-icon name="warning" :size="16"></tl-icon>

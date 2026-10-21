@@ -1284,6 +1284,20 @@ body.modal-open { overflow: hidden; }
 .dep-stats .c-warn { color: var(--warn); }
 .dep-stats .c-danger { color: var(--danger); }
 
+/* ---- 详情页自动更新提示条（后台刷新时的一条轻量状态，不遮挡内容） ---- */
+.auto-refresh-strip {
+  display: flex; align-items: center; gap: 7px;
+  margin: -4px 0 var(--s-3); padding: 6px 12px;
+  font-size: 12.5px; color: var(--muted);
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.auto-refresh-strip .licon { flex: none; color: var(--accent); }
+.auto-refresh-strip .btn { margin-left: auto; }
+.auto-refresh-strip.error { color: var(--danger); border-color: var(--danger); }
+.auto-refresh-strip.error .licon { color: var(--danger); }
+.auto-refresh-strip.error .btn { border-color: var(--danger); color: var(--danger); }
+
 /* ---- 个人记录：项目描述 / 笔记 / 变更日志统一收纳（默认折叠） ---- */
 .personal-panel > h2.personal-head {
   margin: 0; padding-left: 0; border-left: none;
