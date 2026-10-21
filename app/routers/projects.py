@@ -29,8 +29,8 @@ from app.models import (
     NoteUpdate, OpenFileRequest, OpenRequest, ProjectCreate, ProjectUpdate,
 )
 from app.services import (duplicates, flowchart as flowchart_service, gitinfo,
-                          launcher as launcher_service, parser, recent, runlog,
-                          settings_store)
+                          launcher as launcher_service, parser, recent, refresh,
+                          runlog, settings_store)
 from app.services.paths import (
     PathError, basename, dir_not_exists_hint, is_wsl_path, normalize_input_path,
 )
@@ -360,14 +360,9 @@ def delete_project(project_id: int):
             "note": "仅删除档案记录，原项目文件未做任何改动"}
 
 
-def _merge_tags(old_tags: str, new_tech_tags: list[str]) -> str:
-    """合并旧标签与新自动识别的标签：保留已有（含手动添加），补充新识别。"""
-    old = json.loads(old_tags or "[]")
-    merged = list(old) + [t for t in new_tech_tags if t not in old]
-    return json.dumps(merged, ensure_ascii=False)
-
-
 # 「全部重新解析」后台任务状态（单用户场景，一份全局状态足够）
+# 实际解析与写回统一交给 services.refresh：自动刷新与手动批量共用「按项目」的锁，
+# 避免同一项目被两个任务同时解析、重复写入。
 _RESCAN_JOB = {"running": False, "finished": False,
                "done": 0, "total": 0, "ok": 0, "failed": []}
 
@@ -376,33 +371,16 @@ def _rescan_worker(rows) -> None:
     """后台线程：解析并发跑，进度实时写入 _RESCAN_JOB。"""
 
     def parse_one(row):
-        if not os.path.isdir(row["path"]):
-            return row, None, "路径丢失"
-        try:
-            return row, parser.parse_project(row["path"]), None
-        except OSError as exc:
-            return row, None, f"解析失败：{exc}"
+        return row, refresh.refresh_now(row["id"], mode="manual")
 
     try:
         with ThreadPoolExecutor(max_workers=4) as pool:
-            for row, parsed, error in pool.map(parse_one, rows):
-                if error:
+            for row, result in pool.map(parse_one, rows):
+                if not result.get("ok"):
                     _RESCAN_JOB["failed"].append(
-                        {"id": row["id"], "name": row["name"], "reason": error})
-                    if error == "路径丢失":
-                        with get_db() as conn:
-                            conn.execute("UPDATE projects SET is_lost=1, lost_reason=? "
-                                         "WHERE id=?",
-                                         (dir_not_exists_hint(row["path"]), row["id"]))
+                        {"id": row["id"], "name": row["name"],
+                         "reason": result.get("reason") or "解析失败"})
                 else:
-                    with get_db() as conn:
-                        conn.execute(
-                            "UPDATE projects SET auto_meta=?, fs_created=?, fs_modified=?, "
-                            "tags=?, is_lost=0, lost_reason='', updated_at=? WHERE id=?",
-                            (json.dumps(parsed["auto_meta"], ensure_ascii=False),
-                             parsed["fs_created"], parsed["fs_modified"],
-                             _merge_tags(row["tags"], parsed["auto_meta"]["tech_tags"]),
-                             _now(), row["id"]))
                     _RESCAN_JOB["ok"] += 1
                 _RESCAN_JOB["done"] += 1
     finally:
@@ -461,34 +439,24 @@ def refresh_lost_marks() -> None:
 
 @router.post("/{project_id}/rescan")
 def rescan_project(project_id: int):
-    """重新解析磁盘信息；路径已失效时标记为丢失项目。"""
+    """重新解析磁盘信息（手动：合并技术栈标签、刷新 updated_at）。
+
+    写回与并发控制统一走 services.refresh：若该项目正在被自动刷新处理，
+    这里会等它结束再解析，保证手动操作拿到最新结果，也不会重复写库。
+    """
     with get_db() as conn:
-        row = _get_row_or_404(conn, project_id)
-        if not os.path.isdir(row["path"]):
-            reason = dir_not_exists_hint(row["path"])
-            conn.execute("UPDATE projects SET is_lost=1, lost_reason=?, updated_at=? "
-                         "WHERE id=?", (reason, _now(), project_id))
-            row = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
-            result = _detail_dict(row)
-            result["parse_ok"] = False
-            return result
-        try:
-            parsed = parser.parse_project(row["path"])
-            conn.execute(
-                "UPDATE projects SET auto_meta=?, fs_created=?, fs_modified=?, tags=?, "
-                "is_lost=0, lost_reason='' WHERE id=?",
-                (json.dumps(parsed["auto_meta"], ensure_ascii=False),
-                 parsed["fs_created"], parsed["fs_modified"],
-                 _merge_tags(row["tags"], parsed["auto_meta"]["tech_tags"]),
-                 project_id))
-        except OSError as exc:
-            # 无权限等读取异常：不中断服务，友好提示
-            raise HTTPException(502, f"解析失败（目录无权限或 IO 错误）：{exc}")
-        conn.execute("UPDATE projects SET updated_at=? WHERE id=?", (_now(), project_id))
+        _get_row_or_404(conn, project_id)
+    result = refresh.refresh_now(project_id, mode="manual")
+    if result.get("busy"):
+        raise HTTPException(409, result.get("reason") or "该项目正在刷新，请稍后重试")
+    if not result.get("ok"):
+        raise HTTPException(502, result.get("reason") or "解析失败")
+    with get_db() as conn:
         row = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
-    result = _detail_dict(row)
-    result["parse_ok"] = True
-    return result
+    out = _detail_dict(row)
+    # 路径失效时 parse_ok=False（前端据此提示「路径丢失」，不是请求失败）
+    out["parse_ok"] = not result.get("lost", False)
+    return out
 
 
 @router.get("/{project_id}/readme")

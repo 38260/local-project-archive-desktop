@@ -42,6 +42,13 @@ class ScanRequest(BaseModel):
     max_depth: int = Field(3, ge=1, le=8)
 
 
+class RefreshRequest(BaseModel):
+    """请求后台刷新一批项目的采集数据（自动刷新与手动重试共用）。"""
+    ids: List[int] = Field(default_factory=list, max_length=500)
+    force: bool = False                      # 跳过 30 秒冷却（手动触发）
+    source: Literal["auto", "manual"] = "auto"
+
+
 class ScanImportRequest(BaseModel):
     """批量导入扫描候选。"""
     paths: List[str]

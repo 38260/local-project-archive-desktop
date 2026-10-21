@@ -20,7 +20,7 @@ from app.config import (APP_AUTHOR, APP_NAME, APP_VERSION, DATA_DIR,
                         STATIC_DIR, STATUS_VALUES, DB_PATH)
 from app.db import get_db, init_db
 from app.models import OpenUrlRequest, RenderRequest
-from app.routers import projects, scanner, settings
+from app.routers import projects, refresh as refresh_api, scanner, settings
 from app.services.render import render_markdown
 
 logging.basicConfig(level=logging.INFO,
@@ -82,6 +82,7 @@ init_db()
 app.include_router(projects.router)
 app.include_router(scanner.router)
 app.include_router(settings.router)
+app.include_router(refresh_api.router)
 
 
 # ---------------------------------------------------------------------------
