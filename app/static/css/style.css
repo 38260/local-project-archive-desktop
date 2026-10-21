@@ -1282,6 +1282,57 @@ body.modal-open { overflow: hidden; }
 .dep-stats .c-warn { color: var(--warn); }
 .dep-stats .c-danger { color: var(--danger); }
 
+/* ---- 个人记录：项目描述 / 笔记 / 变更日志统一收纳（默认折叠） ---- */
+.personal-panel > h2.personal-head {
+  margin: 0; padding-left: 0; border-left: none;
+  display: flex; align-items: center; gap: var(--s-2);
+}
+.personal-toggle {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1; min-width: 0;
+  background: none; border: none; padding: 2px 0;
+  font: inherit; font-size: 17px; font-weight: 700; color: var(--text);
+  text-align: left; cursor: pointer;
+}
+.personal-toggle:hover .personal-title { color: var(--accent); }
+.personal-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--r-sm); }
+.personal-chev { flex: none; color: var(--muted); transition: transform .18s ease; }
+.personal-panel:not(.open) .personal-chev { transform: rotate(-90deg); }
+.personal-title { flex: none; }
+.personal-hint {
+  min-width: 0; font-size: 13px; font-weight: 400; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 窄屏让头部右侧的存储说明让位，优先保住摘要 */
+@media (max-width: 900px) {
+  .personal-head > .section-note { display: none; }
+}
+
+.personal-body { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.record-block {
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--bg);
+}
+.record-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; }
+.record-block.is-open .record-head { border-bottom: 1px solid var(--border); }
+.record-toggle {
+  display: flex; align-items: center; gap: 7px;
+  min-width: 0; padding: 0; background: none; border: none;
+  font: inherit; color: var(--text); cursor: pointer;
+}
+.record-toggle:hover .record-name { color: var(--accent); }
+.record-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--r-sm); }
+.record-name { flex: none; font-size: 14.5px; font-weight: 600; }
+.record-meta {
+  font-size: 12.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.record-chev { flex: none; color: var(--muted); transition: transform .18s ease; }
+.record-block:not(.is-open) .record-chev { transform: rotate(-90deg); }
+.record-head .fill { flex: 1; }
+.record-body { padding: 12px; }
+.record-empty { margin: 0; font-size: 13.5px; color: var(--muted); }
+
 /* ---- 笔记 / 变更日志条目 ---- */
 .note-list { margin-top: var(--s-3); display: flex; flex-direction: column; gap: 10px; }
 .note-item {
@@ -1832,6 +1883,9 @@ body.modal-open { overflow: hidden; }
   .detail-layout .detail-main { display: block; }
   .panel, .card, .proj-card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
   .commit-scroll { max-height: none; overflow: visible; }
+  /* 个人记录默认折叠：打印时强制展开，保证纸质/PDF 内容完整 */
+  .personal-body, .record-body { display: block !important; }
+  .record-block { break-inside: avoid; }
   a { color: inherit; text-decoration: none; }
 }
 

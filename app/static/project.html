@@ -598,46 +598,78 @@
       </div>
     </section>
 
-    <!-- 项目描述（存数据库，不写入原项目目录） -->
-    <section class="panel" id="sec-desc">
-      <h2>项目描述
-        <span class="right section-note">
-          <span v-if="descDirty" class="dirty-dot" title="有未保存的修改">● 未保存</span>
-          存储于本机数据库，不会写入原项目文件夹
-        </span>
+    <!-- 个人记录：项目描述 / 开发笔记 / 手写变更日志统一收纳
+         数据仍存各自的原表（不迁移），默认折叠，展开后才可新增或编辑 -->
+    <section class="panel personal-panel" id="sec-personal" :class="{ open: personalOpen }">
+      <h2 class="personal-head">
+        <button type="button" class="personal-toggle" @click="togglePersonal"
+                :aria-expanded="personalOpen" aria-controls="personal-body">
+          <tl-icon name="chevron-down" :size="15" class="personal-chev"></tl-icon>
+          <span class="personal-title">个人记录</span>
+          <span class="personal-hint">{{ personalSummary }}</span>
+          <span v-if="personalDirty" class="dirty-dot" title="有未保存的修改">● 未保存</span>
+        </button>
+        <span class="right section-note">存储于本机数据库，不会写入原项目文件夹</span>
       </h2>
-      <div class="split">
-        <div>
-          <div class="md-toolbar">
-            <button @click="mdWrap('descEditor', '**', '**')" title="加粗">B</button>
-            <button @click="mdWrap('descEditor', '*', '*')" title="斜体"><i>I</i></button>
-            <button @click="mdWrap('descEditor', '`', '`')" title="行内代码">‹›</button>
-            <button @click="mdWrap('descEditor', '\n## ', '')" title="二级标题">H2</button>
-            <button @click="mdWrap('descEditor', '- ', '')" title="列表">••</button>
-            <button @click="mdWrap('descEditor', '\n```bash\n', '\n```')" title="代码块" aria-label="代码块">
-              <tl-icon name="code" :size="14"></tl-icon>
+      <div class="personal-body" id="personal-body" v-show="personalOpen">
+
+        <!-- 项目描述（README 已能介绍项目，这里作为补充） -->
+        <div class="record-block" id="sec-desc" :class="{ 'is-open': recordOpen.desc }">
+          <div class="record-head">
+            <button type="button" class="record-toggle" @click="toggleRecord('desc')"
+                    :aria-expanded="recordOpen.desc">
+              <tl-icon name="chevron-down" :size="13" class="record-chev"></tl-icon>
+              <span class="record-name">项目描述</span>
+              <span class="record-meta">{{ descSummary }}</span>
+            </button>
+            <span class="fill"></span>
+            <button v-if="!recordOpen.desc" class="btn sm" @click="openRecord('desc')">
+              <tl-icon name="pencil" :size="13"></tl-icon>{{ descDirty ? "继续编辑" : "编辑" }}
             </button>
           </div>
-          <textarea ref="descEditor" class="md-editor" v-model="p.description"
-                    @input="onDescInput"
-                    placeholder="用 Markdown 记录：&#10;## 项目背景&#10;## 实现功能&#10;## 运行部署命令"></textarea>
+          <div class="record-body" v-show="recordOpen.desc">
+            <div class="split">
+              <div>
+                <div class="md-toolbar">
+                  <button @click="mdWrap('descEditor', '**', '**')" title="加粗">B</button>
+                  <button @click="mdWrap('descEditor', '*', '*')" title="斜体"><i>I</i></button>
+                  <button @click="mdWrap('descEditor', '`', '`')" title="行内代码">‹›</button>
+                  <button @click="mdWrap('descEditor', '\n## ', '')" title="二级标题">H2</button>
+                  <button @click="mdWrap('descEditor', '- ', '')" title="列表">••</button>
+                  <button @click="mdWrap('descEditor', '\n```bash\n', '\n```')" title="代码块" aria-label="代码块">
+                    <tl-icon name="code" :size="14"></tl-icon>
+                  </button>
+                </div>
+                <textarea ref="descEditor" class="md-editor" v-model="p.description"
+                          @input="onDescInput"
+                          placeholder="用 Markdown 记录：&#10;## 项目背景&#10;## 实现功能&#10;## 运行部署命令"></textarea>
+              </div>
+              <div class="md-preview md-body" v-html="descLive"></div>
+            </div>
+            <div class="editor-actions">
+              <span class="draft-hint" v-if="hasDescDraft">已恢复上次未保存的草稿</span>
+              <button class="btn primary" @click="saveDesc" :disabled="savingDesc || !descDirty">
+                <tl-icon name="save" :size="15"></tl-icon>{{ savingDesc ? "保存中…" : "保存描述" }}
+              </button>
+            </div>
+          </div>
         </div>
-        <div class="md-preview md-body" v-html="descLive"></div>
-      </div>
-      <div class="editor-actions">
-        <span class="draft-hint" v-if="hasDescDraft">已恢复上次未保存的草稿</span>
-        <button class="btn primary" @click="saveDesc" :disabled="savingDesc || !descDirty">
-          <tl-icon name="save" :size="15"></tl-icon>{{ savingDesc ? "保存中…" : "保存描述" }}
-        </button>
-      </div>
-    </section>
 
-    <!-- 自定义开发笔记（多条） -->
-    <section class="panel" id="sec-notes">
-      <h2>开发笔记
-        <span class="count">{{ notes.length }} 条</span>
-        <span class="right section-note">开发体会 / 思考心得 / 踩坑点 / 解决方案</span>
-      </h2>
+        <!-- 开发笔记（多条） -->
+        <div class="record-block" id="sec-notes" :class="{ 'is-open': recordOpen.notes }">
+          <div class="record-head">
+            <button type="button" class="record-toggle" @click="toggleRecord('notes')"
+                    :aria-expanded="recordOpen.notes">
+              <tl-icon name="chevron-down" :size="13" class="record-chev"></tl-icon>
+              <span class="record-name">开发笔记</span>
+              <span class="record-meta">{{ notesSummary }}</span>
+            </button>
+            <span class="fill"></span>
+            <button class="btn sm" @click="openNoteDraft">
+              <tl-icon name="plus" :size="13"></tl-icon>新建笔记
+            </button>
+          </div>
+          <div class="record-body" v-show="recordOpen.notes">
       <div class="panel-compact-bar" v-if="notesError">
         笔记加载失败，数据未丢失，可重试
         <span class="fill"></span>
@@ -645,13 +677,9 @@
           <tl-icon name="refresh" :size="13"></tl-icon>重试
         </button>
       </div>
-      <div class="panel-compact-bar" v-else-if="!notes.length && noteDraft === null">
-        暂无笔记，随手记录开发体会与踩坑
-        <span class="fill"></span>
-        <button class="btn sm primary" @click="noteDraft = ''">
-          <tl-icon name="plus" :size="13"></tl-icon>新建笔记
-        </button>
-      </div>
+      <p class="record-empty" v-else-if="!notes.length && noteDraft === null">
+        暂无笔记，点右上角「新建笔记」记录开发体会与踩坑。
+      </p>
       <div v-if="noteDraft !== null">
         <div class="md-toolbar">
           <button @click="mdWrap('noteDraftEditor', '**', '**')" title="加粗">B</button>
@@ -703,14 +731,24 @@
           </template>
         </div>
       </div>
-    </section>
+          </div>
+        </div>
 
-    <!-- 自定义变更日志（手写，独立于 git 提交） -->
-    <section class="panel" id="sec-changelogs">
-      <h2>变更日志
-        <span class="count">{{ changelogs.length }} 条</span>
-        <span class="right section-note">手动记录版本改动 / 功能新增 / 重大调整，独立于 git 提交</span>
-      </h2>
+        <!-- 手写变更日志（独立于 git 提交） -->
+        <div class="record-block" id="sec-changelogs" :class="{ 'is-open': recordOpen.logs }">
+          <div class="record-head">
+            <button type="button" class="record-toggle" @click="toggleRecord('logs')"
+                    :aria-expanded="recordOpen.logs">
+              <tl-icon name="chevron-down" :size="13" class="record-chev"></tl-icon>
+              <span class="record-name">变更日志</span>
+              <span class="record-meta">{{ logsSummary }}</span>
+            </button>
+            <span class="fill"></span>
+            <button class="btn sm" @click="openLogEntry">
+              <tl-icon name="plus" :size="13"></tl-icon>新增条目
+            </button>
+          </div>
+          <div class="record-body" v-show="recordOpen.logs">
       <div class="panel-compact-bar" v-if="logsError">
         变更日志加载失败，数据未丢失，可重试
         <span class="fill"></span>
@@ -718,13 +756,9 @@
           <tl-icon name="refresh" :size="13"></tl-icon>重试
         </button>
       </div>
-      <div class="panel-compact-bar" v-else-if="!changelogs.length && logDraft === null">
-        暂无变更日志，记录人为的版本改动
-        <span class="fill"></span>
-        <button class="btn sm primary" @click="openLogDraft">
-          <tl-icon name="plus" :size="13"></tl-icon>新增条目
-        </button>
-      </div>
+      <p class="record-empty" v-else-if="!changelogs.length && logDraft === null">
+        暂无变更日志。日常看下方 Git 提交记录即可，有需要再手写条目。
+      </p>
       <div v-if="logDraft !== null">
         <div class="log-form-row">
           <input type="text" v-model.trim="logDraftTitle" aria-label="条目标题"
@@ -778,6 +812,9 @@
               </button>
             </div>
           </template>
+        </div>
+      </div>
+          </div>
         </div>
       </div>
     </section>

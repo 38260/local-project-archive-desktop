@@ -133,6 +133,11 @@
         descBaseline: "",
         descDraftRestored: false,
         savingDesc: false,
+        // 个人记录（项目描述 / 开发笔记 / 手写变更日志）：
+        // 三块统一收纳，默认折叠。容器的展开偏好记在 localStorage（跨项目），
+        // 子块每次进入详情页都收起——「需要记录时再打开」。
+        personalOpen: localStorage.getItem("tl-personal-open") === "1",
+        recordOpen: { desc: false, notes: false, logs: false },
         // 其他
         rescanning: false,
         showEdit: false,
@@ -259,6 +264,35 @@
         return ((this.p && this.p.description) || "") !== this.descBaseline;
       },
       hasDescDraft() { return this.descDraftRestored; },
+      // ---- 个人记录（折叠区）摘要：收起时也能看出有没有内容 ----
+      descSummary() {
+        const t = ((this.p && this.p.description) || "").trim();
+        return t ? `已填写 ${t.length} 字` : "未填写";
+      },
+      notesSummary() {
+        if (this.notesError) return "加载失败";
+        if (!this.notes.length) return this.noteDraft !== null ? "编辑中" : "暂无";
+        return `${this.notes.length} 条`;
+      },
+      logsSummary() {
+        if (this.logsError) return "加载失败";
+        if (!this.changelogs.length) return this.logDraft !== null ? "编辑中" : "暂无";
+        return `${this.changelogs.length} 条`;
+      },
+      personalSummary() {
+        const t = ((this.p && this.p.description) || "").trim();
+        return [
+          t ? `描述 ${t.length} 字` : "描述未填",
+          `笔记 ${this.notes.length}`,
+          `变更 ${this.changelogs.length}`,
+        ].join(" · ");
+      },
+      // 折叠状态下也要暴露未保存状态（描述草稿 / 笔记草稿 / 日志草稿）
+      personalDirty() {
+        return this.descDirty
+          || (this.noteDraft != null && String(this.noteDraft).trim() !== "")
+          || (this.logDraft != null && String(this.logDraft).trim() !== "");
+      },
       prevProject() {
         const i = this.siblings.findIndex(s => s.id === this.projectId);
         return i > 0 ? this.siblings[i - 1] : null;
@@ -512,9 +546,8 @@
           { id: "sec-launch", label: "启动", hide: !!(this.p && this.p.is_lost) },
           { id: "sec-configs", label: "构建配置", hide: !(this.meta && this.meta.configs && this.meta.configs.length) },
           { id: "sec-stats", label: "文件统计", hide: false },
-          { id: "sec-desc", label: "项目描述", hide: false },
-          { id: "sec-notes", label: "开发笔记", hide: this.notes.length === 0 && this.noteDraft === null },
-          { id: "sec-changelogs", label: "变更日志", hide: this.changelogs.length === 0 && this.logDraft === null },
+          // 描述 / 开发笔记 / 手写变更日志统一收进「个人记录」，目录只留一个入口
+          { id: "sec-personal", label: "个人记录", hide: false },
           { id: "sec-commits", label: "提交记录", hide: !(this.gitInfo.is_repo || (this.commitData && this.commitData.is_repo)) },
           { id: "sec-shots", label: "截图", hide: false },
           { id: "sec-readme", label: "README", hide: !(this.readme && this.readme.exists) },
@@ -535,7 +568,7 @@
           { id: "g-build", icon: "package", label: "构建与统计",
             items: pick(["sec-configs", "sec-stats"]) },
           { id: "g-records", icon: "file-text", label: "内容记录",
-            items: pick(["sec-desc", "sec-notes", "sec-changelogs", "sec-commits"]) },
+            items: pick(["sec-personal", "sec-commits"]) },
           { id: "g-attach", icon: "image", label: "附件",
             items: pick(["sec-shots", "sec-readme"]) },
         ].filter(g => g.items.length);
@@ -1245,6 +1278,10 @@
         if (saved != null && saved !== this.p.description) {
           this.p.description = saved;
           this.descDraftRestored = true;
+          // 恢复的草稿不能藏在折叠区里：直接展开容器与描述块
+          // （只改本次会话的展开态，不动 localStorage 里的偏好）
+          this.personalOpen = true;
+          this.recordOpen.desc = true;
           this.descLiveDebounce();
         }
       },
@@ -1537,18 +1574,47 @@
         if (i >= 0) this.expandedCommits.splice(i, 1);
         else this.expandedCommits.push(hash);
       },
+      // ---- 个人记录折叠区（项目描述 / 开发笔记 / 手写变更日志） ----
+      setPersonalOpen(open) {
+        this.personalOpen = open;
+        localStorage.setItem("tl-personal-open", open ? "1" : "0");
+      },
+      togglePersonal() { this.setPersonalOpen(!this.personalOpen); },
+      toggleRecord(key) { this.recordOpen[key] = !this.recordOpen[key]; },
+      // 展开容器（可同时展开指定子块）：目录跳转与头部入口都走这里
+      openRecord(key) {
+        if (!this.personalOpen) this.setPersonalOpen(true);
+        if (key) this.recordOpen[key] = true;
+      },
+      // 笔记入口：展开块 → 打开编辑器 → 聚焦（收起状态下一键开始写）
+      openNoteDraft() {
+        this.openRecord("notes");
+        if (this.noteDraft === null) this.noteDraft = "";
+        this.$nextTick(() => {
+          const el = this.$refs.noteDraftEditor;
+          if (el && el.focus) el.focus();
+        });
+      },
+      // 变更日志入口：展开块 → 打开新增表单
+      openLogEntry() {
+        this.openRecord("logs");
+        if (this.logDraft === null) this.openLogDraft();
+      },
       // ---- 左侧锚点目录 ----
       scrollTo(id) {
         // 点击后锁定高亮，等平滑滚动结束再交还滚动监听，
         // 避免页面触底时（目标无法滚到顶部）高亮跳回上一个面板
         this.activeSection = id;
         this.spySuspendedUntil = Date.now() + 1000;
-        const el = document.getElementById(id);
-        if (el) {
+        // 个人记录默认折叠：先展开再定位，否则算出来的是展开前的高度
+        if (id === "sec-personal") this.openRecord();
+        this.$nextTick(() => {
+          const el = document.getElementById(id);
+          if (!el) return;
           el.scrollIntoView({ behavior: "smooth", block: "start" });
           el.classList.add("flash");
           setTimeout(() => el.classList.remove("flash"), 1200);
-        }
+        });
       },
       // 滚动监听：高亮当前视口所在的面板
       onScroll() {
