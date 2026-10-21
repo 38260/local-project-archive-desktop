@@ -228,6 +228,8 @@ a:hover { text-decoration: underline; }
    所以看到的是"旁边的标签滑开让位"，而不是一个僵硬的插入线。 */
 .tab.dragging { opacity: .45; }
 .tab-strip.dragging { cursor: grabbing; }
+/* 整块标签可拖（不再只限文件夹图标）：拖动中把光标统一成抓手 */
+.tab-strip.dragging .tab, .tab-strip.dragging .tab-handle { cursor: grabbing; }
 .tab-move-move { transition: transform .18s cubic-bezier(.2, .7, .3, 1); }
 
 /* 右侧「最近项目」下拉：打开不在标签里的其它最近项目 */

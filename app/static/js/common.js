@@ -947,7 +947,11 @@
     methods: {
       go(url) { window.tlNavigate(url); },
       openHome() { if (this.curId !== null) this.go("/"); },
-      openTab(t) { if (t.id !== this.curId) this.go("/project/" + t.id); },
+      openTab(t) {
+        // 拖拽松手的那一下浏览器可能补发 click：短时间内不当作切换
+        if (Date.now() - (this._dragEndAt || 0) < 250) return;
+        if (t.id !== this.curId) this.go("/project/" + t.id);
+      },
       hasTab(id) { return this.tabs.some(t => t.id === id); },
       nameOf(id) { return (this.names[id] && this.names[id].name) || ("项目 #" + id); },
       aliasOf(id) { return (this.names[id] && this.names[id].alias) || ""; },
@@ -1103,9 +1107,20 @@
       },
       onStripDragOver(ev) { if (this.dragId != null) ev.preventDefault(); },
       onStripDrop(ev) { ev.preventDefault(); this.onDragEnd(); },
+      // 键盘排序：Alt+←/→ 与相邻标签交换（拖动之外的无障碍入口，也是精准微调手段）
+      moveTab(t, delta) {
+        const from = this.tabs.findIndex(x => x.id === t.id);
+        const to = from + delta;
+        if (from < 0 || to < 0 || to >= this.tabs.length) return;
+        const [item] = this.tabs.splice(from, 1);
+        this.tabs.splice(to, 0, item);
+        this.persist();
+        this.afterTabsChange();
+      },
       onDragEnd() {
         if (this.dragId == null) return;
         this.dragId = null;
+        this._dragEndAt = Date.now();   // 松手后的 click 不触发切页
         this.persist();     // 拖完立刻落盘，刷新后顺序不变
       },
       async init() {
@@ -1183,13 +1198,17 @@
                  :class="{ on: t.id === curId, dragging: t.id === dragId }"
                  :aria-selected="t.id === curId ? 'true' : 'false'"
                  :title="tabTitle(t)"
+                 :data-project-id="t.id"
+                 draggable="true"
+                 @dragstart="onDragStart(t, $event)"
                  @click="openTab(t)" @keydown.enter.prevent="openTab(t)"
                  @keydown.space.prevent="openTab(t)"
+                 @keydown.alt.left.prevent.stop="moveTab(t, -1)"
+                 @keydown.alt.right.prevent.stop="moveTab(t, 1)"
                  @auxclick.middle.prevent="closeTab(t)"
                  @dragover="onDragOver(t, $event)"
                  @drop.prevent="onDragEnd" @dragend="onDragEnd">
-              <span class="tab-handle" draggable="true" title="拖动图标调整标签顺序"
-                    @dragstart.stop="onDragStart(t, $event)">
+              <span class="tab-handle" title="拖动标签调整顺序">
                 <tl-icon name="folder" :size="13"></tl-icon>
               </span>
               <span class="tab-label">{{ t.name }}</span>
