@@ -82,6 +82,25 @@
   </header>
 
   <main class="container">
+    <!-- 自动更新：批量刷新期间的轻量进度，失败可重试 -->
+    <div class="auto-refresh-strip" v-if="autoRefresh.state !== 'idle'"
+         :class="{ error: autoRefresh.state === 'error' }" role="status" aria-live="polite">
+      <template v-if="autoRefresh.state === 'running'">
+        <tl-icon name="refresh" :size="13" class="spin"></tl-icon>
+        <span>正在后台更新采集数据 {{ autoRefresh.done }}/{{ autoRefresh.total }}（列表可正常使用）</span>
+      </template>
+      <template v-else-if="autoRefresh.state === 'done'">
+        <tl-icon name="check" :size="13"></tl-icon>
+        <span v-if="autoRefresh.changed">{{ autoRefresh.changed }} 个项目有变化，已更新</span>
+        <span v-else>采集数据已是最新</span>
+        <span class="section-note" v-if="autoRefresh.failed">（{{ autoRefresh.failed }} 个更新失败）</span>
+      </template>
+      <template v-else>
+        <tl-icon name="warning" :size="13"></tl-icon>
+        <span>自动更新失败：{{ autoRefresh.reason }}</span>
+        <button class="btn sm" @click="runAutoRefresh(true)">重试</button>
+      </template>
+    </div>
     <!-- 统计：可点击下钻为筛选条件 -->
     <div class="stats-row">
       <button type="button" class="stat stat-total" :class="{on: statActive('total')}"

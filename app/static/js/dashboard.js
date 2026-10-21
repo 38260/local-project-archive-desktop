@@ -69,6 +69,9 @@
         importForm: { category: "" },
         // 通用设置键值（来自 /api/settings；设置弹窗本体在共享组件 js/settings.js）
         prefs: {},
+        // 自动更新：进入首页 / 回到前台时后台批量刷新采集数据。
+        // state: idle | running | done（短暂）| error（可重试）
+        autoRefresh: { state: "idle", total: 0, done: 0, failed: 0, changed: 0, reason: "" },
       };
     },
     computed: {
@@ -201,6 +204,104 @@
         }
         await this.loadPrefs();
         this.loadHeatmap();
+      },
+      // ---- 自动更新（进入首页 / 回到前台）----
+      // 首屏先用库里的数据渲染；后台把已收录项目排进一个刷新任务，完成后只替换
+      // projects / stats 与热力图，搜索、筛选、拖动顺序、滚动位置都不动。
+      autoRefreshStart(force) {
+        if (this._disposed) return;
+        clearTimeout(this._arTimer);
+        // focus 与 visibilitychange 常同时触发，合并成一次（服务端还有 30s 冷却兜底）
+        this._arTimer = setTimeout(() => this.runAutoRefresh(!!force), force ? 0 : 400);
+      },
+      async runAutoRefresh(force) {
+        if (this._disposed || this._arBusy) return;
+        const ids = this.projects.map(p => p.id).filter(Boolean).slice(0, 500);
+        if (!ids.length) return;
+        this._arBusy = true;
+        // 记录刷新前的滚动位置：列表/热力图都可能因数据变化改变高度
+        const y = window.scrollY;
+        Object.assign(this.autoRefresh,
+          { state: "running", total: ids.length, done: 0, failed: 0, changed: 0, reason: "" });
+        try {
+          const r = await api("/api/refresh", {
+            method: "POST", body: { ids, force: !!force }, silent: true,
+          });
+          if (this._disposed) return;
+          if (!r || !r.job_id) {        // 全部在冷却中（刚刷新过）：静默
+            this.autoRefresh.state = "idle";
+            return;
+          }
+          this.autoRefresh.total = r.total || ids.length;
+          const job = await this.pollRefreshJob(r.job_id);
+          if (this._disposed) return;
+          if (!job) throw new Error("刷新任务超时");
+          this.autoRefresh.done = job.done;
+          this.autoRefresh.total = job.total;
+          this.autoRefresh.failed = (job.failed || []).length;
+          this.autoRefresh.changed = (job.changed_ids || []).length;
+          // 有项目真的变了才重拉列表与热力图（避免无意义的整页重绘）
+          if (job.ok > 0) await this.refreshListQuiet();
+          if (this.autoRefresh.changed > 0) await this.loadHeatmap();
+          // 卡片/热力图高度变化会触发浏览器滚动锚定，统一拉回刷新前的位置
+          this.restoreScroll(y);
+          this.autoRefresh.state = "done";
+          setTimeout(() => {
+            if (!this._disposed && this.autoRefresh.state === "done") this.autoRefresh.state = "idle";
+          }, 2500);
+        } catch (e) {
+          if (!this._disposed) {
+            this.autoRefresh.state = "error";
+            const raw = (e && e.message) || "";
+            this.autoRefresh.reason = /Failed to fetch|NetworkError|Load failed/i.test(raw)
+              ? "无法连接本地服务，请确认程序仍在运行"
+              : (raw || "刷新失败");
+          }
+        } finally {
+          this._arBusy = false;
+        }
+      },
+      async pollRefreshJob(jobId) {
+        // 首页是批量任务（项目多时耗时自然长），给 3 分钟上限；进度实时回填
+        const deadline = Date.now() + 180000;
+        while (Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 800));
+          if (this._disposed) return null;
+          try {
+            const j = await api(`/api/refresh/${jobId}`, { silent: true });
+            if (this._disposed) return null;
+            this.autoRefresh.done = j.done;
+            this.autoRefresh.total = j.total;
+            if (j.state === "done") return j;
+          } catch (e) {
+            if (e.status === 404) return null;
+          }
+        }
+        return null;
+      },
+      // 静默替换列表数据：不进入 loading（不闪骨架屏），保持所有筛选/排序状态
+      async refreshListQuiet() {
+        const data = await api("/api/projects", { silent: true });
+        if (this._disposed) return;
+        this.projects = data.projects;
+        this.stats = data.stats;
+        this.statuses = data.statuses;
+        await this.$nextTick();
+      },
+      // 把滚动位置拉回刷新前：先关掉滚动锚定，再在下一帧/稍后各校正一次，
+      // 避免数据替换 + 热力图重排把用户正在看的位置顶走
+      restoreScroll(y) {
+        const root = document.documentElement;
+        const prev = root.style.overflowAnchor;
+        root.style.overflowAnchor = "none";
+        window.scrollTo(0, y);
+        requestAnimationFrame(() => {
+          window.scrollTo(0, y);
+          setTimeout(() => {
+            window.scrollTo(0, y);
+            root.style.overflowAnchor = prev;
+          }, 80);
+        });
       },
       // 走统一出口（common.js 的软导航）：同文档切换，不整页重载
       goto(p) { window.tlNavigate("/project/" + p.id); },
@@ -603,7 +704,18 @@
       },
     },
     mounted() {
-      this.load();
+      // 首屏先渲染库里的旧数据；之后后台批量更新（不阻塞、不闪骨架屏）
+      this.load().then(() => {
+        if (!this._disposed && this.projects.length) this.autoRefreshStart();
+      });
+      // 回到前台：切窗口、最小化恢复；桌面壳恢复也会调 tlOnWindowResume
+      this._onVisible = () => {
+        if (document.visibilityState === "visible") this.autoRefreshStart();
+      };
+      document.addEventListener("visibilitychange", this._onVisible);
+      this._onFocus = () => this.autoRefreshStart();
+      window.addEventListener("focus", this._onFocus);
+      window.tlOnWindowResume = () => this.autoRefreshStart();
       // 展示数据文件位置，明确档案是持久化的
       api("/api/health", { silent: true })
         .then(h => {
@@ -647,7 +759,14 @@
       };
       document.addEventListener("keydown", this._onKey);
     },
-    beforeUnmount() { document.removeEventListener("keydown", this._onKey); },
+    beforeUnmount() {
+      this._disposed = true;                    // 停止自动更新轮询与回填
+      clearTimeout(this._arTimer);
+      document.removeEventListener("visibilitychange", this._onVisible);
+      window.removeEventListener("focus", this._onFocus);
+      window.tlOnWindowResume = null;
+      document.removeEventListener("keydown", this._onKey);
+    },
   });
 
   // 注入公共工具函数（fmtTime/copyText 等），供模板表达式调用
