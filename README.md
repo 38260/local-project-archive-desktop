@@ -87,8 +87,8 @@
 
 不想配 Python 环境的话，直接从 [GitHub Releases](https://github.com/38260/local-project-archive-desktop/releases/latest) 下载：
 
-- **安装版** `tracelight-Setup-*.exe`（推荐）：per-user 免管理员安装，卸载默认保留档案数据，支持开机自启动；
-- **便携版** `tracelight-portable-*.zip`：解压后运行 `tracelight\tracelight.exe` 即用，无需安装。
+- **安装版** `Tracelight-Setup-*.exe`（推荐）：per-user 免管理员安装，卸载默认保留档案数据，支持开机自启动；
+- **便携版** `Tracelight-portable-*.zip`：解压后运行 `tracelight\tracelight.exe` 即用，无需安装。
 
 两者内容一致，数据均保存在本机 `%LOCALAPPDATA%\tracelight`，不出本机。
 
