@@ -779,6 +779,15 @@
         if (!this.docView || this.docView.kind !== "md") return "";
         return this.docView.relDir || "";
       },
+      // 只在详情数据成功加载后记录一次。软导航/整页导航都走同一入口；
+      // 404、网络失败或被后续导航卸载时不写，避免覆盖旧时间。
+      recordVisit() {
+        if (this._visitRecorded || this._disposed) return;
+        this._visitRecorded = true;
+        api(`/api/projects/${this.projectId}/visit`, { method: "POST", silent: true })
+          .then(r => { if (this.p && r) this.p.last_opened_at = r.last_opened_at; })
+          .catch(e => console.warn("[tl] 访问时间记录失败：", e));
+      },
       async load() {
         this.loadError = "";
         try {
@@ -1889,7 +1898,10 @@
     mounted() {
       // 第一屏用库里的旧数据先渲染；渲染完再后台刷新采集数据（不阻塞、不闪烁）
       this.load().then(() => {
-        if (!this._disposed && this.p) this.autoRefreshStart();
+        if (!this._disposed && this.p) {
+          this.recordVisit();
+          this.autoRefreshStart();
+        }
       });
       // 回到前台：切窗口、最小化恢复都会触发；focus 与 visibilitychange 由去抖合并
       this._onVisible = () => {

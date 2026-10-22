@@ -214,6 +214,22 @@ def day_commits(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")):
             "failed_repos": sum(bool(r.get("error")) for r in results)}
 
 
+def _clean_last_opened(value) -> str:
+    """导入备份里的上次打开时间：只接受带时区的合法 ISO 时间。
+
+    旧备份没有该字段、值损坏或缺少时区时一律留空，不猜测、不伪造历史访问。
+    """
+    if not isinstance(value, str) or not value.strip():
+        return ""
+    try:
+        dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if dt.tzinfo is None:
+        return ""
+    return dt.astimezone().isoformat()
+
+
 @app.get("/api/export")
 def export_all():
     """导出全部项目档案为 JSON 备份（含自定义笔记与变更日志）。"""
@@ -241,6 +257,8 @@ def export_all():
                 "flowchart_prefs": json.loads(r["flowchart_prefs"] or "{}")
                 if "flowchart_prefs" in r.keys() else {},
                 "fs_created": r["fs_created"], "fs_modified": r["fs_modified"],
+                "last_opened_at": r["last_opened_at"]
+                if "last_opened_at" in r.keys() else "",
                 "created_at": r["created_at"], "updated_at": r["updated_at"],
                 "launchers": [
                     {"id": l["id"], "name": l["name"], "command": l["command"], "cwd": l["cwd"],
@@ -328,8 +346,9 @@ def import_backup(payload: dict):
                 cur = conn.execute(
                     "INSERT INTO projects (path, name, alias, category, status, tags, "
                     "description, auto_meta, is_lost, lost_reason, pinned, launch_note, "
-                    "launch_prefs, flowchart_prefs, fs_created, fs_modified, created_at, updated_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "launch_prefs, flowchart_prefs, fs_created, fs_modified, "
+                    "last_opened_at, created_at, updated_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (path, name,
                      str(item.get("alias") or ""), str(item.get("category") or ""),
                      status,
@@ -343,6 +362,7 @@ def import_backup(payload: dict):
                      launch_prefs,
                      flowchart_prefs,
                      str(item.get("fs_created") or ""), str(item.get("fs_modified") or ""),
+                     _clean_last_opened(item.get("last_opened_at")),
                      str(item.get("created_at") or now), str(item.get("updated_at") or now)),
                 )
             except (TypeError, ValueError) as exc:

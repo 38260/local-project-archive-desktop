@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS projects (
     flowchart_prefs TEXT NOT NULL DEFAULT '{}',        -- 流程图选择记录 JSON：自动候选/上传覆盖/恢复自动
     fs_created   TEXT NOT NULL DEFAULT '',             -- 磁盘创建时间
     fs_modified  TEXT NOT NULL DEFAULT '',             -- 磁盘最后修改时间
+    last_opened_at TEXT NOT NULL DEFAULT '',           -- 上次成功进入详情的时间（带时区 ISO）
     created_at   TEXT NOT NULL,                        -- 档案创建时间
     updated_at   TEXT NOT NULL                         -- 档案更新时间
 );
@@ -180,6 +181,11 @@ def init_db() -> None:
         if "flowchart_prefs" not in cols:
             conn.execute("ALTER TABLE projects "
                          "ADD COLUMN flowchart_prefs TEXT NOT NULL DEFAULT '{}'")
+        # 上次打开时间独立于 updated_at / fs_modified：旧项目一律为空，
+        # 不从其他时间推测历史访问；语句可重复执行。
+        if "last_opened_at" not in cols:
+            conn.execute("ALTER TABLE projects "
+                         "ADD COLUMN last_opened_at TEXT NOT NULL DEFAULT ''")
         # 轻量迁移：旧「归档废弃」拆分为「归档」（归档=有意收尾留档，应可展示；
         # 废弃=彻底不要）。更新语句幂等，迁移后无残留旧值。
         conn.execute("UPDATE projects SET status='归档' WHERE status='归档废弃'")

@@ -82,6 +82,7 @@ def _row_to_dict(row, *, live_check: bool = True) -> dict:
         "pinned": bool(row["pinned"]) if "pinned" in row.keys() else False,
         "fs_created": row["fs_created"],
         "fs_modified": row["fs_modified"],
+        "last_opened_at": row["last_opened_at"] if "last_opened_at" in row.keys() else "",
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -263,6 +264,21 @@ def toggle_pin(project_id: int):
         conn.execute("UPDATE projects SET pinned=?, updated_at=? WHERE id=?",
                      (new, _now(), project_id))
     return {"ok": True, "pinned": bool(new)}
+
+
+@router.post("/{project_id}/visit")
+def record_project_visit(project_id: int):
+    """记录一次成功进入详情。
+
+    只由详情页在项目数据加载成功后调用；不触碰 updated_at、fs_modified 或
+    手动顺序。读取接口不会隐式写入，避免预取/后台刷新污染访问时间。
+    """
+    now = _now()
+    with get_db() as conn:
+        _get_row_or_404(conn, project_id)
+        conn.execute("UPDATE projects SET last_opened_at=? WHERE id=?",
+                     (now, project_id))
+    return {"ok": True, "last_opened_at": now}
 
 
 @router.get("/{project_id}")
