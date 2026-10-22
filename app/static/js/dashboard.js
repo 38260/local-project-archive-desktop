@@ -27,6 +27,23 @@
   const WEEKLY_EXPANDED_KEY = "tl-home-weekly-expanded";
   const WEEK_COLORS = ["#2F81F7", "#22A66A", "#9061F9"];
   const WEEK_OTHER_COLOR = "#A0A9B8";
+  // 默认项目图标：字母/缩写 + 按项目 ID 稳定取色，保证同一项目每次外观一致
+  const LOGO_COLORS = ["#2F81F7", "#22A66A", "#9061F9", "#D97706", "#DB2777", "#0D9488"];
+  function projectInitials(name) {
+    const text = String(name || "").trim();
+    if (!text) return "?";
+    if (/[\u3400-\u9fff]/.test(text[0])) return text.slice(0, 2);
+    const words = text
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .split(/[\s_.\-/\\]+/)
+      .filter(Boolean);
+    const letters = words.map(w => w[0]).filter(Boolean).join("");
+    if (letters.length >= 2) return letters.slice(0, 2).toUpperCase();
+    const first = words[0] || text;
+    const pair = first.slice(0, 2);
+    if (/^[a-z0-9]{2}$/i.test(pair)) return pair.toUpperCase();
+    return (first.replace(/[^a-z0-9]/gi, "").slice(0, 2) || "?").toUpperCase();
+  }
   const pad2 = (n) => String(n).padStart(2, "0");
   // 新键优先；兼容旧热力图的“已展开”偏好；都没有时本周拾光默认展开。
   function initialWeeklyExpanded() {
@@ -481,6 +498,11 @@
         this.quickFilter = this.quickFilter === kind ? null : kind;
         this.sidebarOpen = false;
         window.scrollTo({ top: 0, behavior: "smooth" });
+      },
+      projectInitials(name) { return projectInitials(name); },
+      logoColor(project) {
+        const id = Number(project && project.id) || 1;
+        return LOGO_COLORS[Math.abs(id - 1) % LOGO_COLORS.length];
       },
       showAllProjects() {
         this.quickFilter = null;

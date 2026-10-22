@@ -189,8 +189,8 @@
         <button class="btn sm" @click="runAutoRefresh(true)">重试</button>
       </template>
     </div>
-    <!-- 统计：可点击下钻为筛选条件 -->
-    <div class="stats-row">
+    <!-- 统计：可点击下钻为筛选条件（全库口径，不受侧栏筛选影响） -->
+    <div class="stats-row stats-strip">
       <button type="button" class="stat stat-total" :class="{on: statActive('total')}"
               @click="applyStatFilter('total')"
               title="点击显示全部项目（含废弃）">
@@ -414,35 +414,48 @@
                role="link" tabindex="0"
                :aria-label="p.name + '，' + p.status + (p.is_lost ? '，路径丢失' : '')"
                @click="goto(p)" @keydown.enter.prevent="goto(p)" @keydown.space.prevent="goto(p)">
-            <div class="title-row">
-              <h3 :title="p.name">
-                <a :href="'/project/' + p.id" @click.stop>{{ p.name }}</a>
-              </h3>
-              <span class="spacer"></span>
-              <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
-              <span :class="statusBadgeClass(p.status)">{{ p.status }}</span>
-              <button type="button" class="icon-btn project-drag" :draggable="!dragLocked" :disabled="dragLocked"
-                      :title="quickFilter === 'recent' ? '最近打开视图按访问时间排序，拖动已暂停' : '拖动调整顺序；也可按 Alt + 方向键移动'"
-                      :aria-label="'调整' + p.name + '的顺序'"
-                      @click.stop @keydown.stop
-                      @keydown.alt.up.prevent="moveProjectByKey(p, -1)" @keydown.alt.left.prevent="moveProjectByKey(p, -1)"
-                      @keydown.alt.down.prevent="moveProjectByKey(p, 1)" @keydown.alt.right.prevent="moveProjectByKey(p, 1)"
-                      @dragstart.stop="onProjectDragStart(p, $event)" @dragend="onProjectDragEnd">
-                <tl-icon name="arrow-up-down" :size="18"></tl-icon>
-              </button>
-            </div>
-            <div class="alias-row" v-if="p.alias">
-              <span class="alias-chip" :title="'别名：' + p.alias">{{ p.alias }}</span>
+            <div class="card-head">
+              <span class="proj-logo" :style="{ background: logoColor(p) }"
+                    aria-hidden="true">{{ projectInitials(p.name) }}</span>
+              <div class="card-head-main">
+                <div class="title-row">
+                  <h3 :title="p.name">
+                    <a :href="'/project/' + p.id" @click.stop>{{ p.name }}</a>
+                  </h3>
+                  <span class="spacer"></span>
+                  <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
+                  <span :class="statusBadgeClass(p.status)">{{ p.status }}</span>
+                  <button type="button" class="icon-btn project-pin" :class="{'pin-on': p.pinned}"
+                          :title="p.pinned ? '取消置顶' : '置顶（列表中优先展示）'"
+                          :aria-label="p.pinned ? '取消置顶' : '置顶'"
+                          @click.stop="togglePin(p)" @keydown.stop>
+                    <tl-icon name="pin" :size="20"></tl-icon>
+                  </button>
+                  <button type="button" class="icon-btn project-drag" :draggable="!dragLocked" :disabled="dragLocked"
+                          :title="quickFilter === 'recent' ? '最近打开视图按访问时间排序，拖动已暂停' : '拖动调整顺序；也可按 Alt + 方向键移动'"
+                          :aria-label="'调整' + p.name + '的顺序'"
+                          @click.stop @keydown.stop
+                          @keydown.alt.up.prevent="moveProjectByKey(p, -1)" @keydown.alt.left.prevent="moveProjectByKey(p, -1)"
+                          @keydown.alt.down.prevent="moveProjectByKey(p, 1)" @keydown.alt.right.prevent="moveProjectByKey(p, 1)"
+                          @dragstart.stop="onProjectDragStart(p, $event)" @dragend="onProjectDragEnd">
+                    <tl-icon name="arrow-up-down" :size="18"></tl-icon>
+                  </button>
+                </div>
+                <div class="alias-row" v-if="p.alias">
+                  <span class="alias-chip" :title="'别名：' + p.alias">{{ p.alias }}</span>
+                </div>
+                <div class="card-desc" v-if="p.intro" :title="p.intro">{{ p.intro }}</div>
+                <div class="card-desc commit-desc" v-else-if="p.last_commit" :title="p.last_commit.message">
+                  <span class="ct-type" :class="'ct-' + (commitType(p.last_commit.message) || 'plain')"
+                        v-if="commitType(p.last_commit.message)">{{ commitType(p.last_commit.message) }}</span>
+                  <span class="card-desc-text">{{ commitMsgText(p.last_commit.message) }}</span>
+                  <span class="ct-hash-inline">{{ p.last_commit.hash }}</span>
+                </div>
+              </div>
             </div>
             <div class="path-row" :title="p.path">
               <span class="path">{{ shortPath(p.path) }}</span>
               <span class="row-actions">
-                <button class="icon-btn project-pin" :class="{'pin-on': p.pinned}"
-                        :title="p.pinned ? '取消置顶' : '置顶（列表中优先展示）'"
-                        :aria-label="p.pinned ? '取消置顶' : '置顶'"
-                        @click.stop="togglePin(p)">
-                  <tl-icon name="pin" :size="21"></tl-icon>
-                </button>
                 <button class="icon-btn" title="资源管理器打开" aria-label="资源管理器打开" :disabled="p.is_lost"
                         @click.stop="quickOpen(p, 'explorer')">
                   <tl-icon name="folder-open" :size="15"></tl-icon>
@@ -455,17 +468,6 @@
                   <tl-icon name="copy" :size="15"></tl-icon>
                 </button>
               </span>
-            </div>
-            <div class="meta-row sub-row">
-              <template v-if="p.intro">
-                <span class="commit-line" :title="p.intro">{{ p.intro }}</span>
-              </template>
-              <template v-else-if="p.last_commit">
-                <span class="ct-type" :class="'ct-' + (commitType(p.last_commit.message) || 'plain')"
-                      v-if="commitType(p.last_commit.message)">{{ commitType(p.last_commit.message) }}</span>
-                <span class="commit-line" :title="p.last_commit.message">{{ commitMsgText(p.last_commit.message) }}</span>
-                <span class="ct-hash-inline">{{ p.last_commit.hash }}</span>
-              </template>
             </div>
             <div class="meta-row foot-row">
               <span v-if="p.category" class="cat-chip">{{ p.category }}</span>

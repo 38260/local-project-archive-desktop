@@ -459,6 +459,13 @@ input[type="search"] { width: 320px; }
   padding: var(--s-6) 28px 64px;
 }
 .home-layout > .home-main { max-width: none; margin: 0; padding: 0; min-width: 0; }
+.home-main .filter-bar .search-wrap { max-width: none; flex: 1 1 320px; }
+@media (max-width: 760px) {
+  .stats-row.stats-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .stats-strip .stat { flex: none; padding: 8px 4px; }
+  .stats-strip .stat + .stat::before { display: none; }
+  .stats-strip .stat b { font-size: 19px; margin-right: 4px; }
+}
 .home-title {
   display: flex; align-items: flex-end; justify-content: space-between;
   gap: var(--s-3); flex-wrap: wrap; margin-bottom: var(--s-4);
@@ -593,6 +600,36 @@ input[type="search"] { width: 320px; }
 }
 .stat:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
 .stat.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* 首页紧凑统计条：一个白色面板内分隔展示，保持全库口径 */
+.stats-row.stats-strip {
+  gap: 0; padding: 4px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.stats-strip .stat {
+  position: relative; flex: 1 1 0; min-width: 0;
+  justify-content: center; flex-wrap: nowrap; white-space: nowrap;
+  padding: 9px 8px;
+  border: none; border-radius: 8px;
+  background: none; box-shadow: none;
+}
+.stats-strip .stat + .stat::before {
+  content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 1px;
+  background: var(--border);
+}
+.stats-strip .stat:hover {
+  border: none; box-shadow: none; transform: none;
+  background: var(--panel-2);
+}
+.stats-strip .stat.on {
+  border: none;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.stats-strip .stat .stat-ico { display: none; }
+.stats-strip .stat b { font-size: 22px; margin-right: 6px; }
 
 /* 弹窗表单里「路径输入框 + 浏览按钮」横排 */
 .path-row { display: flex; gap: var(--s-2); align-items: stretch; }
@@ -843,7 +880,14 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
 .afilter:hover { background: var(--accent); color: #fff; }
 
 /* ---- 项目卡片（状态色条 + 悬浮层次 + 入场 stagger） ---- */
-.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--s-4); }
+/* 宽屏固定三列；窄屏依次降为两列 / 单列，不在超宽屏无限变窄 */
+.card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+@media (max-width: 1400px) {
+  .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .card-grid { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* ---- 状态分组小节标题 ---- */
 .status-group { margin-bottom: 20px; }
@@ -871,11 +915,28 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: var(--s-4) 22px 14px var(--s-6);
+  padding: 16px 18px 12px 21px;
   cursor: pointer;
   transition: border-color .18s, box-shadow .18s, transform .18s;
   animation: fade-up .28s ease backwards;
 }
+.card-head { display: flex; align-items: flex-start; gap: 11px; min-width: 0; }
+.card-head-main { flex: 1; min-width: 0; }
+.proj-logo {
+  width: 44px; height: 44px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 11px;
+  color: #fff; font-size: 15px; font-weight: 800; line-height: 1;
+  letter-spacing: .01em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+.card-desc {
+  margin-top: 1px; min-height: 20px;
+  font-size: 13px; line-height: 1.55; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-desc.commit-desc { display: flex; align-items: center; gap: 6px; }
+.card-desc-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 左侧状态色条：进行中蓝 / 已完成绿 / 暂停橙 / 归档灰 */
 .card::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
@@ -902,18 +963,21 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
 .card.is-lost::before { background: var(--danger); }
 .card.is-archived { opacity: .62; }
 .card.is-archived:hover { opacity: 1; }
-.card .title-row { display: flex; align-items: center; gap: var(--s-2); margin-bottom: 6px; }
-/* min-width:0 让长名称能真正收缩出省略号，而不是把右侧徽章顶出卡片被 overflow 裁掉 */
-.card .title-row h3 { margin: 0; font-size: 18px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+.card .title-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+/* min-width:0 让长名称能真正收缩出省略号，而不是把右侧徽章顶出卡片 */
+.card .title-row h3 { margin: 0; font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+.card .title-row .badge { padding: 1px 8px; font-size: 12px; line-height: 1.5; }
+.card .project-pin { min-width: 28px; min-height: 28px; padding: 2px 4px; }
+.card .project-drag { min-width: 28px; min-height: 28px; padding: 2px 4px; }
 .card .title-row h3 a { color: inherit; text-decoration: none; }
 .card .title-row h3:hover { color: var(--accent); }
 /* 别名独占一行：与徽章争位会让主信息（项目名）被挤没 */
-.card .alias-row { display: flex; align-items: center; gap: var(--s-2); margin: 0 0 6px; }
+.card .alias-row { display: flex; align-items: center; gap: var(--s-2); margin: 2px 0 3px; }
 .card .alias-row .alias-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .card .path-row {
   display: flex; align-items: center; gap: 6px;
-  font-family: var(--mono); font-size: 13px; color: var(--muted);
-  margin: var(--s-1) 0 var(--s-2);
+  font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+  margin: 9px 0 6px;
 }
 /* 路径用 ltr 截断（rtl 会让反斜杠与尾部标点被 BiDi 算法重排） */
 .card .path-row .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
