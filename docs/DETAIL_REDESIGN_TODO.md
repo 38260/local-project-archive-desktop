@@ -12,7 +12,7 @@
 | F2 | 四个内容分区、页内锚点、草稿/筛选/折叠/阅读位置保护 | [x] 已完成（2026-10-23） |
 | F3 | 概览真实数据（最近进展/笔记/启动/README）与全部跳转 | [x] 已完成（2026-10-23） |
 | F4 | 目录树按需侧栏、关闭释放整列、焦点与键盘 | [x] 已完成（2026-10-23） |
-| F5 | 主题/响应式、完整回归与截图验收 | [ ] 待开始 |
+| F5 | 主题/响应式、完整回归与截图验收 | [x] 已完成（2026-10-23） |
 
 本地验证环境：Windows + Git Bash，Python 3.12（`.venv`），Node.js 24，Chrome/Playwright。所有写入测试先经 `tools/isolated_instance.py`；禁止对正式 `data/projects.db` 写入或清理。
 
@@ -41,7 +41,7 @@
 - [x] F2：四个内容分区与页内定位，切换时保留编辑草稿、筛选、折叠及阅读位置。
 - [x] F3：概览接入真实最近提交、笔记预览、现有启动入口与 README 摘要；不新增 AI 总结或推断工时。
 - [x] F4：目录树按需开关、关闭后释放整列空间，保留原有文件预览能力。
-- [ ] F5：亮暗主题、宽窄窗口、键盘交互、自动更新和未保存内容保护的隔离回归与实际验收。
+- [x] F5：亮暗主题、宽窄窗口、键盘交互、自动更新和未保存内容保护的隔离回归与实际验收。
 
 ## 起始状态与范围
 
@@ -97,3 +97,14 @@
 - 测试：`tools/isolated_instance.py --repo . --run ".venv\\Scripts\\python.exe tools/test_detail_prepare.py %TL_STATE% && node tools/test_detail_f4_browser.cjs %TL_STATE%" --cwd repo` → 通过：初始无树请求、两列布局、打开后加载、焦点进入、目录展开、单击复制、双击 open-file、Esc 关闭与焦点归还、正文宽度不因抽屉改变、打开偏好刷新保持/关闭偏好刷新消失、键盘打开、390px 抽屉在视口内且无横向溢出、控制台无错误。
 - 截图：`docs/evidence/detail-redesign/detail-f4-tree.png`。
 - 未执行：真实拉起系统默认应用打开文件（测试通过拦截验证请求）；F5 再做载入/空/失败状态和全宽度截图。
+
+## F5 验证记录（2026-10-23）
+
+- 起始 Git：`main`，HEAD `8deeb1d`，工作区干净。
+- 视觉：详情顶栏改用与首页一致的品牌方块 + 双行品牌，保留返回/相邻项目/目录树/设置/主题；导航、面板、时间与标签继续使用主题变量。修正窄屏 `detail-nav` 残留最小高度造成的大块空白；「本页内容」顺序调整为与真实内容一致（流程图 → 构建配置 → 文件统计 → 项目截图 → README）。
+- 共享组件修复：标签页拖动只允许从 `.tab-handle` 起手，标签名称恢复可拖选复制；首页/详情均在 390 下有合理换行且无横向溢出。
+- 新验收：`tools/test_detail_final_browser.cjs` 通过：品牌与入口、路径内联复制、状态修改/恢复、更多菜单五项、分区切换不重复访问、README 相对链接应用内预览、四分区 1440 截图、概览 1920/1440/1280/1024/768/390 亮色与 1440/390 暗色、390 四分区无横向溢出、控制台与失败请求为空。
+- 既有回归：`test_auto_refresh_detail.py` 全部通过（简介/统计/提交徽章更新、四类草稿保护、切换项目不串数据、focus 合并、失败重试）；`test_readme_langs.cjs` 6 项通过；`test_browser_r11.cjs` 12 组通过（SVG 隔离、流程图上传/恢复/导出、默认启动入口、偏好失败回退、弹窗拖选、文字选择、首页排序、亮暗宽度）；`test_browser_fixes.cjs` 7 类文字拖选/标签拖动通过；个人贡献 API + 浏览器链路通过；`test_project_launch.cjs` 通过；`test_home_final_browser.cjs` 在共享 CSS/JS 改动后重跑通过；JS 单测与 12 项 Python unittest 通过；`git diff --check` 通过。
+- 截图：`docs/evidence/detail-redesign/detail-overview-{1920,1440,1280,1024,768,390}-light.png`、`detail-overview-{1440,390}-dark.png`、`detail-{launch,records,materials}-1440-light.png`；结果 `detail-final-browser.json`。目录树截图见 F4。
+- 未执行：桌面 WebView2 实机验证（现有脚本会使用正式 `data/` 并触发自动刷新写入，按隔离护栏本轮不运行）；PyInstaller 重新打包和安装包安装验证；真实编辑器/资源管理器/系统默认应用启动、真实启动命令执行、截图上传与运行历史产生（均保留代码路径，测试中未拉起外部程序或真实命令）。
+- 遗留风险：窄屏 390 顶栏按钮较多会换行；项目资料 1440 下按现有面板顺序纵向排列，信息密度高于参考图的演示数据；这些均不影响功能与验收。

@@ -23,6 +23,10 @@ fs.mkdirSync(output, { recursive: true });
   page.on("pageerror", e => errors.push(e.message));
   const results = [];
   const ok = label => { results.push(label); console.log("[PASS]", label); };
+  async function openRecords() {
+    await page.locator(".tab-nav .tab-btn").filter({ hasText: "开发记录" }).click();
+    await page.locator("#sec-commits").waitFor({ state: "visible" });
+  }
   const waitText = (locator, text) => page.waitForFunction(({ selector, text }) =>
     document.querySelector(selector)?.textContent.includes(text), { selector: locator, text });
   async function saveEmails(value) {
@@ -83,6 +87,7 @@ fs.mkdirSync(output, { recursive: true });
     ok("当天弹窗只展示两条唯一提交并提供另一副本入口");
 
     await page.goto(`${state.base}/project/${source.id}`);
+    await openRecords();
     await waitText("#sec-commits .count", "2 次");
     assert.equal(await page.locator("#sec-commits .ci-ring-center b").innerText(), "2");
     await waitText("#sec-commits .month-chart .heat-sub", "2 次提交");
@@ -92,6 +97,7 @@ fs.mkdirSync(output, { recursive: true });
     await waitText("#sec-commits .ci-ring-center", "5");
     await waitText("#sec-commits .month-chart .heat-sub", "5 次提交");
     await page.reload();
+    await openRecords();
     await waitText("#sec-commits .count", "5 次");
     assert.equal(await panel.getByRole("button", { name: "全部作者", exact: true }).getAttribute("aria-pressed"), "true");
     ok("详情切换三个区域同步为全部 5 条，刷新保持所选范围");

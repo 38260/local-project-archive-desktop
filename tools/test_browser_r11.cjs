@@ -78,6 +78,7 @@ async function uploadFlowchart(pid, name, buf, type) {
 
     // ---------- B. 流程图上传 / 导出 / 恢复自动 ----------
     await page.goto(state.base + "/project/" + beta.id);
+    await page.locator(".tab-nav .tab-btn").filter({ hasText: "项目资料" }).click();
     await page.locator("#sec-flowchart").waitFor();
     assert.equal(await page.locator(".flow-meta").innerText().then(t => t.includes("手动上传")), true,
                  "上传的 SVG 已被启用为当前流程图");
@@ -115,6 +116,8 @@ async function uploadFlowchart(pid, name, buf, type) {
     ok("恢复自动识别回落项目内候选，上传历史保留");
 
     // ---------- C. 启动项默认入口与保存失败回退 ----------
+    await page.locator(".tab-nav .tab-btn").filter({ hasText: "启动与运行" }).click();
+    await page.locator("#sec-launch").waitFor({ state: "visible" });
     const rows = page.locator(".launch-row");
     const rowCount = await rows.count();
     assert(rowCount >= 2, `需要至少 2 个启动入口，实际 ${rowCount}`);
@@ -159,7 +162,8 @@ async function uploadFlowchart(pid, name, buf, type) {
     ok("启动项偏好保存失败时回退原状态并提示", { toast: errToast });
 
     // ---------- D. 弹窗越界拖选 ----------
-    await page.getByRole("button", { name: "编辑档案", exact: true }).click();
+    await page.locator(".head-actions .more-wrap > .btn").click();
+    await page.getByRole("menuitem", { name: "编辑档案", exact: true }).click();
     const nameInput = page.locator("#edit-name");
     await nameInput.waitFor();
     const ib = await nameInput.boundingBox();

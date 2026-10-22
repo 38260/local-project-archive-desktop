@@ -40,7 +40,10 @@ def main():
 
 - 首页改版完成
 - 详情页概览与四分区
+- [开发说明](docs/guide.md)
 """)
+    write(path / "docs" / "guide.md",
+          "# 开发说明\n\n这是从 README 相对链接打开的应用内文档预览。\n")
 
     first = req(base, "POST", f"/api/projects/{tracelight['id']}/launchers", {
         "name": "浏览器模式", "command": ".venv\\Scripts\\python.exe run.py",

@@ -43,8 +43,14 @@
 
 <div id="app" v-cloak>
   <header class="topbar">
-    <a class="btn" href="/" title="返回首页" @click.prevent="leaveConfirm('/')">
-      <tl-icon name="arrow-left" :size="15"></tl-icon><span class="btn-text">返回首页</span>
+    <span class="logo">
+      <span class="brand-mark"><tl-icon name="folder" :size="17"></tl-icon></span>
+      <span class="brand-text">归迹拾光 <span class="brand-sub">Tracelight</span></span>
+      <span class="dim">/ 项目详情 · 数据不出本机</span>
+    </span>
+    <a class="btn icon-only" href="/" title="返回首页" aria-label="返回首页"
+       @click.prevent="leaveConfirm('/')">
+      <tl-icon name="arrow-left" :size="15"></tl-icon>
     </a>
     <button class="btn icon-only" v-if="prevProject" @click="gotoSibling(prevProject)"
             :title="'上一个项目：' + prevProject.name" aria-label="上一个项目">
@@ -54,10 +60,6 @@
             :title="'下一个项目：' + nextProject.name" aria-label="下一个项目">
       <tl-icon name="chevron-right" :size="15"></tl-icon>
     </button>
-    <span class="logo">
-      <tl-icon name="folder" :size="18"></tl-icon>
-      <span class="btn-text">归迹 · tracelight <span class="dim">/ 项目详情</span></span>
-    </span>
     <span class="spacer"></span>
     <button class="btn" @click="toggleTree" :disabled="!p || p.is_lost"
             :aria-expanded="treeOpen ? 'true' : 'false'" aria-controls="tree-drawer"

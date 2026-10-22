@@ -1201,16 +1201,16 @@
                  :aria-selected="t.id === curId ? 'true' : 'false'"
                  :title="tabTitle(t)"
                  :data-project-id="t.id"
-                 draggable="true"
-                 @dragstart="onDragStart(t, $event)"
                  @click="openTab(t)" @keydown.enter.prevent="openTab(t)"
                  @keydown.space.prevent="openTab(t)"
                  @keydown.alt.left.prevent.stop="moveTab(t, -1)"
                  @keydown.alt.right.prevent.stop="moveTab(t, 1)"
                  @auxclick.middle.prevent="closeTab(t)"
                  @dragover="onDragOver(t, $event)"
-                 @drop.prevent="onDragEnd" @dragend="onDragEnd">
-              <span class="tab-handle" title="拖动标签调整顺序">
+                 @drop.prevent="onDragEnd">
+              <!-- 只有手柄可拖动：标签名称保持可拖选复制，拖整块标签不会误触发排序 -->
+              <span class="tab-handle" title="拖动标签调整顺序" draggable="true"
+                    @dragstart.stop="onDragStart(t, $event)" @dragend.stop="onDragEnd">
                 <tl-icon name="folder" :size="13"></tl-icon>
               </span>
               <span class="tab-label">{{ t.name }}</span>

@@ -1375,6 +1375,7 @@ body.modal-open { overflow: hidden; }
   .head-status { margin-left: 0; }
   .head-summary { white-space: normal; }
   .head-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .project-container { padding: 16px 14px 48px; }
 }
 
 /* 基础信息：信息块 */
@@ -1675,7 +1676,8 @@ body.modal-open { overflow: hidden; }
 .detail-nav {
   position: sticky; top: calc(var(--tabbar-h) + var(--topbar-h) + 12px);
   display: flex; flex-direction: column;
-  min-height: 200px; padding: 2px 0;
+  min-height: min(560px, calc(100dvh - var(--tabbar-h) - var(--topbar-h) - 36px));
+  padding: 2px 0;
 }
 .detail-back {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1957,7 +1959,7 @@ body.modal-open { overflow: hidden; }
   .tree-panel { max-height: 420px; }
   .detail-nav {
     position: static; display: block;
-    padding: 0; margin-bottom: 12px;
+    min-height: 0; padding: 0; margin-bottom: 12px;
   }
   .detail-back, .detail-nav-label, .detail-nav-foot { display: none; }
   .tab-nav { flex-direction: row; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }

@@ -32,6 +32,11 @@ assert(!path.relative(os.tmpdir(), root).startsWith(".."));
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   const results = [];
+  const openTab = async name => {
+    await page.locator(".tab-nav .tab-btn").filter({ hasText: name }).click();
+  };
+  const waitDetail = () => page.waitForFunction(() =>
+    window.__tlProjectVM && window.__tlProjectVM.p && window.__tlProjectVM.launch !== null);
   async function selectText(locator, label) {
     await locator.evaluate(el => el.scrollIntoView({ block: "center", behavior: "instant" }));
     await page.evaluate(() => window.getSelection().removeAllRanges());
@@ -61,14 +66,23 @@ assert(!path.relative(os.tmpdir(), root).startsWith(".."));
     await selectText(page.locator(`.card[data-project-id="${alpha.id}"] h3 a`), "首页项目名称");
     await selectText(page.locator(`.card[data-project-id="${alpha.id}"] .path`).first(), "首页项目路径");
     await page.goto(state.base + "/project/" + beta.id);
-    await page.locator(".launch-row").first().waitFor();
+    await waitDetail();
     await selectText(page.locator(".proj-path-text"), "详情路径");
+    await openTab("启动与运行");
+    await page.locator(".launch-row").first().waitFor();
     await selectText(page.locator(".launch-cmd").first(), "启动命令");
-    await selectText(page.locator(".tree .t-name").filter({ hasText: "README.md" }).first(), "目录树文件名");
+    await page.locator(".topbar button[aria-controls='tree-drawer']").click();
+    await page.locator("#tree-drawer .tree .t-name").filter({ hasText: "README.md" }).first().waitFor();
+    await selectText(page.locator("#tree-drawer .tree .t-name").filter({ hasText: "README.md" }).first(), "目录树文件名");
+    await page.keyboard.press("Escape");
+    await page.locator("#tree-drawer").waitFor({ state: "detached" });
+    await openTab("项目资料");
+    await page.locator("#sec-readme .md-body p").first().waitFor();
     await selectText(page.locator("#sec-readme .md-body p").first(), "README 正文");
     await selectText(page.locator(".tab-label").filter({ hasText: alpha.name }).first(), "顶部标签名称");
     await page.evaluate(() => window.getSelection().removeAllRanges());
-    await page.getByRole("button", { name: "编辑档案", exact: true }).click();
+    await page.locator(".head-actions .more-wrap > .btn").click();
+    await page.getByRole("menuitem", { name: "编辑档案", exact: true }).click();
     await page.locator("#edit-name").waitFor();
     await page.keyboard.press("Escape");
     assert.equal(await page.locator("#edit-name").isVisible(), false);

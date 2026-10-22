@@ -50,11 +50,11 @@
       { id: "sec-commits", label: "Git 提交记录" },
     ],
     materials: [
-      { id: "sec-readme", label: "README" },
       { id: "sec-flowchart", label: "流程图" },
-      { id: "sec-shots", label: "项目截图" },
       { id: "sec-configs", label: "构建配置" },
       { id: "sec-stats", label: "文件统计" },
+      { id: "sec-shots", label: "项目截图" },
+      { id: "sec-readme", label: "README" },
     ],
   };
   const ANCHOR_TAB = (() => {

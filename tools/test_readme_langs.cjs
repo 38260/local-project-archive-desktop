@@ -27,6 +27,8 @@ const chips = page => panel(page).locator(".readme-lang");
 
   async function openReadme(id) {
     await page.goto(state.base + "/project/" + id);
+    await page.locator(".tab-nav .tab-btn").filter({ hasText: "项目资料" }).click();
+    await page.locator("#sec-readme").waitFor({ state: "visible" });
     await chips(page).first().waitFor({ timeout: 10000 }).catch(() => {});
     await panel(page).locator(".md-body").first().waitFor();
     await panel(page).evaluate(el => el.scrollIntoView({ block: "start", behavior: "instant" }));
