@@ -38,6 +38,10 @@ DEFAULTS: dict = {
     "ui.show_discarded_default": False,
     "ui.project_order": [],         # 首页手动排序，保存项目 ID 顺序
     "ui.project_sort": "最近更新",  # 首页当前排序方式
+    # 首页左侧导航（只控制展示，不修改项目状态/标签）
+    "ui.nav_sections": ["quick", "status", "tags"],  # 可见区域及顺序
+    "ui.nav_statuses": ["进行中", "暂停", "已完成", "归档", "废弃"],  # 状态显示顺序
+    "ui.nav_tags": [],              # 固定在侧栏的常用标签名称
     # 详情页
     "commits.limit": 200,            # 提交记录单次加载数（后端上限 200）
     "git.author_emails": [],         # 个人贡献使用的作者邮箱，可包含旧邮箱和隐私邮箱

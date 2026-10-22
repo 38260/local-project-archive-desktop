@@ -10,6 +10,20 @@
     "名称": "name", "创建时间": "created", "状态": "status",
   };
   const QUICK_VIEWS = { recent: "最近打开", pinned: "已置顶" };
+  const NAV_SECTION_DEFS = [
+    { key: "quick", label: "快捷导航" },
+    { key: "status", label: "项目状态" },
+    { key: "tags", label: "常用标签" },
+  ];
+  const NAV_SECTION_KEYS = NAV_SECTION_DEFS.map(s => s.key);
+  const NAV_DEFAULT_SECTIONS = ["quick", "status", "tags"];
+  // 侧栏演示顺序只用于导航呈现；卡片分组仍使用 STATUS_ORDER
+  const NAV_DEFAULT_STATUSES = ["进行中", "暂停", "已完成", "归档", "废弃"];
+  const NAV_SECTION_LABELS = Object.fromEntries(NAV_SECTION_DEFS.map(s => [s.key, s.label]));
+  const validOpenAt = (iso) => {
+    const t = Date.parse(iso || "");
+    return Number.isNaN(t) ? null : t;
+  };
   const STATUS_ORDER = ["进行中", "已完成", "暂停", "归档", "废弃"];
 
   const app = createApp({
@@ -35,6 +49,18 @@
         showDiscarded: false,   // 废弃项目默认隐藏，勾选后显示（归档始终展示）
         // 快捷视图：null=全部 | recent | pinned（导航用），active | lost（统计卡下钻）
         quickFilter: null,
+        // 左侧导航：区域/状态/标签均可配置，保存在 ui.nav_* 设置里
+        sidebarOpen: false,
+        navSections: [...NAV_DEFAULT_SECTIONS],
+        navStatuses: [...NAV_DEFAULT_STATUSES],
+        navTags: [],
+        showNavConfig: false,
+        navSaving: false,
+        navDraft: {
+          sections: [...NAV_DEFAULT_SECTIONS],
+          statuses: [...NAV_DEFAULT_STATUSES],
+          tags: [],
+        },
         sortBy: "最近更新",
         sortOptions: SORT_LABELS,
         projectOrder: [],
@@ -123,12 +149,54 @@
         this.projects.forEach(p => { if (p.category) set.add(p.category); });
         return [...set];
       },
+      // 导航计数：排除本区域当前选择、保留其他区域条件，避免同区域其他项被归零。
+      // 状态候选“废弃”显式计入废弃项目；其余状态仍遵循“显示废弃项目”开关。
+      navCounts() {
+        let all = 0, recent = 0, pinned = 0;
+        for (const p of this.projects) {
+          if (!this.navMatch(p, { ignoreQuick: true })) continue;
+          all++;
+          if (validOpenAt(p.last_opened_at) !== null) recent++;
+          if (p.pinned) pinned++;
+        }
+        return { all, recent, pinned };
+      },
+      navStatusItems() {
+        return this.navStatuses.map(status => ({
+          status,
+          count: this.projects.filter(p => this.navMatch(p, {
+            ignoreStatus: true, statusCandidate: status,
+          })).length,
+        }));
+      },
+      navTagItems() {
+        return this.navTags.map(tag => ({
+          tag,
+          count: this.projects.filter(p => this.navMatch(p, {
+            ignoreTag: true, tagCandidate: tag,
+          })).length,
+        }));
+      },
+      navDraftSectionItems() {
+        return this.navDraft.sections.map(key => ({
+          key, label: NAV_SECTION_LABELS[key] || key,
+        }));
+      },
+      hiddenNavSections() {
+        return NAV_SECTION_DEFS.filter(s => !this.navDraft.sections.includes(s.key));
+      },
+      availableStatuses() {
+        return STATUS_ORDER.filter(s => !this.navDraft.statuses.includes(s));
+      },
+      availableTagNames() {
+        return this.allTags.filter(t => !this.navDraft.tags.includes(t));
+      },
       sorted() {
         const key = SORT_KEYS[this.sortBy] || "updated";
         const byTime = (f) => (a, b) => String(b[f] || "").localeCompare(String(a[f] || ""));
         const openedAt = (p) => {
-          const t = Date.parse(p.last_opened_at || "");
-          return Number.isNaN(t) ? -Infinity : t;
+          const t = validOpenAt(p.last_opened_at);
+          return t === null ? -Infinity : t;
         };
         // 最近打开：有记录在前、时间倒序；同一时刻按 id 稳定兜底，空记录永远在后
         const cmpOpened = (a, b) => (openedAt(b) - openedAt(a)) || (a.id - b.id);
@@ -158,28 +226,7 @@
             || cmp(a, b));
       },
       filtered() {
-        const q = this.q.toLowerCase();
-        return this.sorted.filter(p => {
-          if (this.statusFilter && p.status !== this.statusFilter) return false;
-          if (this.tagFilter && !(p.tags || []).includes(this.tagFilter)) return false;
-          if (this.catFilter && p.category !== this.catFilter) return false;
-          // 归档=有意收尾留档，始终展示；废弃=彻底不要，默认隐藏。
-          // 显式点击“废弃”状态时必须能看到，不受“显示废弃项目”开关阻挡。
-          if (!this.showDiscarded && p.status === "废弃" && this.statusFilter !== "废弃") return false;
-          // 统计卡下钻：活跃 = 未归档/未废弃且路径有效；丢失 = 路径失效
-          if (this.quickFilter === "active"
-              && (p.status === "归档" || p.status === "废弃" || p.is_lost)) return false;
-          if (this.quickFilter === "lost" && !p.is_lost) return false;
-          if (this.quickFilter === "recent"
-              && (!p.last_opened_at || Number.isNaN(Date.parse(p.last_opened_at)))) return false;
-          if (this.quickFilter === "pinned" && !p.pinned) return false;
-          if (q) {
-            const hay = [p.name, p.alias, p.path, p.category, (p.tags || []).join(",")]
-              .join(" ").toLowerCase();
-            if (!hay.includes(q)) return false;
-          }
-          return true;
-        });
+        return this.sorted.filter(p => this.navMatch(p));
       },
       // 已生效的筛选条件，逐个可移除
       activeFilters() {
@@ -362,11 +409,110 @@
       openAgeTitle(iso) { return this.openAgeInfo(iso).title; },
       toggleQuick(kind) {
         this.quickFilter = this.quickFilter === kind ? null : kind;
+        this.sidebarOpen = false;
         window.scrollTo({ top: 0, behavior: "smooth" });
       },
       showAllProjects() {
         this.quickFilter = null;
+        this.sidebarOpen = false;
         window.scrollTo({ top: 0, behavior: "smooth" });
+      },
+      // 单一匹配入口：导航计数与卡片列表共用，保证“数字 = 点击后的结果”。
+      // 计算某区域候选时传 ignoreXxx，保留其他区域条件、排除本区域当前选择。
+      navMatch(p, opts = {}) {
+        if (this.catFilter && p.category !== this.catFilter) return false;
+        // 废弃默认隐藏；显式选择“废弃”状态或状态候选是废弃时可见
+        if (!this.showDiscarded && p.status === "废弃") {
+          const explicit = opts.statusCandidate === "废弃" || this.statusFilter === "废弃";
+          if (!explicit) return false;
+        }
+        if (opts.statusCandidate && p.status !== opts.statusCandidate) return false;
+        if (opts.tagCandidate && !(p.tags || []).includes(opts.tagCandidate)) return false;
+        if (!opts.ignoreStatus && this.statusFilter && p.status !== this.statusFilter) return false;
+        if (!opts.ignoreTag && this.tagFilter && !(p.tags || []).includes(this.tagFilter)) return false;
+        if (!opts.ignoreQuick && this.quickFilter) {
+          if (this.quickFilter === "recent" && validOpenAt(p.last_opened_at) === null) return false;
+          if (this.quickFilter === "pinned" && !p.pinned) return false;
+          if (this.quickFilter === "active"
+              && (p.status === "归档" || p.status === "废弃" || p.is_lost)) return false;
+          if (this.quickFilter === "lost" && !p.is_lost) return false;
+        }
+        const q = this.q.toLowerCase();
+        if (q) {
+          const hay = [p.name, p.alias, p.path, p.category, (p.tags || []).join(",")]
+            .join(" ").toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      },
+      // 同区域单选：再次点击当前条件取消
+      toggleStatus(status) {
+        this.statusFilter = this.statusFilter === status ? "" : status;
+        this.sidebarOpen = false;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      },
+      toggleTag(tag) {
+        this.tagFilter = this.tagFilter === tag ? "" : tag;
+        this.sidebarOpen = false;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      },
+      // ---- 管理导航 ----
+      navSectionLabel(key) { return NAV_SECTION_LABELS[key] || key; },
+      openNavConfig() {
+        this.navDraft = {
+          sections: [...this.navSections],
+          statuses: [...this.navStatuses],
+          tags: [...this.navTags],
+        };
+        this.sidebarOpen = false;
+        this.showNavConfig = true;
+      },
+      closeNavConfig() {
+        if (!this.navSaving) this.showNavConfig = false;
+      },
+      applyNavTemplate(kind) {
+        const presets = {
+          both: ["quick", "status", "tags"],
+          status: ["quick", "status"],
+          tags: ["quick", "tags"],
+        };
+        this.navDraft.sections = [...(presets[kind] || presets.both)];
+      },
+      addDraftItem(kind, key) {
+        const list = this.navDraft[kind];
+        if (Array.isArray(list) && !list.includes(key)) list.push(key);
+      },
+      removeDraftItem(kind, key) {
+        const list = this.navDraft[kind];
+        if (!Array.isArray(list)) return;
+        const i = list.indexOf(key);
+        if (i >= 0) list.splice(i, 1);
+      },
+      moveDraftItem(kind, key, direction) {
+        const list = this.navDraft[kind];
+        if (!Array.isArray(list)) return;
+        const i = list.indexOf(key);
+        const j = i + direction;
+        if (i < 0 || j < 0 || j >= list.length) return;
+        [list[i], list[j]] = [list[j], list[i]];
+      },
+      async saveNavConfig() {
+        if (this.navSaving) return;
+        this.navSaving = true;
+        const payload = {
+          "ui.nav_sections": [...this.navDraft.sections],
+          "ui.nav_statuses": [...this.navDraft.statuses],
+          "ui.nav_tags": [...this.navDraft.tags],
+        };
+        try {
+          await api("/api/settings", { method: "PUT", body: payload });
+          this.navSections = [...payload["ui.nav_sections"]];
+          this.navStatuses = [...payload["ui.nav_statuses"]];
+          this.navTags = [...payload["ui.nav_tags"]];
+          this.showNavConfig = false;
+          toast("导航配置已保存", "ok");
+        } catch (e) { /* toast 已提示，保留草稿供修改 */ }
+        finally { this.navSaving = false; }
       },
       // 选择整理规则：立即按规则重排并清掉旧的拖动顺序（重新整理后再拖可随时覆盖）。
       async saveSort(value) {
@@ -558,6 +704,42 @@
           this.sortBy = SORT_LABELS.includes(this.prefs["ui.project_sort"])
             ? this.prefs["ui.project_sort"] : "最近更新";
           this.editorCmd = this.prefs["editor.command"] || "code";
+          // 旧设置没有导航键时用默认值；键存在但内容损坏时也安全回退。
+          // 空数组是用户主动“全部隐藏”的合法配置，不能当成缺失。
+          const rawSections = this.prefs["ui.nav_sections"];
+          if (Array.isArray(rawSections)) {
+            const list = [];
+            for (const key of rawSections) {
+              if (NAV_SECTION_KEYS.includes(key) && !list.includes(key)) list.push(key);
+            }
+            this.navSections = list.length ? list
+              : (rawSections.length ? [...NAV_DEFAULT_SECTIONS] : []);
+          } else {
+            this.navSections = [...NAV_DEFAULT_SECTIONS];
+          }
+          const rawStatuses = this.prefs["ui.nav_statuses"];
+          if (Array.isArray(rawStatuses)) {
+            const list = [];
+            for (const status of rawStatuses) {
+              if (STATUS_ORDER.includes(status) && !list.includes(status)) list.push(status);
+            }
+            this.navStatuses = list.length ? list
+              : (rawStatuses.length ? [...NAV_DEFAULT_STATUSES] : []);
+          } else {
+            this.navStatuses = [...NAV_DEFAULT_STATUSES];
+          }
+          const rawTags = this.prefs["ui.nav_tags"];
+          const tagList = [];
+          if (Array.isArray(rawTags)) {
+            for (const item of rawTags) {
+              if (typeof item !== "string") continue;
+              const name = item.trim();
+              if (!name || tagList.includes(name)) continue;
+              tagList.push(name);
+              if (tagList.length >= 100) break;
+            }
+          }
+          this.navTags = tagList;
           const w = Number(this.prefs["ui.heatmap_weeks"]);
           if (w && w !== this.heatWeeks) {
             this.heatWeeks = w;
@@ -818,6 +1000,7 @@
           return;
         }
         if (e.key === "Escape") {
+          if (this.showNavConfig) { this.closeNavConfig(); return; }
           if (this.toolsOpen) { this.toolsOpen = false; return; }
           if (this.$refs.settings && this.$refs.settings.visible) {
             this.$refs.settings.close();
@@ -827,6 +1010,7 @@
             this.showAdd = false; this.showScan = false; this.showDay = false;
             return;
           }
+          if (this.sidebarOpen) { this.sidebarOpen = false; return; }
           if (typing && document.activeElement.type === "search") {
             this.q = "";
             document.activeElement.blur();

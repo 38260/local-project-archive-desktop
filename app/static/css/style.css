@@ -450,6 +450,135 @@ input[type="search"] { width: 320px; }
 
 /* ---- 主体布局 ---- */
 .container { max-width: 1360px; margin: 0 auto; padding: var(--s-6) 28px 64px; }
+
+/* ---- 首页：左侧导航 + 主内容 ---- */
+.home-layout {
+  display: grid; grid-template-columns: 232px minmax(0, 1fr);
+  gap: 24px; align-items: start;
+  max-width: 1560px; margin: 0 auto;
+  padding: var(--s-6) 28px 64px;
+}
+.home-layout > .home-main { max-width: none; margin: 0; padding: 0; min-width: 0; }
+.home-title {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--s-3); flex-wrap: wrap; margin-bottom: var(--s-4);
+}
+.home-title-text h1 { margin: 0; font-size: 26px; line-height: 1.25; letter-spacing: -0.02em; }
+.home-title-text p { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); }
+.home-date { font-size: 13px; color: var(--muted); white-space: nowrap; padding-bottom: 3px; }
+
+.brand-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex: none; border-radius: 9px;
+  color: #fff;
+  background: linear-gradient(160deg, #3f8cf7, #0969da);
+  box-shadow: 0 2px 6px rgba(9, 105, 218, .28);
+}
+.brand-text { display: inline-flex; flex-direction: column; line-height: 1.1; font-size: 16px; }
+.brand-sub { font-size: 10.5px; font-weight: 600; letter-spacing: .12em; color: var(--muted); }
+.sidebar-toggle { display: none; }
+
+.home-sidebar {
+  position: sticky; top: calc(var(--tabbar-h) + var(--topbar-h) + 20px);
+  max-height: calc(100vh - var(--tabbar-h) - var(--topbar-h) - 40px);
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
+}
+.side-section { padding: 6px 0 8px; border-bottom: 1px solid var(--border); }
+.side-section:last-of-type { border-bottom: none; }
+.side-section:first-of-type { padding-top: 2px; }
+.side-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-2);
+  padding: 4px 8px 6px;
+  font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .04em;
+}
+.side-link {
+  border: none; background: none; padding: 2px 4px; border-radius: var(--r-sm);
+  color: var(--accent); font: 12px var(--sans); cursor: pointer;
+}
+.side-link:hover { background: var(--accent-soft); }
+.side-add {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--panel);
+  color: var(--muted); cursor: pointer;
+}
+.side-add:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 7px 9px;
+  border: 1px solid transparent; border-radius: 8px;
+  background: none; color: var(--text);
+  font: 14px var(--sans); text-align: left; cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.nav-item:hover { background: var(--panel-2); }
+.nav-item.on {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent); font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.nav-item .licon { flex: none; opacity: .85; }
+.nav-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-count {
+  flex: none; min-width: 20px; text-align: right;
+  font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted);
+}
+.nav-item.on .nav-count { color: var(--accent); }
+.nav-dot {
+  width: 8px; height: 8px; flex: none; border-radius: 50%;
+  background: var(--st, var(--muted));
+}
+.nav-hash { flex: none; color: var(--muted); font-family: var(--mono); font-weight: 700; }
+.tag-item .nav-name { font-family: var(--mono); font-size: 13px; }
+.side-empty {
+  padding: 6px 9px 8px; font-size: 12.5px; line-height: 1.7; color: var(--muted);
+}
+.side-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); }
+.side-manage {
+  display: inline-flex; align-items: center; gap: 7px;
+  width: 100%; padding: 8px 9px; border: none; border-radius: 8px;
+  background: none; color: var(--muted); font: 13px var(--sans); text-align: left; cursor: pointer;
+}
+.side-manage:hover { background: var(--panel-2); color: var(--accent); }
+
+/* 管理导航弹窗 */
+.navcfg-modal { width: 760px; }
+.navcfg-intro { margin: -4px 0 var(--s-4); }
+.navcfg-block { margin-bottom: var(--s-4); }
+.navcfg-block h4 { margin: 0 0 var(--s-2); font-size: 14px; }
+.navcfg-presets { display: flex; gap: var(--s-2); flex-wrap: wrap; margin-bottom: 6px; }
+.navcfg-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4); }
+.navcfg-list {
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  max-height: 190px; overflow-y: auto; padding: 4px;
+}
+.navcfg-row {
+  display: flex; align-items: center; gap: var(--s-2);
+  padding: 3px 4px 3px 10px; border-radius: var(--r-sm);
+}
+.navcfg-row:hover { background: var(--panel-2); }
+.navcfg-name { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; }
+.navcfg-status { font-weight: 500; }
+.navcfg-actions { display: inline-flex; gap: 1px; flex: none; }
+.navcfg-actions .icon-btn { padding: 3px 5px; }
+.navcfg-actions .icon-btn:disabled { opacity: .3; cursor: not-allowed; }
+.navcfg-empty {
+  padding: 8px 10px; border: 1px dashed var(--border); border-radius: var(--r-md);
+  color: var(--muted); font-size: 12.5px;
+}
+.navcfg-add-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.navcfg-add {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 9px; border-radius: 999px;
+  border: 1px dashed var(--border); background: var(--panel);
+  color: var(--muted); font: 12.5px var(--sans); cursor: pointer;
+}
+.navcfg-add:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .stats-row { display: flex; gap: var(--s-3); flex-wrap: wrap; margin-bottom: var(--s-4); }
 /* 统计卡：现在是 button，需要重置浏览器默认样式。
    横排一行（图标 + 数字 + 标签），保持紧凑，不与下方卡片争视觉重心 */
@@ -649,17 +778,6 @@ input[type="search"] { width: 320px; }
 .card.drop-target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .order-hint { margin: -4px 0 16px; }
 
-/* 快捷视图（最近打开 / 已置顶）：临时筛选，不改变项目元数据 */
-.quick-views { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: -4px 0 var(--s-3); }
-.qv {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 12px; border-radius: 999px;
-  border: 1px solid var(--border); background: var(--panel);
-  color: var(--muted); font: 13px var(--sans); cursor: pointer;
-}
-.qv:hover { border-color: var(--accent); color: var(--accent); }
-.qv.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
-
 /* 卡片底部：上次打开与磁盘修改时间分开标注 */
 .card-times {
   display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap;
@@ -685,6 +803,33 @@ input[type="search"] { width: 320px; }
 .ctime.mod-time[data-tip]::after { left: auto; right: 0; }
 .ctime[data-tip]:hover::after, .ctime[data-tip]:focus-visible::after {
   opacity: 1; transform: none;
+}
+
+/* 窄屏：侧栏变抽屉，主区占满；不产生横向滚动 */
+@media (max-width: 1100px) {
+  .home-layout { grid-template-columns: minmax(0, 1fr); padding: var(--s-4) 16px 48px; }
+  .sidebar-toggle { display: inline-flex; }
+  .home-sidebar {
+    position: fixed; z-index: 70;
+    left: 10px; top: calc(var(--tabbar-h) + var(--topbar-h) + 10px); bottom: 10px;
+    width: 270px; max-height: none;
+    transform: translateX(calc(-100% - 20px));
+    transition: transform .2s cubic-bezier(.2, .8, .2, 1);
+    box-shadow: var(--shadow);
+  }
+  .home-sidebar.open { transform: none; }
+  .sidebar-mask {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(0, 0, 0, .38);
+    animation: mask-in .15s ease;
+  }
+  .navcfg-cols { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .home-title-text h1 { font-size: 22px; }
+  .home-date { font-size: 12px; }
+  .home-layout { padding: 12px 12px 40px; }
+  .navcfg-modal { padding: var(--s-4) 16px; }
 }
 
 .empty-tip {

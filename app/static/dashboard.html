@@ -44,9 +44,16 @@
 <div id="app" v-cloak>
   <header class="topbar">
     <span class="logo">
-      <tl-icon name="folder" :size="18"></tl-icon>
-      归迹 · tracelight <span class="dim">/ 本机索引库 · 数据不出本机</span>
+      <span class="brand-mark"><tl-icon name="folder" :size="17"></tl-icon></span>
+      <span class="brand-text">归迹拾光 <span class="brand-sub">Tracelight</span></span>
+      <span class="dim">本机索引库 · 数据不出本机</span>
     </span>
+    <button type="button" class="btn icon-only sidebar-toggle"
+            @click="sidebarOpen = !sidebarOpen"
+            :aria-expanded="sidebarOpen ? 'true' : 'false'" aria-controls="home-sidebar"
+            title="打开项目导航" aria-label="打开项目导航">
+      <tl-icon name="list" :size="16"></tl-icon>
+    </button>
     <span class="spacer"></span>
     <button class="btn" @click="openScan" title="批量扫描导入">
       <tl-icon name="search" :size="15"></tl-icon><span class="btn-text">批量扫描导入</span>
@@ -81,7 +88,88 @@
     </button>
   </header>
 
-  <main class="container">
+  <div class="home-layout">
+    <!-- 侧栏：快捷导航 + 可配置状态/标签；窄屏收为抽屉 -->
+    <div class="sidebar-mask" v-if="sidebarOpen" @click="sidebarOpen = false" aria-hidden="true"></div>
+    <aside id="home-sidebar" class="home-sidebar" :class="{ open: sidebarOpen }" aria-label="项目导航">
+      <template v-for="sec in navSections" :key="sec">
+        <nav v-if="sec === 'quick'" class="side-section" aria-label="快捷导航">
+          <div class="side-head"><span>快捷导航</span></div>
+          <button type="button" class="nav-item" :class="{ on: !quickFilter }"
+                  :aria-pressed="!quickFilter ? 'true' : 'false'" @click="showAllProjects">
+            <tl-icon name="folder" :size="15"></tl-icon>
+            <span class="nav-name">全部项目</span>
+            <span class="nav-count">{{ navCounts.all }}</span>
+          </button>
+          <button type="button" class="nav-item" :class="{ on: quickFilter === 'recent' }"
+                  :aria-pressed="quickFilter === 'recent' ? 'true' : 'false'" @click="toggleQuick('recent')">
+            <tl-icon name="clock" :size="15"></tl-icon>
+            <span class="nav-name">最近打开</span>
+            <span class="nav-count">{{ navCounts.recent }}</span>
+          </button>
+          <button type="button" class="nav-item" :class="{ on: quickFilter === 'pinned' }"
+                  :aria-pressed="quickFilter === 'pinned' ? 'true' : 'false'" @click="toggleQuick('pinned')">
+            <tl-icon name="pin" :size="15"></tl-icon>
+            <span class="nav-name">已置顶</span>
+            <span class="nav-count">{{ navCounts.pinned }}</span>
+          </button>
+        </nav>
+
+        <section v-else-if="sec === 'status'" class="side-section" aria-label="项目状态">
+          <div class="side-head">
+            <span>项目状态</span>
+            <button type="button" class="side-link" @click="openNavConfig"
+                    title="选择导航模板与管理显示项">模板</button>
+          </div>
+          <button type="button" class="nav-item" v-for="s in navStatusItems" :key="s.status"
+                  :class="{ on: statusFilter === s.status }"
+                  :aria-pressed="statusFilter === s.status ? 'true' : 'false'"
+                  @click="toggleStatus(s.status)">
+            <span class="nav-dot" :data-status="s.status"></span>
+            <span class="nav-name">{{ s.status }}</span>
+            <span class="nav-count">{{ s.count }}</span>
+          </button>
+        </section>
+
+        <section v-else-if="sec === 'tags'" class="side-section" aria-label="常用标签">
+          <div class="side-head">
+            <span>常用标签</span>
+            <button type="button" class="side-add" @click="openNavConfig"
+                    title="添加或管理常用标签" aria-label="添加或管理常用标签">
+              <tl-icon name="plus" :size="14"></tl-icon>
+            </button>
+          </div>
+          <template v-if="navTagItems.length">
+            <button type="button" class="nav-item tag-item" v-for="t in navTagItems" :key="t.tag"
+                    :class="{ on: tagFilter === t.tag }"
+                    :aria-pressed="tagFilter === t.tag ? 'true' : 'false'"
+                    @click="toggleTag(t.tag)">
+              <span class="nav-hash">#</span>
+              <span class="nav-name">{{ t.tag }}</span>
+              <span class="nav-count">{{ t.count }}</span>
+            </button>
+          </template>
+          <div v-else class="side-empty">
+            还没有固定常用标签
+            <button type="button" class="side-link" @click="openNavConfig">选择标签</button>
+          </div>
+        </section>
+      </template>
+      <div class="side-foot">
+        <button type="button" class="side-manage" @click="openNavConfig">
+          <tl-icon name="settings" :size="14"></tl-icon>管理导航
+        </button>
+      </div>
+    </aside>
+
+    <main class="container home-main">
+    <div class="home-title">
+      <div class="home-title-text">
+        <h1>项目总览</h1>
+        <p>找到项目，接着上次的思路。</p>
+      </div>
+      <span class="home-date">{{ todayLabel }}</span>
+    </div>
     <!-- 自动更新：批量刷新期间的轻量进度，失败可重试 -->
     <div class="auto-refresh-strip" v-if="autoRefresh.state !== 'idle'"
          :class="{ error: autoRefresh.state === 'error' }" role="status" aria-live="polite">
@@ -194,25 +282,6 @@
         </div>
       </div>
 
-    <!-- 快捷视图（F3 会迁入左侧导航；先提供最近打开/已置顶入口） -->
-    <div class="quick-views" role="group" aria-label="快捷视图">
-      <button type="button" class="qv" :class="{on: !quickFilter}"
-              :aria-pressed="!quickFilter ? 'true' : 'false'"
-              @click="showAllProjects">
-        <tl-icon name="folder" :size="14"></tl-icon>全部项目
-      </button>
-      <button type="button" class="qv" :class="{on: quickFilter === 'recent'}"
-              :aria-pressed="quickFilter === 'recent' ? 'true' : 'false'"
-              @click="toggleQuick('recent')">
-        <tl-icon name="clock" :size="14"></tl-icon>最近打开
-      </button>
-      <button type="button" class="qv" :class="{on: quickFilter === 'pinned'}"
-              :aria-pressed="quickFilter === 'pinned' ? 'true' : 'false'"
-              @click="toggleQuick('pinned')">
-        <tl-icon name="pin" :size="14"></tl-icon>已置顶
-      </button>
-    </div>
-
     <!-- 筛选栏 -->
     <div class="filter-bar">
       <span class="search-wrap">
@@ -224,8 +293,6 @@
         </button>
         <kbd class="search-kbd" v-else title="按 / 快速聚焦搜索">/</kbd>
       </span>
-      <tl-select v-model="statusFilter" :options="statuses" all-label="全部状态"></tl-select>
-      <tl-select v-model="tagFilter" :options="allTags" all-label="全部标签"></tl-select>
       <tl-select v-model="catFilter" :options="allCategories" all-label="全部分类"></tl-select>
       <tl-select :model-value="sortBy" :options="sortOptions" all-label=""
                   @update:model-value="saveSort"></tl-select>
@@ -378,7 +445,8 @@
       </template>
     </div>
     <div class="loading" v-if="loading">正在加载…</div>
-  </main>
+    </main>
+  </div>
 
   <footer class="foot-note" v-if="dataPath">
     <tl-icon name="drive" :size="14"></tl-icon>
@@ -548,6 +616,136 @@
             </ul>
           </div>
         </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- 管理导航：只配置侧栏展示，不修改项目状态/标签 -->
+  <div class="modal-mask" v-if="showNavConfig" @mousedown="maskPress($event)"
+       @mouseup="maskRelease($event, closeNavConfig)">
+    <div class="modal navcfg-modal" v-modal role="dialog" aria-modal="true" aria-labelledby="navcfg-title">
+      <h3 id="navcfg-title">管理导航</h3>
+      <p class="section-note navcfg-intro">
+        模板与显示项只影响首页左侧导航，不会批量修改项目状态，也不会新增分类数据。
+      </p>
+
+      <div class="navcfg-block">
+        <h4>导航模板</h4>
+        <div class="navcfg-presets">
+          <button type="button" class="btn sm" @click="applyNavTemplate('both')">状态 + 标签</button>
+          <button type="button" class="btn sm" @click="applyNavTemplate('status')">仅状态</button>
+          <button type="button" class="btn sm" @click="applyNavTemplate('tags')">仅标签</button>
+        </div>
+        <p class="section-note">快捷导航始终保留；模板只调整区域组合，之后仍可手动增删和排序。</p>
+      </div>
+
+      <div class="navcfg-block">
+        <h4>导航区域（顺序与显隐）</h4>
+        <div class="navcfg-list" v-if="navDraftSectionItems.length">
+          <div class="navcfg-row" v-for="(sec, i) in navDraftSectionItems" :key="sec.key">
+            <span class="navcfg-name">{{ sec.label }}</span>
+            <span class="navcfg-actions">
+              <button type="button" class="icon-btn" :disabled="i === 0"
+                      @click="moveDraftItem('sections', sec.key, -1)"
+                      :aria-label="'上移' + sec.label" title="上移">
+                <tl-icon name="chevron-up" :size="14"></tl-icon>
+              </button>
+              <button type="button" class="icon-btn" :disabled="i === navDraftSectionItems.length - 1"
+                      @click="moveDraftItem('sections', sec.key, 1)"
+                      :aria-label="'下移' + sec.label" title="下移">
+                <tl-icon name="chevron-down" :size="14"></tl-icon>
+              </button>
+              <button type="button" class="icon-btn" @click="removeDraftItem('sections', sec.key)"
+                      :aria-label="'隐藏' + sec.label" title="隐藏该区域">
+                <tl-icon name="x" :size="14"></tl-icon>
+              </button>
+            </span>
+          </div>
+        </div>
+        <div class="navcfg-empty" v-else>所有区域已隐藏；可从下方重新添加。</div>
+        <div class="navcfg-add-row" v-if="hiddenNavSections.length">
+          <button type="button" class="navcfg-add" v-for="sec in hiddenNavSections" :key="sec.key"
+                  @click="addDraftItem('sections', sec.key)">+ {{ sec.label }}</button>
+        </div>
+      </div>
+
+      <div class="navcfg-cols">
+        <div class="navcfg-block">
+          <h4>项目状态</h4>
+          <div class="navcfg-list" v-if="navDraft.statuses.length">
+            <div class="navcfg-row" v-for="(status, i) in navDraft.statuses" :key="status">
+              <span class="navcfg-name navcfg-status">
+                <span class="nav-dot" :data-status="status"></span>{{ status }}
+              </span>
+              <span class="navcfg-actions">
+                <button type="button" class="icon-btn" :disabled="i === 0"
+                        @click="moveDraftItem('statuses', status, -1)"
+                        :aria-label="'上移' + status" title="上移">
+                  <tl-icon name="chevron-up" :size="14"></tl-icon>
+                </button>
+                <button type="button" class="icon-btn" :disabled="i === navDraft.statuses.length - 1"
+                        @click="moveDraftItem('statuses', status, 1)"
+                        :aria-label="'下移' + status" title="下移">
+                  <tl-icon name="chevron-down" :size="14"></tl-icon>
+                </button>
+                <button type="button" class="icon-btn" @click="removeDraftItem('statuses', status)"
+                        :aria-label="'隐藏' + status" title="隐藏该状态入口">
+                  <tl-icon name="x" :size="14"></tl-icon>
+                </button>
+              </span>
+            </div>
+          </div>
+          <div class="navcfg-empty" v-else>状态区将不显示任何入口。</div>
+          <div class="navcfg-add-row" v-if="availableStatuses.length">
+            <button type="button" class="navcfg-add" v-for="status in availableStatuses" :key="status"
+                    @click="addDraftItem('statuses', status)">
+              <span class="nav-dot" :data-status="status"></span>+ {{ status }}
+            </button>
+          </div>
+        </div>
+
+        <div class="navcfg-block">
+          <h4>常用标签</h4>
+          <p class="section-note" v-if="!allTags.length">
+            当前项目还没有技术标签；给项目添加标签后即可固定到这里。
+          </p>
+          <template v-else>
+            <div class="navcfg-list" v-if="navDraft.tags.length">
+              <div class="navcfg-row" v-for="(tag, i) in navDraft.tags" :key="tag">
+                <span class="navcfg-name"><span class="nav-hash">#</span>{{ tag }}</span>
+                <span class="navcfg-actions">
+                  <button type="button" class="icon-btn" :disabled="i === 0"
+                          @click="moveDraftItem('tags', tag, -1)"
+                          :aria-label="'上移标签' + tag" title="上移">
+                    <tl-icon name="chevron-up" :size="14"></tl-icon>
+                  </button>
+                  <button type="button" class="icon-btn" :disabled="i === navDraft.tags.length - 1"
+                          @click="moveDraftItem('tags', tag, 1)"
+                          :aria-label="'下移标签' + tag" title="下移">
+                    <tl-icon name="chevron-down" :size="14"></tl-icon>
+                  </button>
+                  <button type="button" class="icon-btn" @click="removeDraftItem('tags', tag)"
+                          :aria-label="'移除常用标签' + tag" title="从侧栏移除（不删除项目标签）">
+                    <tl-icon name="x" :size="14"></tl-icon>
+                  </button>
+                </span>
+              </div>
+            </div>
+            <div class="navcfg-empty" v-else>尚未固定常用标签。</div>
+            <div class="navcfg-add-row" v-if="availableTagNames.length">
+              <button type="button" class="navcfg-add" v-for="tag in availableTagNames" :key="tag"
+                      @click="addDraftItem('tags', tag)">+ #{{ tag }}</button>
+            </div>
+            <p class="section-note" v-else>全部现有标签都已固定。</p>
+          </template>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn" @click="closeNavConfig" :disabled="navSaving">取消</button>
+        <button type="button" class="btn primary" @click="saveNavConfig" :disabled="navSaving">
+          {{ navSaving ? "保存中…" : "保存导航配置" }}
+        </button>
       </div>
     </div>
   </div>
