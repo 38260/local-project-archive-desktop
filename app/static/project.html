@@ -265,28 +265,57 @@
     </div>
 
     <div class="detail-layout" :class="{ 'tree-collapsed': treeCollapsed }">
-    <!-- 左侧锚点目录：目录树风格（分组可折叠，窄屏自动降级为顶部横向条） -->
-    <nav class="toc-nav toc-tree" aria-label="页面目录">
-      <span class="toc-title">页面目录</span>
-      <div class="toc-group" v-for="g in sectionGroups" :key="g.id"
-           :class="{ collapsed: tocCollapsed.includes(g.id) }">
-        <button type="button" class="toc-group-head"
-                @click="toggleGroup(g.id)"
-                :aria-expanded="!tocCollapsed.includes(g.id)">
-          <tl-icon name="chevron-down" :size="14" class="toc-chev"></tl-icon>
-          <tl-icon :name="g.icon" :size="15" class="toc-folder"></tl-icon>
-          <span class="toc-group-label">{{ g.label }}</span>
+    <!-- 左侧项目内部导航：四个主分区 + 当前分区页内锚点 -->
+    <aside class="detail-nav" aria-label="项目内部导航">
+      <a class="detail-back" href="/" @click.prevent="leaveConfirm('/')">
+        <tl-icon name="arrow-left" :size="15"></tl-icon>返回项目库
+      </a>
+      <div class="detail-nav-label">项目导航</div>
+      <nav class="tab-nav" aria-label="项目内容分区">
+        <button type="button" class="tab-btn" v-for="t in tabs" :key="t.key"
+                :class="{ on: activeTab === t.key }"
+                :aria-current="activeTab === t.key ? 'page' : false"
+                @click="switchTab(t.key)">
+          <tl-icon :name="t.icon" :size="16"></tl-icon>
+          <span>{{ t.label }}</span>
         </button>
-        <div class="toc-group-body">
-          <a v-for="s in g.items" :key="s.id" :class="{ on: activeSection === s.id }"
-             @click="scrollTo(s.id)" :title="s.label">{{ s.label }}</a>
-        </div>
+      </nav>
+      <div class="page-toc" v-if="activeAnchors.length" aria-label="本页内容">
+        <div class="page-toc-title">本页内容</div>
+        <button type="button" v-for="a in activeAnchors" :key="a.id"
+                :class="{ on: activeSection === a.id }"
+                :aria-current="activeSection === a.id ? 'location' : false"
+                @click="scrollTo(a.id)">{{ a.label }}</button>
       </div>
-    </nav>
+      <div class="detail-nav-foot"><span class="run-dot"></span>本地运行中</div>
+    </aside>
     <div class="detail-main">
 
+    <!-- 概览：F3 接入最近进展/最近笔记/常用启动/README 摘要；先提供稳定分区与跳转 -->
+    <div class="detail-tab overview-tab" v-show="activeTab === 'overview'">
+      <section class="panel overview-panel" id="overview-panel">
+        <h2>项目概览 <span class="right section-note">完整内容在对应分区</span></h2>
+        <p class="overview-lead" v-if="headSummary">{{ headSummary }}</p>
+        <p class="section-note">
+          最近进展、最近笔记、常用启动和项目简介将在这里汇总；启动、开发记录与项目资料仍保留完整能力。
+        </p>
+        <div class="overview-links">
+          <button type="button" class="btn" @click="switchTab('launch')">
+            <tl-icon name="play" :size="14"></tl-icon>启动与运行
+          </button>
+          <button type="button" class="btn" @click="switchTab('records')">
+            <tl-icon name="file-text" :size="14"></tl-icon>开发记录
+          </button>
+          <button type="button" class="btn" @click="switchTab('materials')">
+            <tl-icon name="folder" :size="14"></tl-icon>项目资料
+          </button>
+        </div>
+      </section>
+    </div>
+
     <!-- 流程图：自动识别 flowchart / workflow / 流程图 等命名的图片；可替换为候选或上传图 -->
-    <section class="panel" id="sec-flowchart" v-if="p && !p.is_lost">
+    <section class="panel" id="sec-flowchart" v-if="p && !p.is_lost"
+             v-show="activeTab === 'materials'">
       <h2>流程图
         <span class="count" v-if="flowchart && flowchart.candidates.length">{{ flowchart.candidates.length }} 张候选</span>
         <span class="right">
@@ -380,7 +409,7 @@
     </section>
 
     <!-- 快速启动：自动检测入口 + 自定义启动项 + 启动说明 -->
-    <section class="panel" id="sec-launch">
+    <section class="panel" id="sec-launch" v-show="activeTab === 'launch'">
       <h2>启动
         <span class="count" v-if="launchEntryCount">{{ launchEntryCount }} 个入口</span>
         <span class="right">
@@ -498,6 +527,7 @@
       </div>
 
       <!-- 运行历史：捕获运行的状态 / 退出码 / 耗时 / 输出 -->
+      <div id="sec-runs" class="launch-runs">
       <div class="panel-compact-bar" v-if="runsError">
         运行历史加载失败，记录未丢失，可重试
         <span class="fill"></span>
@@ -557,10 +587,12 @@
           </div>
         </div>
       </div>
+      </div>
     </section>
 
     <!-- 构建配置与依赖 -->
-    <section class="panel" id="sec-configs" v-if="meta && meta.configs.length">
+    <section class="panel" id="sec-configs" v-if="meta && meta.configs.length"
+             v-show="activeTab === 'materials'">
       <h2>构建配置与依赖</h2>
       <div class="meta-grid config-grid">
         <div v-for="c in meta.configs" :key="c.file"
@@ -590,7 +622,8 @@
     </section>
 
     <!-- 文件统计 -->
-    <section class="panel" id="sec-stats" v-if="meta && meta.stats">
+    <section class="panel" id="sec-stats" v-if="meta && meta.stats"
+             v-show="activeTab === 'materials'">
       <h2>文件统计 <span class="right section-note">仅只读统计，不改动任何文件</span></h2>
       <div class="stats-nums">
         <div class="stats-num">
@@ -638,7 +671,8 @@
 
     <!-- 个人记录：项目描述 / 开发笔记 / 手写变更日志统一收纳
          数据仍存各自的原表（不迁移），默认折叠，展开后才可新增或编辑 -->
-    <section class="panel personal-panel" id="sec-personal" :class="{ open: personalOpen }">
+    <section class="panel personal-panel" id="sec-personal"
+             :class="{ open: personalOpen }" v-show="activeTab === 'records'">
       <h2 class="personal-head">
         <button type="button" class="personal-toggle" @click="togglePersonal"
                 :aria-expanded="personalOpen" aria-controls="personal-body">
@@ -858,7 +892,7 @@
     </section>
 
     <!-- Git 提交记录（可视化时间线） -->
-    <section class="panel" id="sec-commits">
+    <section class="panel" id="sec-commits" v-show="activeTab === 'records'">
       <h2>Git 提交记录
         <span class="count" v-if="commitData && commitData.is_repo && commitData.commits.length">{{ fmtNum(commitData.total_count) }} 次</span>
         <span class="right section-note" v-if="commitData && commitData.is_repo && commitData.commits.length">
@@ -1036,7 +1070,7 @@
     </section>
 
     <!-- 项目截图（保存在本系统 data 目录） -->
-    <section class="panel" id="sec-shots"
+    <section class="panel" id="sec-shots" v-show="activeTab === 'materials'"
              @dragover.prevent="shotsDrag = true"
              @dragleave.prevent="shotsDrag = false"
              @drop.prevent="dropShots($event)"
@@ -1081,7 +1115,7 @@
     </section>
 
     <!-- 项目 README -->
-    <section class="panel" id="sec-readme">
+    <section class="panel" id="sec-readme" v-show="activeTab === 'materials'">
       <h2>项目 README
         <span class="right" style="display:inline-flex;align-items:center;gap:8px">
           <!-- 根目录有多份 README（多语言/多变体）时给出切换条；单份时只显示文件名 -->

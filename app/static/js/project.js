@@ -23,6 +23,46 @@
     if (/^[a-z0-9]{2}$/i.test(pair)) return pair.toUpperCase();
     return (first.replace(/[^a-z0-9]/gi, "").slice(0, 2) || "?").toUpperCase();
   }
+
+  // 详情页四个内容分区：内容用 v-show 保持挂载，草稿/筛选/折叠状态不会因切换丢失。
+  const DETAIL_TABS = [
+    { key: "overview", label: "概览", icon: "home" },
+    { key: "launch", label: "启动与运行", icon: "play" },
+    { key: "records", label: "开发记录", icon: "file-text" },
+    { key: "materials", label: "项目资料", icon: "folder" },
+  ];
+  // 「本页内容」锚点：只列当前分区，避免和四个主分区重复堆叠
+  const TAB_ANCHORS = {
+    overview: [{ id: "overview-panel", label: "项目概览" }],
+    launch: [
+      { id: "sec-launch", label: "启动项与说明" },
+      { id: "sec-runs", label: "运行历史" },
+    ],
+    records: [
+      { id: "sec-desc", label: "项目描述" },
+      { id: "sec-notes", label: "开发笔记" },
+      { id: "sec-changelogs", label: "变更日志" },
+      { id: "sec-commits", label: "Git 提交记录" },
+    ],
+    materials: [
+      { id: "sec-readme", label: "README" },
+      { id: "sec-flowchart", label: "流程图" },
+      { id: "sec-shots", label: "项目截图" },
+      { id: "sec-configs", label: "构建配置" },
+      { id: "sec-stats", label: "文件统计" },
+    ],
+  };
+  const ANCHOR_TAB = (() => {
+    const map = {};
+    for (const [tab, list] of Object.entries(TAB_ANCHORS)) {
+      for (const a of list) map[a.id] = tab;
+    }
+    // 兼容旧锚点/外部链接：先切到正确分区，再定位
+    Object.assign(map, {
+      "sec-info": "overview", "sec-git": "overview", "sec-personal": "records",
+    });
+    return map;
+  })();
   // 描述预览防抖定时器（非响应式，放组件外即可）
   let descTimer = null;
 
@@ -249,16 +289,14 @@
         moreOpen: false,
         headMoreOpen: false,     // 头部“更多信息”展开区
         descLive: "",
-        // 目录树收起状态（记忆在 localStorage，默认展开）
+        // 目录树收起状态（记忆在 localStorage，默认展开；F4 改为按需抽屉）
         treeCollapsed: localStorage.getItem("tl-tree-collapsed") === "1",
-        // 左侧锚点目录（sections 已改为计算属性，空面板自动隐藏）
-        activeSection: "sec-launch",
+        // 四个内容分区与页内锚点
+        tabs: DETAIL_TABS,
+        activeTab: "overview",
+        activeSection: "overview-panel",
+        sectionScroll: { overview: 0, launch: 0, records: 0, materials: 0 },
         spySuspendedUntil: 0,
-        // 目录树分组的折叠状态（记忆在 localStorage，默认全部展开）
-        tocCollapsed: (() => {
-          try { return JSON.parse(localStorage.getItem("tl-toc-collapsed") || "[]"); }
-          catch (e) { return []; }
-        })(),
         // 应用内文档查看器（README/笔记里的相对链接不再整页跳转，改在这里打开）
         docView: null,        // null=关闭；打开时为 {kind,name,rel,relDir,html,text,url,error?}
         docLoading: false,
@@ -570,40 +608,17 @@
       runningCount() {
         return (this.runs || []).filter(r => r.running).length;
       },
-      // 左侧目录：隐藏空内容面板的锚点
-      sections() {
-        const list = [
-          { id: "sec-flowchart", label: "流程图", hide: !!(this.p && this.p.is_lost) },
-          { id: "sec-launch", label: "启动", hide: !!(this.p && this.p.is_lost) },
-          { id: "sec-configs", label: "构建配置", hide: !(this.meta && this.meta.configs && this.meta.configs.length) },
-          { id: "sec-stats", label: "文件统计", hide: false },
-          // 描述 / 开发笔记 / 手写变更日志统一收进「个人记录」，目录只留一个入口
-          { id: "sec-personal", label: "个人记录", hide: false },
-          { id: "sec-commits", label: "提交记录", hide: !(this.gitInfo.is_repo || (this.commitData && this.commitData.is_repo)) },
-          { id: "sec-shots", label: "截图", hide: false },
-          { id: "sec-readme", label: "README", hide: !(this.readme && this.readme.exists) },
-        ];
-        return list.filter(x => !x.hide);
+      // 「本页内容」：只展示当前分区中真实存在的锚点
+      activeAnchors() {
+        return this.anchorsForTab(this.activeTab);
+      },
+      activeTabLabel() {
+        const tab = DETAIL_TABS.find(t => t.key === this.activeTab);
+        return tab ? tab.label : "";
       },
       // README 语言版本：候选列表（根目录内所有 README*）与实际渲染的那一份
       readmeVariants() { return (this.readme && this.readme.variants) || []; },
       readmeActive() { return (this.readme && this.readme.active) || ""; },
-      // 目录树分组：条目沿用 sections 的空面板过滤，空组整组隐藏
-      sectionGroups() {
-        const byId = {};
-        for (const s of this.sections) byId[s.id] = s.label;
-        const pick = ids => ids.filter(id => byId[id]).map(id => ({ id, label: byId[id] }));
-        return [
-          { id: "g-overview", icon: "folder", label: "概览",
-            items: pick(["sec-flowchart", "sec-launch"]) },
-          { id: "g-build", icon: "package", label: "构建与统计",
-            items: pick(["sec-configs", "sec-stats"]) },
-          { id: "g-records", icon: "file-text", label: "内容记录",
-            items: pick(["sec-personal", "sec-commits"]) },
-          { id: "g-attach", icon: "image", label: "附件",
-            items: pick(["sec-shots", "sec-readme"]) },
-        ].filter(g => g.items.length);
-      },
       // 依赖版本统计：固定(== / @精确版本) / 范围(^ ~ > <) / 未标注
       depStats() {
         const all = [];
@@ -1713,13 +1728,6 @@
         this.monthCollapsed = !this.monthCollapsed;
         localStorage.setItem("tl-month-collapsed", this.monthCollapsed ? "1" : "0");
       },
-      // 目录树分组折叠（跨项目记忆展开偏好）
-      toggleGroup(id) {
-        const i = this.tocCollapsed.indexOf(id);
-        if (i >= 0) this.tocCollapsed.splice(i, 1);
-        else this.tocCollapsed.push(id);
-        localStorage.setItem("tl-toc-collapsed", JSON.stringify(this.tocCollapsed));
-      },
       toggleCommit(hash) {
         const i = this.expandedCommits.indexOf(hash);
         if (i >= 0) this.expandedCommits.splice(i, 1);
@@ -1751,34 +1759,86 @@
         this.openRecord("logs");
         if (this.logDraft === null) this.openLogDraft();
       },
-      // ---- 左侧锚点目录 ----
-      scrollTo(id) {
-        // 点击后锁定高亮，等平滑滚动结束再交还滚动监听，
-        // 避免页面触底时（目标无法滚到顶部）高亮跳回上一个面板
-        this.activeSection = id;
-        this.spySuspendedUntil = Date.now() + 1000;
-        // 个人记录默认折叠：先展开再定位，否则算出来的是展开前的高度
-        if (id === "sec-personal") this.openRecord();
+      // ---- 四分区与左侧页内锚点 ----
+      anchorsForTab(tab) {
+        return (TAB_ANCHORS[tab] || []).filter(a => this.anchorVisible(a.id));
+      },
+      anchorVisible(id) {
+        if (id === "sec-readme") return !!(this.readme && this.readme.exists);
+        if (id === "sec-flowchart") return !!(this.p && !this.p.is_lost);
+        if (id === "sec-configs") return !!(this.meta && this.meta.configs && this.meta.configs.length);
+        if (id === "sec-stats") return !!(this.meta && this.meta.stats);
+        if (id === "sec-runs") return this.runs.length > 0 || this.runsError;
+        if (id === "sec-launch") return !!(this.p && !this.p.is_lost);
+        return true;
+      },
+      tabOfAnchor(id) { return ANCHOR_TAB[id] || null; },
+      // 切分区：保存当前分区的阅读位置；目标分区用 v-show 保留全部已挂载内容
+      switchTab(tab, anchor) {
+        if (!DETAIL_TABS.some(t => t.key === tab)) return;
+        const anchorId = typeof anchor === "string" ? anchor : "";
+        if (tab === this.activeTab) {
+          if (anchorId) this.scrollTo(anchorId);
+          return;
+        }
+        this.sectionScroll[this.activeTab] = window.scrollY;
+        this.activeTab = tab;
+        const fallback = (this.anchorsForTab(tab)[0] || {}).id || "";
+        const explicit = !!(anchorId && document.getElementById(anchorId));
+        const target = explicit ? anchorId : fallback;
+        this.activeSection = target;
+        if (explicit) this.prepareAnchor(target);
         this.$nextTick(() => {
-          const el = document.getElementById(id);
-          if (!el) return;
-          el.scrollIntoView({ behavior: "smooth", block: "start" });
-          el.classList.add("flash");
-          setTimeout(() => el.classList.remove("flash"), 1200);
+          if (explicit) this.scrollToElement(target);
+          else window.scrollTo({ top: this.sectionScroll[tab] || 0, behavior: "auto" });
+          this.spySuspendedUntil = Date.now() + 350;
         });
       },
-      // 滚动监听：高亮当前视口所在的面板
+      prepareAnchor(id) {
+        if (id === "sec-desc") this.openRecord("desc");
+        else if (id === "sec-notes") this.openRecord("notes");
+        else if (id === "sec-changelogs") this.openRecord("logs");
+        else if (id === "sec-personal") this.openRecord();
+      },
+      scrollToElement(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.classList.add("flash");
+        setTimeout(() => el.classList.remove("flash"), 1200);
+      },
+      scrollTo(id) {
+        const tab = this.tabOfAnchor(id) || this.activeTab;
+        if (tab !== this.activeTab) { this.switchTab(tab, id); return; }
+        // 点击后锁定高亮，等平滑滚动结束再交还滚动监听
+        this.activeSection = id;
+        this.spySuspendedUntil = Date.now() + 1000;
+        this.prepareAnchor(id);
+        this.$nextTick(() => this.scrollToElement(id));
+      },
+      // 滚动监听：只统计当前分区真实可见的锚点
       onScroll() {
         if (Date.now() < (this.spySuspendedUntil || 0)) return;
-        const offset = 90; // 与 sticky 顶栏高度对应
-        let current = "";
-        const secs = this.sections;
-        if (!secs.length) return;
-        for (const s of secs) {
-          const el = document.getElementById(s.id);
-          if (el && el.getBoundingClientRect().top <= offset) current = s.id;
+        const anchors = this.activeAnchors;
+        if (!anchors.length) return;
+        const offset = 90;
+        let current = anchors[0].id;
+        for (const a of anchors) {
+          const el = document.getElementById(a.id);
+          if (el && el.getBoundingClientRect().top <= offset) current = a.id;
         }
-        this.activeSection = current || secs[0].id;
+        this.activeSection = current;
+      },
+      // 支持 /project/N#sec-commits 这类旧/外部锚点：先切分区再定位
+      applyHashSection() {
+        const hash = decodeURIComponent((location.hash || "").replace(/^#/, ""));
+        if (!hash) return;
+        const tab = this.tabOfAnchor(hash);
+        if (!tab) return;
+        this.$nextTick(() => {
+          this.switchTab(tab, hash);
+          setTimeout(() => this.scrollToElement(hash), 80);
+        });
       },
       async loadReadme() {
         if (this.p.is_lost) { this.readme = { exists: false, variants: [] }; return; }
@@ -1938,6 +1998,7 @@
       this.load().then(() => {
         if (!this._disposed && this.p) {
           this.recordVisit();
+          this.applyHashSection();
           this.autoRefreshStart();
         }
       });
