@@ -137,8 +137,10 @@ def show_window():
         raise HTTPException(500, f"唤出窗口失败：{exc}")
 
 
-def _personal_activity(weeks: int = 53, day: str | None = None):
-    """两个首页入口共用身份快照与轻量提交源，保证去重口径相同。"""
+def _personal_activity(weeks: int = 53, day: str | None = None,
+                       window_days: int | None = None,
+                       local_dates: bool = False):
+    """首页各贡献入口共用身份快照与轻量提交源，保证去重口径相同。"""
     from concurrent.futures import ThreadPoolExecutor
 
     from app.services import gitinfo, settings_store
@@ -152,8 +154,10 @@ def _personal_activity(weeks: int = 53, day: str | None = None):
 
     def collect(row: dict):
         try:
-            res = gitinfo.collect_heatmap(row["path"], weeks=weeks,
-                                          author_emails=emails, include_commits=True, day=day)
+            res = gitinfo.collect_heatmap(
+                row["path"], weeks=weeks, author_emails=emails,
+                include_commits=True, day=day,
+                window_days=window_days, local_dates=local_dates)
         except Exception:
             res = {"is_repo": False, "commits": [], "error": "仓库读取失败"}
         res["project"] = {"id": row["id"], "name": row["name"]}
@@ -186,14 +190,20 @@ def heatmap_all(weeks: int = Query(53, ge=8, le=104)):
 
 
 @app.get("/api/day-commits")
-def day_commits(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")):
-    """本人当日明细按完整哈希去重，每条提交保留全部关联项目。"""
+def day_commits(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+                tz: str = Query("commit", pattern=r"^(commit|local)$")):
+    """本人当日明细按完整哈希去重，每条提交保留全部关联项目。
+
+    tz=commit 保留原有“提交自带时区”口径；本周拾光传 tz=local，
+    与面板的本地日历日分桶保持一致。
+    """
     from datetime import date as calendar_date
     try:
         calendar_date.fromisoformat(date)
     except ValueError as exc:
         raise HTTPException(422, "日期不合法") from exc
-    _, results, identity_required = _personal_activity(day=date)
+    _, results, identity_required = _personal_activity(
+        day=date, local_dates=(tz == "local"))
     unique = {}
     groups = {}
     for res in results:
@@ -212,6 +222,33 @@ def day_commits(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")):
             "project_count": len({p["id"] for c in unique.values() for p in c["projects"]}),
             "authors": "mine", "identity_required": identity_required,
             "failed_repos": sum(bool(r.get("error")) for r in results)}
+
+
+@app.get("/api/weekly")
+def weekly_all():
+    """首页「本周拾光」：近 7 个本地日历日的本人贡献。
+
+    窗口包含今天及之前 6 天（不是自然周）。同一完整哈希跨仓库只计一次，
+    按项目 ID 首次归属；明细继续保留每条提交的全部关联项目。
+    """
+    from app.services import weekly as weekly_service
+
+    start, end, _ = weekly_service.week_window()
+    rows, results, identity_required = _personal_activity(
+        window_days=weekly_service.WEEK_DAYS, local_dates=True)
+    data = weekly_service.aggregate(results, start, end)
+    data.update({
+        "repos": sum(bool(r.get("is_repo")) for r in results),
+        "failed_repos": sum(bool(r.get("error")) for r in results),
+        "scan_errors": [
+            {"project": r["project"]["name"], "reason": r.get("error")}
+            for r in results if r.get("error")
+        ],
+        "project_count_all": len(rows),
+        "authors": "mine",
+        "identity_required": identity_required,
+    })
+    return data
 
 
 def _clean_last_opened(value) -> str:

@@ -43,10 +43,35 @@ fs.mkdirSync(output, { recursive: true });
     await rejected;
     assert.equal(await invalidInput.inputValue(), "not-an-email");
     await saveEmails("ME+WORK@example.com\nold@example.com");
-    await waitText(".heat-sub", "2 次提交");
-    ok("首页设置多个邮箱后自动重算为 2 条，fork 副本不重复计数");
-    await page.locator(".heat-panel .heat-head").click();
-    await page.locator(".gh-grid .clickable").first().click();
+    await waitText(".week-sub", "2 次提交");
+    ok("首页设置多个邮箱后本周拾光重算为 2 条，fork 副本不重复计数");
+
+    // 柱悬停/键盘聚焦提示、查看近 7 天明细
+    const weekBar = page.locator(".week-col.has-commits").first();
+    await weekBar.hover();
+    await page.locator(".week-tip").waitFor();
+    assert.match(await page.locator(".week-tip").innerText(), /次提交/);
+    await weekBar.focus();
+    await page.locator(".week-tip").waitFor();
+    await page.getByRole("button", { name: "查看明细", exact: false }).click();
+    const weekDialog = page.getByRole("dialog", { name: "近 7 天提交明细" });
+    await weekDialog.waitFor();
+    assert((await weekDialog.locator(".week-detail-day").count()) > 0);
+    await page.keyboard.press("Escape");
+    await weekDialog.waitFor({ state: "hidden" });
+    ok("本周拾光悬停/聚焦提示、查看明细与本地日期明细可用");
+
+    // 折叠状态刷新后保持
+    await page.locator(".week-toggle").click();
+    assert.equal(await page.locator("#week-body").isVisible(), false);
+    await page.reload();
+    await waitText(".week-sub", "2 次提交");
+    assert.equal(await page.locator("#week-body").isVisible(), false);
+    await page.locator(".week-toggle").click();
+    assert.equal(await page.locator("#week-body").isVisible(), true);
+    ok("本周拾光折叠状态刷新后保持");
+
+    await page.locator(".week-col.has-commits").first().click();
     await waitText(".day-group", "old@example.com");
     assert.equal(await page.locator(".day-timeline li").count(), 2);
     assert.equal(await page.locator('.day-timeline a[href^="/project/"]').count(), 2);
@@ -99,7 +124,7 @@ fs.mkdirSync(output, { recursive: true });
     }
     ok("详情亮暗主题、1440/390 宽度无横向溢出并留存截图");
     await page.goto(state.base);
-    await waitText(".heat-sub", "2 次提交");
+    await waitText(".week-sub", "2 次提交");
     await page.getByRole("button", { name: "设置", exact: true }).click();
     const emailInput = page.getByLabel("我的 Git 邮箱", { exact: true });
     assert.equal(await emailInput.inputValue(), "me+work@example.com\nold@example.com");

@@ -24,6 +24,20 @@
     const t = Date.parse(iso || "");
     return Number.isNaN(t) ? null : t;
   };
+  const WEEKLY_EXPANDED_KEY = "tl-home-weekly-expanded";
+  const WEEK_COLORS = ["#2F81F7", "#22A66A", "#9061F9"];
+  const WEEK_OTHER_COLOR = "#A0A9B8";
+  const pad2 = (n) => String(n).padStart(2, "0");
+  // 新键优先；兼容旧热力图的“已展开”偏好；都没有时本周拾光默认展开。
+  function initialWeeklyExpanded() {
+    try {
+      const current = localStorage.getItem(WEEKLY_EXPANDED_KEY);
+      if (current === "1" || current === "0") return current === "1";
+      const legacy = localStorage.getItem("tl-home-heat-expanded");
+      if (legacy === "1" || legacy === "0") return legacy === "1";
+    } catch (e) { /* 隐私模式下按默认展开 */ }
+    return true;
+  }
   const STATUS_ORDER = ["进行中", "已完成", "暂停", "归档", "废弃"];
 
   const app = createApp({
@@ -67,16 +81,17 @@
         orderSaving: false,
         dragProjectId: null,
         dropProjectId: null,
-        // 首页总热力图（全部项目提交聚合）
-        heat: null,
-        heatRevision: 0,
+        // 本周拾光：近 7 个本地日历日的本人贡献（筛选不改变面板口径）
+        weekly: null,
+        weeklyRevision: 0,
+        weeklyLoading: true,
+        weeklyError: "",
+        weeklyExpanded: initialWeeklyExpanded(),
+        weekOtherColor: WEEK_OTHER_COLOR,
+        weekTip: null,
+        showWeeklyDetail: false,
+        // 当日提交弹窗（点击本周拾光某天）
         dayRevision: 0,
-        heatWeeks: 53,
-        // 折叠状态：**默认收起**，先把下面的项目列表露出来；用户手动展开后按本机偏好记住。
-        // 存储语义取「已展开」而不是「已收起」——这样「没存过」天然等于收起，无需额外迁移；
-        // 旧键 tl-home-heat-collapsed（默认展开时代的产物）就此废弃，不再读写。
-        heatCollapsed: localStorage.getItem("tl-home-heat-expanded") !== "1",
-        // 当日提交弹窗（点击热力图某天）
         showDay: false,
         dayLoading: false,
         dayData: null,
@@ -120,24 +135,79 @@
       editorName() {
         return window.editorName(this.editorCmd);
       },
-      // 总热力图网格：days 为 {date: {count, names}}，取 count 出格子，names 进悬浮提示
-      heatGrid() {
-        if (!this.heat) return null;
-        const flat = {};
-        for (const [k, v] of Object.entries(this.heat.days || {})) {
-          flat[k] = v.count;
-        }
-        const grid = window.buildHeatGrid(flat, this.heatWeeks);
-        // 悬浮提示带上当天有提交的项目名
-        for (const col of grid.cols) {
-          for (const cell of col) {
-            if (!cell) continue;
-            const info = (this.heat.days || {})[cell.date];
-            const names = (info && info.names) || [];
-            cell.label = `${cell.date}：${cell.n} 次提交` + (names.length ? `（${names.join("、")}）` : "");
+      // 本周拾光视图：Top3 + “其他”共用同一归并集合与配色。
+      // 每日堆叠色块、右侧色点/横条都从同一 colorById 取色，重载不随机。
+      weeklyView() {
+        this.nowTick;   // 跨午夜后“今天”标记重算
+        const w = this.weekly;
+        if (!w) return null;
+        const mmdd = (s) => {
+          const parts = String(s || "").split("-");
+          return parts.length === 3 ? `${+parts[1]}/${+parts[2]}` : (s || "");
+        };
+        const projects = (w.projects || []).slice().sort(
+          (a, b) => (b.count - a.count) || (a.id - b.id));
+        const top = projects.slice(0, 3).map((p, i) => ({ ...p, color: WEEK_COLORS[i] }));
+        const topIds = new Set(top.map(p => p.id));
+        const colorById = new Map(top.map(p => [p.id, p.color]));
+        const otherProjects = projects.slice(3);
+        const otherTotal = otherProjects.reduce((sum, p) => sum + p.count, 0);
+        const maxDay = Math.max(1, ...(w.days || []).map(d => d.total));
+        const todayKey = this.localDayKey();
+        const days = (w.days || []).map(d => {
+          const per = d.projects || [];
+          const segments = [];
+          const tipItems = [];
+          for (const p of top) {
+            const hit = per.find(x => x.id === p.id);
+            if (!hit || !hit.count) continue;
+            segments.push({
+              key: "p" + p.id, name: p.name, count: hit.count, color: p.color,
+              segPct: d.total ? (hit.count / d.total) * 100 : 0,
+            });
+            tipItems.push({ name: p.name, count: hit.count, color: p.color });
           }
-        }
-        return { ...grid, total: (this.heat.total || 0), repos: (this.heat.repos || 0) };
+          const others = per.filter(x => !topIds.has(x.id));
+          const otherCount = others.reduce((sum, x) => sum + x.count, 0);
+          if (otherCount) {
+            segments.push({
+              key: "other", name: "其他", count: otherCount, color: WEEK_OTHER_COLOR,
+              segPct: d.total ? (otherCount / d.total) * 100 : 0, other: true,
+            });
+            tipItems.push({
+              name: `其他 ${others.length} 个项目`, count: otherCount,
+              color: WEEK_OTHER_COLOR,
+            });
+          }
+          const detailText = tipItems.map(x => `${x.name} ${x.count} 次`).join("，");
+          return {
+            date: d.date, label: mmdd(d.date), weekday: d.weekday || "",
+            isToday: d.date === todayKey, total: d.total,
+            heightPct: (d.total / maxDay) * 100,
+            segments, tipItems,
+            aria: `${d.date} ${d.weekday || ""}，共 ${d.total} 次提交`
+              + (detailText ? `：${detailText}` : "：这一天没有提交"),
+          };
+        });
+        const maxProject = Math.max(1, top[0] ? top[0].count : 0);
+        const topRows = top.map(p => ({
+          ...p, barPct: Math.min(100, (p.count / maxProject) * 100),
+        }));
+        return {
+          total: w.total || 0,
+          projectCount: w.project_count || 0,
+          activeDays: w.active_days || 0,
+          start: w.start, end: w.end,
+          rangeLabel: `${mmdd(w.start)}～${mmdd(w.end)}`,
+          days, top: topRows,
+          otherTotal, otherProjectCount: otherProjects.length,
+          otherBarPct: Math.min(100, (otherTotal / maxProject) * 100),
+          maxDay, colorById,
+          repos: w.repos || 0,
+          failedRepos: w.failed_repos || 0,
+          identityRequired: !!w.identity_required,
+          commitsByDay: w.commits_by_day || [],
+        };
       },
       allTags() {
         const set = new Set();
@@ -286,11 +356,11 @@
           this.loading = false;
         }
         await this.loadPrefs();
-        this.loadHeatmap();
+        this.loadWeekly();
       },
       // ---- 自动更新（进入首页 / 回到前台）----
       // 首屏先用库里的数据渲染；后台把已收录项目排进一个刷新任务，完成后只替换
-      // projects / stats 与热力图，搜索、筛选、拖动顺序、滚动位置都不动。
+      // projects / stats 与本周拾光，搜索、筛选、拖动顺序、滚动位置都不动。
       autoRefreshStart(force) {
         if (this._disposed) return;
         clearTimeout(this._arTimer);
@@ -323,10 +393,10 @@
           this.autoRefresh.total = job.total;
           this.autoRefresh.failed = (job.failed || []).length;
           this.autoRefresh.changed = (job.changed_ids || []).length;
-          // 有项目真的变了才重拉列表与热力图（避免无意义的整页重绘）
+          // 有项目真的变了才重拉列表与本周拾光（避免无意义的整页重绘）
           if (job.ok > 0) await this.refreshListQuiet();
-          if (this.autoRefresh.changed > 0) await this.loadHeatmap();
-          // 卡片/热力图高度变化会触发浏览器滚动锚定，统一拉回刷新前的位置
+          if (this.autoRefresh.changed > 0) await this.loadWeekly();
+          // 卡片/本周拾光高度变化会触发浏览器滚动锚定，统一拉回刷新前的位置
           this.restoreScroll(y);
           this.autoRefresh.state = "done";
           setTimeout(() => {
@@ -740,39 +810,77 @@
             }
           }
           this.navTags = tagList;
-          const w = Number(this.prefs["ui.heatmap_weeks"]);
-          if (w && w !== this.heatWeeks) {
-            this.heatWeeks = w;
-            this.loadHeatmap();   // 热力图范围变化即时重载
-          }
         } catch (e) { this.prefs = {}; }
       },
-      // 首页总热力图：全部 git 项目按天提交聚合
-      async loadHeatmap() {
-        const revision = ++this.heatRevision;
+      localDayKey() {
+        const d = new Date();
+        return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      },
+      // 本周拾光：只在进入首页、后台采集变化、Git 邮箱变更时请求；
+      // 搜索/筛选/排序都只在前端过滤，不会重新执行 Git 扫描。
+      async loadWeekly() {
+        if (this._disposed) return;
+        const revision = ++this.weeklyRevision;
+        this.weeklyLoading = !this.weekly;
+        this.weeklyError = "";
         try {
-          const result = await api(`/api/heatmap?weeks=${this.heatWeeks}`, { silent: true });
-          if (revision === this.heatRevision) this.heat = result;
-        } catch (e) { if (revision === this.heatRevision) this.heat = null; }
+          const result = await api("/api/weekly", { silent: true });
+          if (revision === this.weeklyRevision) this.weekly = result;
+        } catch (e) {
+          if (revision === this.weeklyRevision) {
+            this.weekly = null;
+            this.weeklyError = (e && e.message) || "本周拾光加载失败";
+          }
+        } finally {
+          if (revision === this.weeklyRevision) this.weeklyLoading = false;
+        }
       },
-      toggleHeat() {
-        this.heatCollapsed = !this.heatCollapsed;
-        // 记「已展开」，与上面的读取口径保持一致（没存过 = 收起）
-        localStorage.setItem("tl-home-heat-expanded", this.heatCollapsed ? "0" : "1");
+      toggleWeekly() {
+        this.weeklyExpanded = !this.weeklyExpanded;
+        try {
+          localStorage.setItem(WEEKLY_EXPANDED_KEY, this.weeklyExpanded ? "1" : "0");
+        } catch (e) { /* 隐私模式下本次仍生效 */ }
       },
-      // 点击热力图某天：弹窗展示该日全部项目的提交明细
-      openDayDetail(cell) {
-        if (!cell || !cell.n) return;   // 无提交的日子不可点
+      weekColorFor(projectId) {
+        const view = this.weeklyView;
+        return (view && view.colorById.get(projectId)) || WEEK_OTHER_COLOR;
+      },
+      showWeekTip(day, ev) {
+        if (!day || !ev || !ev.currentTarget) return;
+        const rect = ev.currentTarget.getBoundingClientRect();
+        this.weekTip = {
+          day,
+          x: rect.left + rect.width / 2,
+          y: rect.top - 6,
+        };
+      },
+      hideWeekTip() { this.weekTip = null; },
+      // 点击有提交的日期：复用当日提交弹窗；tz=local 与面板本地日期口径一致
+      openDayDetail(value) {
+        const date = typeof value === "string" ? value : (value && value.date);
+        if (!date) return;
+        this.hideWeekTip();
         const revision = ++this.dayRevision;
         this.showDay = true;
         this.dayData = null;
         this.dayLoading = true;
-        api(`/api/day-commits?date=${cell.date}`, { silent: true })
+        api(`/api/day-commits?date=${encodeURIComponent(date)}&tz=local`, { silent: true })
           .then(d => { if (revision === this.dayRevision) this.dayData = d; })
           .catch(() => { if (revision === this.dayRevision) this.showDay = false; /* toast 已提示 */ })
           .finally(() => { if (revision === this.dayRevision) this.dayLoading = false; });
       },
       closeDay() { this.dayRevision++; this.showDay = false; this.dayData = null; this.dayLoading = false; },
+      openWeeklyDetail() {
+        if (!this.weekly || !this.weekly.total) return;
+        this.hideWeekTip();
+        this.showWeeklyDetail = true;
+      },
+      closeWeeklyDetail() { this.showWeeklyDetail = false; },
+      openWeeklyProject(projectId) {
+        const project = this.projects.find(p => p.id === projectId);
+        if (project) { this.goto(project); return; }
+        window.tlNavigate("/project/" + projectId);
+      },
       // ---- 设置（共享弹窗，见 js/settings.js） ----
       openSettings() { this.$refs.settings.open(); },
       // 设置变更联动：prefs=刷新编辑器按钮/主题/热力图范围等联动状态；
@@ -783,7 +891,8 @@
         this.loadPrefs();
         if (key === "git.author_emails") {
           this.closeDay();
-          this.loadHeatmap();
+          this.closeWeeklyDetail();
+          this.loadWeekly();
         }
         if (kind === "data") this.load();
       },
@@ -1000,6 +1109,8 @@
           return;
         }
         if (e.key === "Escape") {
+          if (this.weekTip) { this.weekTip = null; return; }
+          if (this.showWeeklyDetail) { this.closeWeeklyDetail(); return; }
           if (this.showNavConfig) { this.closeNavConfig(); return; }
           if (this.toolsOpen) { this.toolsOpen = false; return; }
           if (this.$refs.settings && this.$refs.settings.visible) {

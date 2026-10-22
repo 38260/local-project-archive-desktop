@@ -227,9 +227,22 @@ def collect_commit_log(path: str, limit: int = 50, date: str | None = None,
     return result
 
 
+def _commit_local_date(iso: str) -> date | None:
+    """提交时间转为本地日历日；缺少时区或非法值返回 None。"""
+    try:
+        dt = datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        return None
+    return dt.astimezone().date()
+
+
 def collect_heatmap(path: str, weeks: int = 53,
                     author_emails: list[str] | None = None,
-                    include_commits: bool = False, day: str | None = None) -> dict:
+                    include_commits: bool = False, day: str | None = None,
+                    window_days: int | None = None,
+                    local_dates: bool = False) -> dict:
     """按天聚合最近 N 周的全部提交次数（GitHub 风格贡献热力图数据源）。
 
     与 collect_commit_log 的 200 条上限无关：只取提交元数据，不展开 diff，
@@ -237,6 +250,8 @@ def collect_heatmap(path: str, weeks: int = 53,
     超大仓库不再全历史遍历；前端按月柱状图最多聚合 12 个日历月，网格
     起点比它更早几天，覆盖足够。按提交自带时区的日期过滤范围。
     include_commits=True 另返回去重所需的轻量提交，day 指定时只返回该日。
+    window_days 指定时改用「今天及之前 N-1 个日历日」的滚动窗口（首页本周拾光）；
+    local_dates=True 时按服务器本地时区转换后的日期分桶，否则保留提交自带时区日期。
     author_emails=None 表示全部作者，空列表不匹配任何人。
     """
     from datetime import date, timedelta
@@ -260,9 +275,13 @@ def collect_heatmap(path: str, weeks: int = 53,
     result["is_repo"] = True
     try:
         today = date.today()
-        # 网格终点 = 本周周日；起点 = weeks 周前的周日（周日起始，与 GitHub 一致）
+        # 网格终点 = 本周周日；起点 = weeks 周前的周日（周日起始，与 GitHub 一致）。
+        # window_days 用于近 N 天滚动窗口，不要求凑满自然周。
         end = today + timedelta(days=(6 - today.weekday()) % 7 if today.weekday() != 6 else 0)
         start = end - timedelta(days=7 * weeks - 1)
+        if window_days:
+            end = today
+            start = end - timedelta(days=max(1, int(window_days)) - 1)
         if day:
             start = end = date.fromisoformat(day)
         result["start"] = start.isoformat()
@@ -274,7 +293,7 @@ def collect_heatmap(path: str, weeks: int = 53,
         args = ["log", *_author_args(author_emails),
                 "--pretty=format:%H%x1f%cI%x1f%an%x1f%ae%x1f%s",
                 f"--since={(start - timedelta(days=2)).isoformat()}"]
-        if day:
+        if day or window_days:
             args.append(f"--until={(end + timedelta(days=2)).isoformat()}")
         raw = _run_git(args, path)
         if raw is None:
@@ -285,10 +304,15 @@ def collect_heatmap(path: str, weeks: int = 53,
             if len(parts) != 5:
                 continue
             commit_hash, iso, author, email, subject = parts
-            try:
-                d = date.fromisoformat(iso[:10])
-            except ValueError:
-                continue
+            if local_dates:
+                d = _commit_local_date(iso)
+                if d is None:
+                    continue
+            else:
+                try:
+                    d = date.fromisoformat(iso[:10])
+                except ValueError:
+                    continue
             if d < start or d > end:
                 continue
             key = d.isoformat()

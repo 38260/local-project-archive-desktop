@@ -223,64 +223,142 @@
       </button>
     </div>
 
-    <!-- 开发活动总览：全部项目提交热力图（可折叠，状态记忆） -->
-    <div class="heat-panel" v-if="heatGrid">
-      <button type="button" class="heat-head" @click="toggleHeat"
-              :aria-expanded="!heatCollapsed">
-        <tl-icon name="chevron-down" :size="13" class="heat-chev"
-                  :class="{ folded: heatCollapsed }"></tl-icon>
-        <span class="heat-title">
-          开发活动 · 仅本人
-          <span class="heat-sub" v-if="!heat.identity_required">
-            最近 {{ heatWeeks === 26 ? "半年" : "一年" }} · {{ heatGrid.repos }} 个仓库共
-            <b>{{ fmtNum(heatGrid.total) }}</b> 次提交
+    <!-- 本周拾光：近 7 个本地日历日的本人贡献（筛选不改变面板口径） -->
+    <div class="week-panel" v-if="weeklyLoading || weekly || weeklyError">
+      <div class="week-head">
+        <button type="button" class="week-toggle" @click="toggleWeekly"
+                :aria-expanded="weeklyExpanded ? 'true' : 'false'" aria-controls="week-body">
+          <tl-icon name="chevron-down" :size="13" class="heat-chev"
+                    :class="{ folded: !weeklyExpanded }"></tl-icon>
+          <span class="week-title">本周拾光</span>
+          <span class="week-sub" v-if="weeklyView">
+            近 7 天 · 仅本人 · 共 <b>{{ fmtNum(weeklyView.total) }}</b> 次提交
           </span>
-        </span>
-        <span class="hm-legend" aria-hidden="true" v-if="!heatCollapsed">
-          <span>少</span>
-          <span class="hm-cell l0"></span><span class="hm-cell l1"></span>
-          <span class="hm-cell l2"></span><span class="hm-cell l3"></span>
-          <span class="hm-cell l4"></span>
-          <span>多</span>
-        </span>
-      </button>
-      <div class="heat-body section-note" v-if="heat.identity_required">
-        请填写「我的 Git 邮箱」后统计个人贡献。
-        <button type="button" class="btn sm" @click="openSettings">设置 Git 邮箱</button>
-      </div>
-      <div class="heat-body section-note" v-if="heat.failed_repos">{{ heat.failed_repos }} 个仓库读取失败，当前统计可能不完整。</div>
-      <div class="heat-body" v-show="!heatCollapsed && !heat.identity_required">
-        <div class="section-note" style="margin-bottom:8px">仅统计本人作者邮箱，相同提交跨项目只计一次。</div>
-        <!-- 流体布局：格子随面板宽度等比缩放（上限约 19px），月份标签按百分比定位 -->
-        <div class="gh-heat gh-heat--fluid">
-          <div class="gh-heat-inner" :style="{ maxWidth: (heatWeeks * 21 + 30) + 'px' }">
-            <div class="gh-months" aria-hidden="true">
-              <span v-for="m in heatGrid.monthMarks" :key="'hm' + m.col"
-                    class="gh-month" :style="{ left: (m.col / heatWeeks * 100) + '%' }">{{ m.label }}</span>
-            </div>
-            <div class="gh-main">
-              <div class="gh-day-col" aria-hidden="true">
-                <span v-for="d in heatGrid.dayLabels" :key="'hd' + d.row"
-                      class="gh-day-label" :style="{ gridRow: d.row + 1 }">{{ d.l }}</span>
-              </div>
-              <div class="gh-grid" role="img"
-                   :style="{ aspectRatio: heatWeeks + ' / 7' }"
-                   :aria-label="`本人提交热力图，共 ${fmtNum(heatGrid.total)} 次提交`">
-                <template v-for="(col, ci) in heatGrid.cols" :key="'hc' + ci">
-                  <template v-for="(cell, ri) in col" :key="ci + '-' + ri">
-                    <span v-if="cell" class="hm-cell gh"
-                          :class="['l' + cell.level, { today: cell.today, clickable: cell.n }]"
-                          :title="cell.n ? cell.label + '，点击查看当天提交' : cell.label"
-                          @click="openDayDetail(cell)"></span>
-                      <span v-else class="hm-cell gh empty"></span>
-                  </template>
-                </template>
-                </div>
-              </div>
-            </div>
-          </div>
+          <span class="week-sub" v-else>近 7 天 · 仅本人</span>
+        </button>
+        <div class="week-tools">
+          <button type="button" class="week-detail-link"
+                  :disabled="!weeklyView || !weeklyView.total"
+                  @click="openWeeklyDetail">
+            查看明细 <tl-icon name="chevron-right" :size="13"></tl-icon>
+          </button>
         </div>
       </div>
+
+      <div id="week-body" class="week-body" v-show="weeklyExpanded">
+        <div class="week-loading" v-if="weeklyLoading && !weekly">
+          <span class="skel" style="width:80px;height:34px"></span>
+          <span class="skel" style="width:180px;height:18px"></span>
+          <span class="skel" style="width:100%;height:110px"></span>
+        </div>
+
+        <div class="week-error" v-else-if="weeklyError" role="alert">
+          <tl-icon name="warning" :size="16"></tl-icon>
+          <span>本周拾光加载失败：{{ weeklyError }}</span>
+          <button type="button" class="btn sm" @click="loadWeekly">重试</button>
+        </div>
+
+        <div class="week-identity" v-else-if="weeklyView && weeklyView.identityRequired">
+          <tl-icon name="commit" :size="22"></tl-icon>
+          <div>
+            <b>还没有配置「我的 Git 邮箱」</b>
+            <p class="section-note">填写后才能统计仅属于你的提交；不会把全部作者的历史算作你的贡献。</p>
+          </div>
+          <button type="button" class="btn sm primary" @click="openSettings">设置 Git 邮箱</button>
+        </div>
+
+        <template v-else-if="weeklyView">
+          <div class="week-grid">
+            <div class="week-summary">
+              <div class="week-big-row">
+                <span class="week-big">{{ fmtNum(weeklyView.total) }}</span>
+                <span class="week-big-unit">次提交</span>
+              </div>
+              <div class="week-summary-line">
+                <b>{{ weeklyView.projectCount }}</b> 个项目 · <b>{{ weeklyView.activeDays }}</b> 个活跃日
+              </div>
+              <div class="week-note">最近的开发足迹</div>
+              <div class="week-warn" v-if="weeklyView.failedRepos">
+                {{ weeklyView.failedRepos }} 个仓库读取失败，统计可能不完整
+                <button type="button" class="side-link" @click="loadWeekly">重试</button>
+              </div>
+            </div>
+
+            <div class="week-chart-wrap">
+              <div class="week-chart-head">
+                <span>每日节奏</span>
+                <span class="section-note">{{ weeklyView.rangeLabel }}</span>
+              </div>
+              <div class="week-chart" role="group" aria-label="近 7 天每日提交">
+                <button type="button" class="week-col"
+                        v-for="day in weeklyView.days" :key="day.date"
+                        :class="{ today: day.isToday, 'has-commits': day.total > 0 }"
+                        :aria-label="day.aria"
+                        @mouseenter="showWeekTip(day, $event)" @mouseleave="hideWeekTip"
+                        @focus="showWeekTip(day, $event)" @blur="hideWeekTip"
+                        @click="day.total && openDayDetail(day.date)">
+                  <span class="week-total" :class="{ zero: !day.total }">{{ day.total || "" }}</span>
+                  <span class="week-bar-area">
+                    <span class="week-bar" :style="{ height: day.heightPct + '%' }">
+                      <span class="week-seg" v-for="seg in day.segments" :key="seg.key"
+                            :style="{ height: seg.segPct + '%', background: seg.color }"></span>
+                    </span>
+                  </span>
+                  <span class="week-day">{{ day.label }}</span>
+                  <span class="week-today-tag" v-if="day.isToday">今天</span>
+                  <span class="week-today-spacer" v-else aria-hidden="true"></span>
+                </button>
+              </div>
+              <div class="week-empty-note" v-if="!weeklyView.total">近 7 天还没有本人的提交。</div>
+            </div>
+
+            <div class="week-projects-wrap">
+              <div class="week-chart-head"><span>最近推进</span></div>
+              <ul class="week-projects" v-if="weeklyView.top.length">
+                <li class="week-project" v-for="p in weeklyView.top" :key="p.id">
+                  <div class="week-project-row">
+                    <span class="week-dot" :style="{ background: p.color }"></span>
+                    <button type="button" class="week-project-name"
+                            :title="'打开项目「' + p.name + '」'" @click="openWeeklyProject(p.id)">
+                      {{ p.name }}
+                    </button>
+                    <span class="week-pcount">{{ p.count }}</span>
+                  </div>
+                  <span class="week-track">
+                    <span class="week-fill" :style="{ width: p.barPct + '%', background: p.color }"></span>
+                  </span>
+                </li>
+                <li class="week-project other" v-if="weeklyView.otherProjectCount">
+                  <div class="week-project-row">
+                    <span class="week-dot" :style="{ background: weekOtherColor }"></span>
+                    <span class="week-project-name">其他 {{ weeklyView.otherProjectCount }} 个项目</span>
+                    <span class="week-pcount">{{ weeklyView.otherTotal }}</span>
+                  </div>
+                  <span class="week-track">
+                    <span class="week-fill"
+                          :style="{ width: weeklyView.otherBarPct + '%', background: weekOtherColor }"></span>
+                  </span>
+                </li>
+              </ul>
+              <p class="week-empty-note" v-else>这 7 天还没有推进记录。</p>
+            </div>
+          </div>
+          <div class="week-foot-note">仅统计本人作者邮箱，相同提交跨仓库只计一次；提交数不代表工时或效率。</div>
+        </template>
+      </div>
+
+      <div class="week-tip" v-if="weekTip"
+           :style="{ left: weekTip.x + 'px', top: weekTip.y + 'px' }" role="tooltip">
+        <div class="week-tip-head">{{ weekTip.day.date }} · {{ weekTip.day.total }} 次提交</div>
+        <div class="week-tip-items" v-if="weekTip.day.tipItems.length">
+          <span class="week-tip-item" v-for="it in weekTip.day.tipItems" :key="it.name">
+            <span class="week-dot" :style="{ background: it.color }"></span>
+            {{ it.name }} <b>{{ it.count }}</b>
+          </span>
+        </div>
+        <div class="section-note" v-else>这一天没有提交</div>
+      </div>
+    </div>
 
     <!-- 筛选栏 -->
     <div class="filter-bar">
@@ -569,7 +647,7 @@
     </div>
   </div>
 
-  <!-- 当日提交明细（点击开发活动热力图某天） -->
+  <!-- 当日提交明细（点击本周拾光某天） -->
   <div class="modal-mask" v-if="showDay" @mousedown="maskPress($event)"
        @mouseup="maskRelease($event, closeDay)">
     <div class="modal day-modal" v-modal role="dialog" aria-modal="true" aria-labelledby="day-title">
@@ -616,6 +694,55 @@
             </ul>
           </div>
         </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- 近 7 天提交明细（本周拾光“查看明细”） -->
+  <div class="modal-mask" v-if="showWeeklyDetail" @mousedown="maskPress($event)"
+       @mouseup="maskRelease($event, closeWeeklyDetail)">
+    <div class="modal wide day-modal" v-modal role="dialog" aria-modal="true"
+         aria-labelledby="week-detail-title">
+      <h3 id="week-detail-title">
+        <tl-icon name="commit" :size="16"></tl-icon>
+        近 7 天提交明细
+      </h3>
+      <div class="day-body" v-if="weekly">
+        <p class="day-summary">
+          共 <b>{{ fmtNum(weekly.total) }}</b> 次提交，来自
+          {{ weekly.project_count }} 个项目（相同提交只计一次）
+        </p>
+        <div class="section-note" v-if="weekly.failed_repos">
+          {{ weekly.failed_repos }} 个仓库读取失败，明细可能不完整。
+        </div>
+        <div class="day-empty" v-if="!weeklyView || !weeklyView.commitsByDay.length">
+          近 7 天没有本人提交
+        </div>
+        <section class="week-detail-day" v-for="day in weeklyView.commitsByDay" :key="day.date">
+          <div class="day-group-head">
+            <span class="day-group-name">{{ day.date }} {{ day.weekday }}</span>
+            <span class="day-group-count">{{ day.total }} 次提交</span>
+          </div>
+          <ul class="commit-timeline day-timeline">
+            <li v-for="c in day.commits" :key="c.hash">
+              <div class="ct-row">
+                <span class="ct-dot" :style="{ background: weekColorFor(c.project_id) }"></span>
+                <span class="ct-hash">{{ c.short }}</span>
+                <span class="ct-type" :class="'ct-' + (commitType(c.message) || 'plain')"
+                      v-if="commitType(c.message)">{{ commitType(c.message) }}</span>
+                <span class="ct-msg" :title="c.message">{{ commitMsgText(c.message) }}</span>
+                <span class="ct-meta">{{ c.project_name }} · {{ fmtTime(c.date) }}</span>
+              </div>
+              <div class="section-note" v-if="c.projects && c.projects.length > 1">
+                也在：
+                <button type="button" class="week-linklike"
+                        v-for="p in c.projects.filter(x => x.id !== c.project_id)"
+                        :key="p.id"
+                        @click="closeWeeklyDetail(); openWeeklyProject(p.id)">{{ p.name }}</button>
+              </div>
+            </li>
+          </ul>
+        </section>
       </div>
     </div>
   </div>
