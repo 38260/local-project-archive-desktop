@@ -9,6 +9,7 @@
 - [x] D1：依据当前详情模板、已有截图及首页第二版，确定紧凑项目头部、四个内容分区、宽正文与按需目录树。
 - [x] D2：使用内置 imagegen 生成详情页“概览”预览，保存 PNG 和完整提示词。
 - [x] D3：目视核对关键区域、文件完整性、文档引用与变更范围，交付本次设计材料。
+- [x] D4：整理供另一个 AI 实施的完整开发提示词，在开头加入详情页参考图，明确真实数据、草稿保护、功能保留、分项提交及验收要求。
 
 ## 布局约定
 
@@ -20,6 +21,7 @@
 - 新版首页参考：[homepage-redesign-v2.png](designs/homepage-redesign-v2.png)。
 - 完整提示词：[project-detail-redesign-v1.prompt.md](designs/project-detail-redesign-v1.prompt.md)。
 - 详情页预览：[project-detail-redesign-v1.png](designs/project-detail-redesign-v1.png)。
+- 完整开发交接（含参考图）：[project-detail-implementation-prompt.md](designs/project-detail-implementation-prompt.md)。
 
 ## 后续实现建议（尚未实施）
 
@@ -43,3 +45,4 @@
 - 目视核对：项目标签栏、四个分区、单一蓝色主按钮、唯一项目路径、关闭的目录树入口、最近提交与笔记、两项启动入口、README 简介及底部内容均可见。
 - 统计源示例：近 7 天为 `0, 4, 5, 0, 6, 3, 0`，合计 18 次、4 个活跃日；图中显示对应总量。图片不作为真实数据渲染或交互验收。
 - 材料完整性检查通过：原图复制一致性、PNG 尺寸/长度/哈希、本地链接、待办未实施状态及本次文件范围均已核对；未执行应用功能测试。
+- 设计预览提交：`e5b3c26`。开发提示词只做静态核对，未调用其他 AI 或实际执行其中的开发任务；所有实现待办继续保留为未完成。
