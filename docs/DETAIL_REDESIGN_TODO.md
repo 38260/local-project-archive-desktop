@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | F1 | 紧凑项目头部、统一默认 Logo、信息去重、主次操作 | [x] 已完成（2026-10-23） |
 | F2 | 四个内容分区、页内锚点、草稿/筛选/折叠/阅读位置保护 | [x] 已完成（2026-10-23） |
-| F3 | 概览真实数据（最近进展/笔记/启动/README）与全部跳转 | [ ] 待开始 |
+| F3 | 概览真实数据（最近进展/笔记/启动/README）与全部跳转 | [x] 已完成（2026-10-23） |
 | F4 | 目录树按需侧栏、关闭释放整列、焦点与键盘 | [ ] 待开始 |
 | F5 | 主题/响应式、完整回归与截图验收 | [ ] 待开始 |
 
@@ -39,7 +39,7 @@
 
 - [x] F1：紧凑项目头部、统一默认图标、去除重复信息与操作优先级。
 - [x] F2：四个内容分区与页内定位，切换时保留编辑草稿、筛选、折叠及阅读位置。
-- [ ] F3：概览接入真实最近提交、笔记预览、现有启动入口与 README 摘要；不新增 AI 总结或推断工时。
+- [x] F3：概览接入真实最近提交、笔记预览、现有启动入口与 README 摘要；不新增 AI 总结或推断工时。
 - [ ] F4：目录树按需开关、关闭后释放整列空间，保留原有文件预览能力。
 - [ ] F5：亮暗主题、宽窄窗口、键盘交互、自动更新和未保存内容保护的隔离回归与实际验收。
 
@@ -77,3 +77,14 @@
 - 测试命令：`tools/isolated_instance.py --repo . --run ".venv\\Scripts\\python.exe tools/test_detail_prepare.py %TL_STATE% && node tools/test_detail_f2_browser.cjs %TL_STATE%" --cwd repo` → 通过：默认概览、四分区切换、锚点列表、描述/笔记/日志/启动说明四类草稿跨区保留、作者筛选与折叠保留、阅读位置恢复、未保存时离开确认、`#sec-commits` 旧锚点先切开发记录再定位、控制台无错误。
 - 截图：`docs/evidence/detail-redesign/detail-f2-1440.png`。
 - 未执行：窄屏导航、亮暗主题与完整响应式在 F5；目录树按需抽屉在 F4，当前仍保留旧右栏。
+
+## F3 验证记录（2026-10-23）
+
+- 起始 Git：`main`，HEAD `47ba7eb`，工作区干净。
+- 后端：`GET /api/projects/{id}/heatmap` 最小扩展 `window_days`（1～90）与 `tz=commit|local`，旧 `weeks` 月图口径与默认值不变；概览调用 `window_days=7&tz=local&authors=mine`，与开发记录的作者筛选隔离。
+- 概览：最近进展（7 个本地日历日含零提交、提交数/活跃日、项目稳定主色柱、最多 3 条按提交时间倒序的本人提交）、最近笔记（最新 3 条，纯文本标题/时间/两行预览，完整内容仍在开发记录）、常用启动（`orderedEntries` 前 3 个，默认入口标识，复用 runEntry 确认/忙碌/失败逻辑）、README 纯文本摘要。全部入口切分区并定位；“新增笔记”打开现有编辑器并聚焦。
+- 状态：缺邮箱显示设置引导；非 Git 项目优先显示“不是 Git 仓库”；真实 Git 空窗口显示 0/0 与零柱；请求失败显示错误和重试，不伪装为零；路径丢失单独提示。
+- 测试：`tools/isolated_instance.py --repo . --run ".venv\\Scripts\\python.exe tools/test_detail_prepare.py %TL_STATE% && node tools/test_detail_f3_browser.cjs %TL_STATE%" --cwd repo` → 通过（API total=4/window_days=7、概览 4 次/3 活跃日/7 桶/3 条提交/3 条笔记/启动默认入口/README 摘要、六个跳转链路、缺邮箱、非 Git、空窗口、故障注入 + 重试、控制台无未预期错误）。
+- 夹具新增：`QuietRepo` 为真实 Git 仓库但 7 天内无提交；`test_detail_prepare.py` 仍只在隔离目录内操作。
+- 截图：`docs/evidence/detail-redesign/detail-f3-1440.png`（右侧目录树仍为 F4 前的旧实现）。
+- 未执行：启动按钮真实执行命令（会拉起外部进程，留待人工验收）；窄屏/暗色在 F5。

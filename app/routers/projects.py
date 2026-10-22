@@ -1078,15 +1078,24 @@ def get_commits(project_id: int, limit: int = Query(50, ge=1, le=200),
 
 @router.get("/{project_id}/heatmap")
 def get_heatmap(project_id: int, weeks: int = Query(53, ge=8, le=104),
+                window_days: Optional[int] = Query(None, ge=1, le=90),
+                tz: str = Query("commit", pattern=r"^(commit|local)$"),
                 authors: str = Query("all", pattern="^(all|mine)$")):
-    """按天聚合最近 N 周提交数，供 GitHub 风格贡献热力图。"""
+    """按天聚合提交数，供贡献热力图与详情概览的近 7 天统计。
+
+    weeks 保留原有月图/热力图口径；window_days 指定时改用滚动窗口（概览传 7）。
+    tz=local 时把提交时间转换到本地日历日分桶；默认 commit 保留旧口径。
+    """
     with get_db() as conn:
         row = _get_row_or_404(conn, project_id)
     if not os.path.isdir(row["path"]):
         raise HTTPException(409, dir_not_exists_hint(row["path"]))
     emails = settings_store.git_author_emails() if authors == "mine" else None
-    result = gitinfo.collect_heatmap(row["path"], weeks=weeks, author_emails=emails)
-    return {**result, "authors": authors, "identity_required": emails == []}
+    result = gitinfo.collect_heatmap(
+        row["path"], weeks=weeks, author_emails=emails,
+        window_days=window_days, local_dates=(tz == "local"))
+    return {**result, "authors": authors, "identity_required": emails == [],
+            "window_days": window_days}
 
 
 @router.get("/{project_id}/commit-stats")

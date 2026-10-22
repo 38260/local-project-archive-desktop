@@ -291,26 +291,181 @@
     </aside>
     <div class="detail-main">
 
-    <!-- 概览：F3 接入最近进展/最近笔记/常用启动/README 摘要；先提供稳定分区与跳转 -->
+    <!-- 概览：最近进展 / 最近笔记 / 常用启动 / 项目简介，全部来自真实数据 -->
     <div class="detail-tab overview-tab" v-show="activeTab === 'overview'">
-      <section class="panel overview-panel" id="overview-panel">
-        <h2>项目概览 <span class="right section-note">完整内容在对应分区</span></h2>
-        <p class="overview-lead" v-if="headSummary">{{ headSummary }}</p>
-        <p class="section-note">
-          最近进展、最近笔记、常用启动和项目简介将在这里汇总；启动、开发记录与项目资料仍保留完整能力。
-        </p>
-        <div class="overview-links">
-          <button type="button" class="btn" @click="switchTab('launch')">
-            <tl-icon name="play" :size="14"></tl-icon>启动与运行
-          </button>
-          <button type="button" class="btn" @click="switchTab('records')">
-            <tl-icon name="file-text" :size="14"></tl-icon>开发记录
-          </button>
-          <button type="button" class="btn" @click="switchTab('materials')">
-            <tl-icon name="folder" :size="14"></tl-icon>项目资料
-          </button>
-        </div>
-      </section>
+      <div class="overview-grid">
+        <section class="panel ov-progress" id="ov-progress">
+          <h2>最近进展
+            <span class="count" v-if="recentProgress.isRepo && !recentProgress.identityRequired">近 7 天 · 仅本人</span>
+            <span class="right">
+              <button type="button" class="ov-link" @click="overviewAllCommits">
+                全部提交 <tl-icon name="chevron-right" :size="13"></tl-icon>
+              </button>
+            </span>
+          </h2>
+          <div class="skel-stack" v-if="recentProgress.loading">
+            <span class="skel" style="width:42%;height:22px"></span>
+            <span class="skel" style="width:100%;height:86px"></span>
+          </div>
+          <div class="panel-compact-bar" v-else-if="recentProgress.error">
+            近 7 天贡献读取失败：{{ recentProgress.error }}
+            <span class="fill"></span>
+            <button class="btn sm" @click="loadRecentActivity">
+              <tl-icon name="refresh" :size="13"></tl-icon>重试
+            </button>
+          </div>
+          <div class="ov-empty" v-else-if="recentProgress.lost">
+            项目路径丢失，暂时无法读取 Git 活动。
+          </div>
+          <div class="ov-empty" v-else-if="recentProgress.isRepo === false">
+            当前项目不是 Git 仓库，无法统计本人提交。
+          </div>
+          <div class="ov-empty" v-else-if="recentProgress.identityRequired">
+            <b>还没有配置「我的 Git 邮箱」</b>
+            <p class="section-note">填写后才能统计仅属于你的提交，不会把全部作者的历史算作个人进展。</p>
+            <button type="button" class="btn sm primary" @click="openSettings">设置 Git 邮箱</button>
+          </div>
+          <template v-else>
+            <div class="ov-summary">
+              <b>{{ fmtNum(recentProgress.total) }}</b> 次本人提交
+              <span class="ov-dot-sep">·</span>
+              <b>{{ recentProgress.activeDays }}</b> 个活跃日
+            </div>
+            <div class="ov-chart" role="group" aria-label="近 7 天本人提交">
+              <div class="ov-chart-col" v-for="day in recentProgress.days" :key="day.key"
+                   :title="day.tip">
+                <span class="ov-chart-num" :class="{ zero: !day.count }">{{ day.count }}</span>
+                <span class="ov-chart-track">
+                  <span class="ov-chart-bar"
+                        :style="{ height: day.pct + '%', background: recentProgress.color }"></span>
+                </span>
+                <span class="ov-chart-date">{{ day.label }}</span>
+                <span class="ov-chart-today" v-if="day.today">今天</span>
+                <span class="ov-chart-spacer" v-else aria-hidden="true"></span>
+              </div>
+            </div>
+            <div class="ov-commits-loading" v-if="recentCommitsLoading">
+              <span class="skel" style="width:100%;height:24px"></span>
+            </div>
+            <div class="ov-commits" v-else-if="recentCommitList.length">
+              <div class="ov-commit" v-for="c in recentCommitList" :key="c.hash">
+                <span class="ct-type" :class="'ct-' + (commitType(c.message) || 'plain')"
+                      v-if="commitType(c.message)">{{ commitType(c.message) }}</span>
+                <span class="ov-commit-msg" :title="c.message">{{ commitMsgText(c.message) }}</span>
+                <span class="ov-commit-time" :title="fmtTime(c.date)">{{ relTime(c.date) }}</span>
+              </div>
+            </div>
+            <div class="panel-compact-bar" v-else-if="recentCommitErrorText">
+              最近提交明细读取失败
+              <span class="fill"></span>
+              <button class="btn sm" @click="loadRecentActivity">重试</button>
+            </div>
+            <p class="section-note" v-else-if="!recentProgress.total">近 7 天没有本人提交。</p>
+          </template>
+        </section>
+
+        <section class="panel ov-notes" id="ov-notes">
+          <h2>最近笔记
+            <span class="right">
+              <button type="button" class="btn sm" @click="overviewNewNote">
+                <tl-icon name="plus" :size="13"></tl-icon>新增笔记
+              </button>
+            </span>
+          </h2>
+          <div class="skel-stack" v-if="notesLoading && !notes.length">
+            <span class="skel" style="width:100%;height:64px"></span>
+            <span class="skel" style="width:100%;height:64px"></span>
+          </div>
+          <div class="panel-compact-bar" v-else-if="notesError">
+            笔记加载失败，数据未丢失，可重试
+            <span class="fill"></span>
+            <button class="btn sm" @click="loadNotes">
+              <tl-icon name="refresh" :size="13"></tl-icon>重试
+            </button>
+          </div>
+          <template v-else-if="recentNotes.length">
+            <button type="button" class="ov-note" v-for="n in recentNotes" :key="n.id"
+                    @click="overviewAllNotes" :title="'查看全部笔记：' + noteTitle(n)">
+              <span class="ov-note-title">{{ noteTitle(n) }}</span>
+              <span class="ov-note-time">{{ relTime(n.updated_at || n.created_at) }}</span>
+              <span class="ov-note-preview" v-if="notePreview(n)">{{ notePreview(n) }}</span>
+            </button>
+            <button type="button" class="ov-link ov-note-all" @click="overviewAllNotes">
+              查看全部笔记 <tl-icon name="chevron-right" :size="13"></tl-icon>
+            </button>
+          </template>
+          <div class="ov-empty" v-else>
+            还没有开发笔记。
+            <button type="button" class="btn sm" @click="overviewNewNote">写第一条</button>
+          </div>
+        </section>
+
+        <section class="panel ov-launch" id="ov-launch">
+          <h2>常用启动
+            <span class="count" v-if="launchEntryCount">{{ launchEntryCount }} 个入口</span>
+            <span class="right">
+              <button type="button" class="ov-link" @click="overviewAllLaunches">
+                全部启动项 <tl-icon name="chevron-right" :size="13"></tl-icon>
+              </button>
+            </span>
+          </h2>
+          <div class="skel-stack" v-if="launchLoading && !launch">
+            <span class="skel" style="width:100%;height:26px"></span>
+          </div>
+          <div class="ov-empty" v-else-if="launch && !launch.supported">
+            当前环境不支持一键启动（仅 Windows 本地路径项目可用）；启动说明仍保留在启动与运行分区。
+          </div>
+          <div class="ov-launch-grid" v-else-if="overviewLaunches.length">
+            <div class="ov-launch-card" v-for="x in overviewLaunches" :key="x.key">
+              <div class="ov-launch-head">
+                <tl-icon :name="x.entry.mode === 'open' ? 'external' : 'terminal'" :size="15"></tl-icon>
+                <b class="ov-launch-name" :title="x.entry.name">{{ x.entry.name }}</b>
+                <span class="lb-tag" :class="{ 'lb-tag-src': x.kind === 'l' }">
+                  {{ x.kind === "l" ? "自定义" : "自动检测" }}
+                </span>
+                <span class="lb-primary" v-if="isPrimaryEntry(x.entry)">默认入口</span>
+              </div>
+              <code class="ov-launch-cmd" :title="x.entry.command">{{ x.entry.command }}</code>
+              <div class="ov-launch-foot">
+                <span class="section-note">{{ x.entry.mode === "open" ? "直接运行" : "新终端窗口" }}</span>
+                <button type="button" class="btn sm" @click="runEntry(x.entry)"
+                        :disabled="!!launchBusyKey || launchPrefsSaving"
+                        :title="'启动：' + x.entry.command">
+                  <tl-icon name="play" :size="12"></tl-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="ov-empty" v-else>
+            未检测到可用启动入口。
+            <button type="button" class="btn sm" @click="overviewAllLaunches">前往启动与运行</button>
+          </div>
+        </section>
+
+        <section class="panel ov-readme" id="ov-readme">
+          <h2>项目简介
+            <span class="right">
+              <button type="button" class="ov-link" @click="overviewReadmeFull">
+                阅读全文 <tl-icon name="chevron-right" :size="13"></tl-icon>
+              </button>
+            </span>
+          </h2>
+          <div class="skel-stack" v-if="!readme">
+            <span class="skel" style="width:100%;height:16px"></span>
+            <span class="skel" style="width:82%;height:16px"></span>
+          </div>
+          <template v-else-if="readme.exists">
+            <p class="ov-readme-text" v-if="readmePreview">{{ readmePreview }}</p>
+            <p class="section-note" v-else>README 已找到，但没有可预览的正文。</p>
+          </template>
+          <div class="ov-empty" v-else>项目根目录未找到 README.md。</div>
+          <div class="ov-readme-actions">
+            <button type="button" class="ov-link" @click="overviewEditDesc">
+              编辑项目描述 <tl-icon name="chevron-right" :size="13"></tl-icon>
+            </button>
+          </div>
+        </section>
+      </div>
     </div>
 
     <!-- 流程图：自动识别 flowchart / workflow / 流程图 等命名的图片；可替换为候选或上传图 -->

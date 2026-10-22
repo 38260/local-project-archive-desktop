@@ -33,7 +33,12 @@
   ];
   // 「本页内容」锚点：只列当前分区，避免和四个主分区重复堆叠
   const TAB_ANCHORS = {
-    overview: [{ id: "overview-panel", label: "项目概览" }],
+    overview: [
+      { id: "ov-progress", label: "最近进展" },
+      { id: "ov-notes", label: "最近笔记" },
+      { id: "ov-launch", label: "常用启动" },
+      { id: "ov-readme", label: "项目简介" },
+    ],
     launch: [
       { id: "sec-launch", label: "启动项与说明" },
       { id: "sec-runs", label: "运行历史" },
@@ -206,6 +211,7 @@
         newPath: "",
         // 开发笔记（多条）
         notes: [],
+        notesLoading: false,
         notesError: false,        // 加载失败标记：失败与「真没有笔记」分开显示
         noteDraft: null,          // null=收起编辑器，否则为草稿内容
         editingNoteId: null,
@@ -231,6 +237,14 @@
         // 与 commitData 是**两个范围**：那个是最近 N 条明细（时间线），这个是全量聚合。
         commitStats: null,
         commitStatsLoading: true,
+        // 概览“最近进展”：固定当前项目 / 近 7 天 / 仅本人，与开发记录作者筛选隔离
+        recentActivity: null,
+        recentActivityLoading: true,
+        recentActivityError: "",
+        recentCommits: null,
+        recentCommitsLoading: true,
+        recentCommitsError: "",
+        recentRevision: 0,
         // 按月提交柱状图：后端 /heatmap 固定取一年按天数据，前端聚合到日历月
         heat: null,
         monthSpan: 12,          // 柱状图月数（6=半年 | 12=一年），被设置 ui.heatmap_weeks 覆盖
@@ -294,7 +308,7 @@
         // 四个内容分区与页内锚点
         tabs: DETAIL_TABS,
         activeTab: "overview",
-        activeSection: "overview-panel",
+        activeSection: "ov-progress",
         sectionScroll: { overview: 0, launch: 0, records: 0, materials: 0 },
         spySuspendedUntil: 0,
         // 应用内文档查看器（README/笔记里的相对链接不再整页跳转，改在这里打开）
@@ -371,6 +385,91 @@
       headBranch() {
         const g = this.gitInfo;
         return g && g.is_repo ? (g.branch || "") : "";
+      },
+      // ---- 概览：最近进展（固定当前项目 / 近 7 天 / 仅本人） ----
+      recentProgress() {
+        const heat = this.recentActivity;
+        const now = new Date();
+        const fallbackEnd = this.localDateKey(now);
+        const fallbackStart = this.localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+        const startKey = (heat && heat.start) || fallbackStart;
+        const endKey = (heat && heat.end) || fallbackEnd;
+        const start = this.parseDateKey(startKey) || new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+        const end = this.parseDateKey(endKey) || now;
+        const dates = [];
+        const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+        const limit = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+        while (cursor <= limit && dates.length < 31) {
+          dates.push(new Date(cursor));
+          cursor.setDate(cursor.getDate() + 1);
+        }
+        const counts = (heat && heat.days) || {};
+        const todayKey = this.localDateKey(now);
+        const rawError = this.recentActivityError || (heat && heat.error) || "";
+        const emptyRepo = /仓库为空|没有任何提交/.test(rawError);
+        let total = 0;
+        const days = dates.map(d => {
+          const key = this.localDateKey(d);
+          const count = Number(counts[key] || 0);
+          total += count;
+          return {
+            key,
+            label: `${d.getMonth() + 1}/${d.getDate()}`,
+            weekday: `周${["日", "一", "二", "三", "四", "五", "六"][d.getDay()]}`,
+            count,
+            today: key === todayKey,
+            tip: `${key} ${["日", "一", "二", "三", "四", "五", "六"][d.getDay()]}：${count} 次提交`,
+          };
+        });
+        const max = Math.max(1, ...days.map(d => d.count));
+        for (const d of days) d.pct = d.count ? Math.max(4, (d.count / max) * 100) : 0;
+        return {
+          loading: this.recentActivityLoading,
+          identityRequired: !!(heat && heat.identity_required),
+          isRepo: heat ? !!heat.is_repo : null,
+          lost: !!(this.p && this.p.is_lost),
+          error: emptyRepo ? "" : rawError,
+          emptyRepo,
+          startKey, endKey,
+          days,
+          total,
+          activeDays: days.filter(d => d.count > 0).length,
+          max,
+          color: this.logoColor(this.p),
+          startLabel: days.length ? days[0].label : "",
+          endLabel: days.length ? days[days.length - 1].label : "",
+        };
+      },
+      recentCommitErrorText() {
+        const raw = this.recentCommitsError
+          || ((this.recentCommits && this.recentCommits.error) || "");
+        return /仓库为空|没有任何提交/.test(raw) ? "" : raw;
+      },
+      recentCommitList() {
+        const data = this.recentCommits;
+        if (!data || !data.is_repo || !Array.isArray(data.commits)) return [];
+        const range = this.recentProgress;
+        // git log 默认按提交图顺序；概览要按提交时间倒序展示真正的“最近”
+        return data.commits
+          .filter(c => {
+            const key = this.dateKeyOfIso(c.date);
+            return key && key >= range.startKey && key <= range.endKey;
+          })
+          .sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0))
+          .slice(0, 3);
+      },
+      recentNotes() {
+        return this.notes.slice().sort((a, b) =>
+          String(b.updated_at || b.created_at || "")
+            .localeCompare(String(a.updated_at || a.created_at || ""))
+        ).slice(0, 3);
+      },
+      overviewLaunches() {
+        return this.orderedEntries.slice(0, 3);
+      },
+      readmePreview() {
+        if (!this.readme || !this.readme.exists) return "";
+        return this.plainMarkdown(this.readme.raw || "").slice(0, 360);
       },
       // 头部数据徽章
       headBadges() {
@@ -956,6 +1055,7 @@
           this.loadCommits(false, true),
           this.loadCommitStats(true),
           this.loadHeatmap(),
+          this.loadRecentActivity(),
         ]);
       },
       // 读取通用设置：提交记录加载数 / 热力图范围（设置里改了立即生效于下次加载）
@@ -991,7 +1091,10 @@
         this.gitRevision++;
         this.commitData = this.commitStats = this.heat = null;
         this.commitTypeFilter = "";
-        return Promise.all([this.loadCommits(), this.loadCommitStats(), this.loadHeatmap()]);
+        return Promise.all([
+          this.loadCommits(), this.loadCommitStats(), this.loadHeatmap(),
+          this.loadRecentActivity(),
+        ]);
       },
       // ---- 流程图（自动识别 / 选择替换 / 上传） ----
       async loadFlowchart() {
@@ -1504,13 +1607,116 @@
         this.moreOpen = false;
         this.openEdit();
       },
+      localDateKey(date) {
+        const d = date instanceof Date ? date : new Date(date);
+        if (Number.isNaN(d.getTime())) return "";
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      },
+      parseDateKey(key) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(key || ""));
+        return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+      },
+      dateKeyOfIso(iso) {
+        if (!iso) return "";
+        const d = new Date(iso);
+        return Number.isNaN(d.getTime()) ? "" : this.localDateKey(d);
+      },
+      // 概览只展示纯文本摘要，不截断/注入已有 HTML；完整 Markdown 仍在原分区安全渲染
+      plainMarkdown(text) {
+        return String(text || "")
+          .replace(/```[\s\S]*?```/g, " ")
+          .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+          .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+          .replace(/^\s*[-*+]\s+/gm, "")
+          .replace(/[*_`~>|]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      },
+      noteTitle(note) {
+        const content = (note && note.content) || "";
+        const line = content.split(/\r?\n/).map(x => x.trim()).find(Boolean) || "";
+        const title = this.plainMarkdown(line);
+        return title ? title.slice(0, 60) : "未命名笔记";
+      },
+      notePreview(note) {
+        const plain = this.plainMarkdown((note && note.content) || "");
+        const title = this.noteTitle(note);
+        const rest = plain.startsWith(title) ? plain.slice(title.length).trim() : plain;
+        return rest.slice(0, 180);
+      },
+      overviewAllCommits() { this.switchTab("records", "sec-commits"); },
+      overviewAllNotes() { this.switchTab("records", "sec-notes"); },
+      overviewNewNote() {
+        this.switchTab("records", "sec-notes");
+        this.openNoteDraft();
+      },
+      overviewAllLaunches() { this.switchTab("launch", "sec-launch"); },
+      overviewReadmeFull() { this.switchTab("materials", "sec-readme"); },
+      overviewEditDesc() { this.switchTab("records", "sec-desc"); },
+      // 概览固定“仅本人”，不读取/重置开发记录里的作者筛选
+      async loadRecentActivity() {
+        if (!this.p) return;
+        const pid = this.projectId;
+        const rev = ++this.recentRevision;
+        if (this.p.is_lost) {
+          this.recentActivity = null;
+          this.recentCommits = null;
+          this.recentActivityLoading = false;
+          this.recentCommitsLoading = false;
+          this.recentActivityError = "";
+          this.recentCommitsError = "";
+          return;
+        }
+        this.recentActivityLoading = true;
+        this.recentCommitsLoading = true;
+        this.recentActivityError = "";
+        this.recentCommitsError = "";
+        const heat = api(`/api/projects/${pid}/heatmap?window_days=7&tz=local&authors=mine`,
+          { silent: true })
+          .then(r => {
+            if (rev === this.recentRevision && pid === this.projectId) this.recentActivity = r;
+          })
+          .catch(e => {
+            if (rev === this.recentRevision && pid === this.projectId) {
+              this.recentActivity = null;
+              this.recentActivityError = (e && e.message) || "读取失败";
+            }
+          })
+          .finally(() => {
+            if (rev === this.recentRevision && pid === this.projectId) {
+              this.recentActivityLoading = false;
+            }
+          });
+        // 多取一些再按提交时间排序，避免 git 提交图顺序与日期不一致时漏掉真正最近的 3 条
+        const commits = api(`/api/projects/${pid}/commits?limit=20&authors=mine`,
+          { silent: true })
+          .then(r => {
+            if (rev === this.recentRevision && pid === this.projectId) this.recentCommits = r;
+          })
+          .catch(e => {
+            if (rev === this.recentRevision && pid === this.projectId) {
+              this.recentCommits = null;
+              this.recentCommitsError = (e && e.message) || "读取失败";
+            }
+          })
+          .finally(() => {
+            if (rev === this.recentRevision && pid === this.projectId) {
+              this.recentCommitsLoading = false;
+            }
+          });
+        await Promise.allSettled([heat, commits]);
+      },
       // ---- 开发笔记 ----
       async loadNotes() {
         this.notesError = false;
+        this.notesLoading = true;
         try {
           const r = await api(`/api/projects/${this.projectId}/notes`, { silent: true });
           this.notes = r.notes;
         } catch (e) { this.notes = []; this.notesError = true; }
+        finally { this.notesLoading = false; }
       },
       async saveNewNote() {
         try {
@@ -1915,6 +2121,7 @@
             this.loadReadme();
             this.loadTree();
             this.loadCommits();
+            this.loadRecentActivity();
           } else {
             toast("路径已失效，项目被标记为丢失", "error");
           }

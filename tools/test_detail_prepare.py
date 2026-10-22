@@ -75,8 +75,25 @@ def main():
     })
     assert status == 201
 
+    # 空窗口样例：真实 Git 仓库，但 7 天内没有本人提交（唯一提交在 10 天前）
+    quiet = root / "final-samples" / "quiet-repo"
+    quiet.mkdir(parents=True, exist_ok=True)
+    home.write(quiet / "README.md", "# QuietRepo\n\n一个 7 天内没有新提交的真实仓库。\n")
+    home.git(quiet, "init", "-b", "main")
+    home.git(quiet, "config", "user.name", "Yibo")
+    home.git(quiet, "config", "user.email", "me@example.com")
+    home.commit(quiet, "chore: 十天前的旧提交", "me@example.com", home.when(10, 9, 0))
+    status, quiet_project = req(base, "POST", "/api/projects", {
+        "path": str(quiet), "name": "QuietRepo", "category": "实验",
+        "status": "暂停", "tags": ["Python"],
+    })
+    assert status == 201, quiet_project
+    req(base, "PUT", f"/api/projects/{quiet_project['id']}",
+        {"description": "用于验证近 7 天无提交的空状态。"})
+
     print(f"[prepare-detail] Tracelight id={tracelight['id']} "
-          f"launchers={first['id']},{second['id']} notes={len(notes)}")
+          f"launchers={first['id']},{second['id']} notes={len(notes)} "
+          f"quietId={quiet_project['id']}")
 
 
 if __name__ == "__main__":
