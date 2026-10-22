@@ -297,7 +297,7 @@
                         @mouseenter="showWeekTip(day, $event)" @mouseleave="hideWeekTip"
                         @focus="showWeekTip(day, $event)" @blur="hideWeekTip"
                         @click="day.total && openDayDetail(day.date)">
-                  <span class="week-total" :class="{ zero: !day.total }">{{ day.total || "" }}</span>
+                  <span class="week-total" :class="{ zero: !day.total }">{{ day.total }}</span>
                   <span class="week-bar-area">
                     <span class="week-bar" :style="{ height: day.heightPct + '%' }">
                       <span class="week-seg" v-for="seg in day.segments" :key="seg.key"
@@ -441,14 +441,11 @@
                     <tl-icon name="arrow-up-down" :size="18"></tl-icon>
                   </button>
                 </div>
-                <div class="alias-row" v-if="p.alias">
-                  <span class="alias-chip" :title="'别名：' + p.alias">{{ p.alias }}</span>
-                </div>
                 <div class="card-desc" v-if="p.intro" :title="p.intro">{{ p.intro }}</div>
-                <div class="card-desc commit-desc" v-else-if="p.last_commit" :title="p.last_commit.message">
+                <div class="card-commit" v-if="p.last_commit">
                   <span class="ct-type" :class="'ct-' + (commitType(p.last_commit.message) || 'plain')"
                         v-if="commitType(p.last_commit.message)">{{ commitType(p.last_commit.message) }}</span>
-                  <span class="card-desc-text">{{ commitMsgText(p.last_commit.message) }}</span>
+                  <span class="card-desc-text commit-line" :title="p.last_commit.message">{{ commitMsgText(p.last_commit.message) }}</span>
                   <span class="ct-hash-inline">{{ p.last_commit.hash }}</span>
                 </div>
               </div>
@@ -470,6 +467,7 @@
               </span>
             </div>
             <div class="meta-row foot-row">
+              <span v-if="p.alias" class="alias-chip" :title="'别名：' + p.alias">{{ p.alias }}</span>
               <span v-if="p.category" class="cat-chip">{{ p.category }}</span>
               <span v-for="t in p.tags.slice(0, 3)" :key="t" :class="tagClass(t)">{{ t }}</span>
               <span v-if="p.tags.length > 3" class="section-note tag-more">+{{ p.tags.length - 3 }}</span>

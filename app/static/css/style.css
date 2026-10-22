@@ -935,8 +935,13 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
   font-size: 13px; line-height: 1.55; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.card-desc.commit-desc { display: flex; align-items: center; gap: 6px; }
 .card-desc-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-commit {
+  display: flex; align-items: center; gap: 6px;
+  min-height: 18px; margin-top: 1px;
+  font-size: 12.5px; color: var(--muted);
+}
+.card .foot-row .alias-chip { max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
 /* 左侧状态色条：进行中蓝 / 已完成绿 / 暂停橙 / 归档灰 */
 .card::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;

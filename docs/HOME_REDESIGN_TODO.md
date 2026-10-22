@@ -15,7 +15,7 @@
 | F3 | 可配置状态/标签导航、模板与管理界面、组合筛选、计数、持久化 | [x] 已完成（2026-10-22） |
 | F4 | 近 7 天本人贡献聚合、跨仓库去重/唯一归属、稳定配色、堆叠图与明细 | [x] 已完成（2026-10-22） |
 | F5 | 首页整体布局、字母 Logo、暗色主题与响应式 | [x] 已完成（2026-10-22） |
-| F6 | 完整回归、必要修复、截图与验收记录 | [ ] 待开始 |
+| F6 | 完整回归、必要修复、截图与验收记录 | [x] 已完成（2026-10-23） |
 | F7 | 可选：单项目自定义图标上传与恢复默认（未确认，不默认实现） | [ ] 未授权 |
 
 本地验证环境：Windows + Git Bash，Python 3.12（`.venv`），Node.js 24，Chrome/Playwright（与现有 `tools/` 回归一致）。所有写入测试必须先经 `tools/isolated_instance.py` 或临时数据库隔离，禁止对 `data/projects.db` 执行清理/写入测试。
@@ -96,7 +96,7 @@
 - [x] **F3 自定义导航**：快捷导航（全部/最近打开/已置顶）+ 项目状态区 + 常用标签区；模板预设、管理导航、区域顺序/显隐、状态顺序/显隐、常用标签选择；设置持久化与旧设置回退；交叉筛选、候选计数、废弃显式可见、无结果清除。验证计数与点击结果一致、标签计数可重叠、键盘可操作、重启保持。
 - [x] **F4 本周拾光**：`/api/weekly` 近 7 个本地日历日本人贡献；跨仓库相同完整哈希只计一次并按稳定项目 ID 首次归属；每日堆叠总量 = 摘要 = 右侧分布；Top3 + “其他”共用同一套归并集合和配色；柱悬停/聚焦提示、点击日期复用当日明细、查看明细、折叠记忆、邮箱缺失/空/仓库失败状态。验证本地日期边界与跨时区、分项守恒、稳定配色、失败不伪装为零。
 - [x] **F5 布局与视觉**：左侧栏 220～244px + 主区；项目总览和真实日期；紧凑统计条；默认字母/缩写 Logo；卡片时间行；亮暗主题；1920/1440/1280/1024/768/390px 无横向溢出；窄屏侧栏抽屉。保留顶部标签栏与现有入口。
-- [ ] **F6 整体回归**：隔离实例跑既有排序/自动刷新/贡献回归与新增浏览器链路（筛选→搜索→打开→返回看到访问时间→最近打开→拖动→刷新）；控制台与失败请求检查；留存亮暗/多宽度截图与参考图对照；记录桌面 WebView、重新打包与安装包验证的实际执行情况，未执行不得写为通过。
+- [x] **F6 整体回归**：隔离实例跑既有排序/自动刷新/贡献回归与新增浏览器链路（筛选→搜索→打开→返回看到访问时间→最近打开→拖动→刷新）；控制台与失败请求检查；留存亮暗/多宽度截图与参考图对照；记录桌面 WebView、重新打包与安装包验证的实际执行情况，未执行不得写为通过。
 - [ ] **F7 项目图标（设计建议，未确认）**：默认首字母/缩写已包含在 F5；单项目自定义上传覆盖、恢复默认不在本轮默认范围，未经授权不写接口或抽象。
 
 ## 6. 本轮检查记录
@@ -172,3 +172,13 @@
 - 回归命令：`node tools/test_home_sort_time.cjs`、`node tools/test_home_nav.cjs`、`node tools/test_home_weekly.cjs`、`node tools/test_dashboard_order.cjs` → 全部通过。
 - 浏览器命令：`TL_EVIDENCE=docs/evidence/home-redesign ./.venv/Scripts/python.exe tools/isolated_instance.py --repo . --run "node tools/test_home_redesign_browser.cjs %TL_STATE%" --cwd repo` → 通过：1920/1440/1280/1024/768/390 亮暗主题无横向溢出、窄屏侧栏抽屉、卡片时间往返、导航配置落盘；截图见 `docs/evidence/home-redesign/home-f3-*.png`（文件名沿用测试批次，最终验收截图在 F6 重命名为 home-final-*）。
 - 未执行：真实项目标签固定后的完整点击筛选浏览器链路（逻辑由 `test_home_nav.cjs` 覆盖，F6 补充）；桌面 WebView/安装包测试。
+
+### F6 验证记录（2026-10-23）
+
+- 起始 Git：`main`，HEAD `74946e8`，工作区只有首页 F6 的两个未跟踪验收脚本；未触碰详情页/真实档案库。
+- 修复：卡片别名从独立行移入分类/标签行，避免同一网格行高度被单个别名撑开；零提交日明确显示 `0`；恢复卡片最近提交行并保留 `.commit-line` 兼容既有自动更新回归。
+- 新验收夹具：`tools/test_home_final_prepare.py` 在隔离实例中创建 10 个真实项目（6 进行中 / 1 暂停 / 1 已完成 / 1 归档 / 1 废弃）、5 个真实 Git 仓库和近 7 天 11 次本人提交；设置 Python/Vue/C#/Go 常用标签、2 个置顶和今天/昨天/3 天前/7 天前/无记录五种访问时间。最后一种访问时间仅为隔离测试夹具直接写入，访问事件本身另有 API 回归。
+- 浏览器全链路：`TL_EVIDENCE=docs/evidence/home-redesign ./.venv/Scripts/python.exe tools/isolated_instance.py --repo . --run ".venv\\Scripts\\python.exe tools/test_home_final_prepare.py %TL_STATE% && node tools/test_home_final_browser.cjs %TL_STATE%" --cwd repo` → 11 项全部通过：统计/导航计数、本周拾光 Top3+其他与配色、悬停/聚焦提示、7 天/当日明细、折叠记忆、状态+标签+搜索、废弃显式可见、最近打开排序、真实拖动并刷新保持、最近打开视图、软导航访问记录、管理导航添加 Rust 标签、六种宽度与暗色 1440/390 无横向溢出、控制台无错误/失败请求。
+- 回归：`PYTHONUTF8=1 ./.venv/Scripts/python.exe tools/test_auto_refresh_home.py` → 全部通过（首屏 3 卡、外部提交后卡片最近提交更新、搜索/排序/滚动保持、focus 请求合并、失败提示与重试）；`test_git_contributions_api.py + test_git_contributions_browser.cjs` 隔离链路 → 全部通过；`node tools/test_dashboard_order.cjs`、`test_home_sort_time.cjs`、`test_home_nav.cjs`、`test_home_weekly.cjs`、`test_home_logo.cjs`、`unittest tools/test_home_redesign_unit.py tools/test_git_contributions.py` → 全部通过（12 项 unittest）。
+- 截图：`docs/evidence/home-redesign/home-final-{1920,1440,1280,1024,768,390}-light.png`、`home-final-{1440,390}-dark.png`；测试结果 `home-final-browser.json`。与参考图对照：三列卡片、左侧快捷/状态/标签导航、紧凑统计条、本周拾光左侧摘要 + 中柱图 + 右侧 Top3、卡片默认字母图标与独立时间行均已实现。
+- 未执行：桌面 WebView2 验证（现有 `tools/test_desktop_webview.cjs` 使用正式 `data/` 与自动刷新写入，按隔离护栏本轮不运行；未冒充通过）；PyInstaller 重新打包与安装包安装验证（未运行）。遗留风险：超长项目名在 3 列卡片中会省略标题，完整名称仍可通过悬停与详情页查看。

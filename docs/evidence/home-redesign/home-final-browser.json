@@ -1,0 +1,352 @@
+{
+  "results": [
+    "统计条全库口径与侧栏候选计数、默认隐藏废弃一致",
+    "本周拾光 Top3/其他、稳定配色、悬停/聚焦提示、7 天明细与当日明细",
+    "本周拾光折叠状态刷新后保持",
+    "状态 + 标签 + 搜索组合、废弃显式可见与清除全部",
+    "排序下拉选择最近打开并持久化",
+    "卡片真实拖动后顺序改变并刷新保持",
+    "最近打开视图保留置顶/状态分组并暂停拖动",
+    "软导航进入详情后记录访问，返回首页看到今天且最近打开 +1",
+    "管理导航添加常用标签后生效并可用于点击筛选",
+    "亮色 1920/1440/1280/1024/768/390 与暗色 1440/390 无横向溢出并留存截图"
+  ],
+  "errors": [],
+  "failed": [],
+  "weekly": {
+    "start": "2026-10-17",
+    "end": "2026-10-23",
+    "days": [
+      {
+        "date": "2026-10-17",
+        "weekday": "周六",
+        "total": 0,
+        "projects": []
+      },
+      {
+        "date": "2026-10-18",
+        "weekday": "周日",
+        "total": 0,
+        "projects": []
+      },
+      {
+        "date": "2026-10-19",
+        "weekday": "周一",
+        "total": 1,
+        "projects": [
+          {
+            "id": 5,
+            "name": "SkillManager",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "date": "2026-10-20",
+        "weekday": "周二",
+        "total": 1,
+        "projects": [
+          {
+            "id": 3,
+            "name": "Tracelight",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "date": "2026-10-21",
+        "weekday": "周三",
+        "total": 2,
+        "projects": [
+          {
+            "id": 4,
+            "name": "WindowAnchor",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "date": "2026-10-22",
+        "weekday": "周四",
+        "total": 2,
+        "projects": [
+          {
+            "id": 3,
+            "name": "Tracelight",
+            "count": 1
+          },
+          {
+            "id": 5,
+            "name": "SkillManager",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "date": "2026-10-23",
+        "weekday": "周五",
+        "total": 5,
+        "projects": [
+          {
+            "id": 3,
+            "name": "Tracelight",
+            "count": 2
+          },
+          {
+            "id": 4,
+            "name": "WindowAnchor",
+            "count": 1
+          },
+          {
+            "id": 7,
+            "name": "NextPaste",
+            "count": 1
+          },
+          {
+            "id": 8,
+            "name": "LinuxDoSearch",
+            "count": 1
+          }
+        ]
+      }
+    ],
+    "projects": [
+      {
+        "id": 3,
+        "name": "Tracelight",
+        "count": 4
+      },
+      {
+        "id": 4,
+        "name": "WindowAnchor",
+        "count": 3
+      },
+      {
+        "id": 5,
+        "name": "SkillManager",
+        "count": 2
+      },
+      {
+        "id": 7,
+        "name": "NextPaste",
+        "count": 1
+      },
+      {
+        "id": 8,
+        "name": "LinuxDoSearch",
+        "count": 1
+      }
+    ],
+    "total": 11,
+    "project_count": 5,
+    "active_days": 5,
+    "commits_by_day": [
+      {
+        "date": "2026-10-23",
+        "weekday": "周五",
+        "total": 5,
+        "commits": [
+          {
+            "hash": "f185ffbae724d553bf1bc0b1bc27e0415d3dff7c",
+            "short": "f185ffba",
+            "date": "2026-10-23T16:30:00+08:00",
+            "message": "fix: 修正最近打开排序",
+            "author": "Yibo",
+            "project_id": 3,
+            "project_name": "Tracelight",
+            "projects": [
+              {
+                "id": 3,
+                "name": "Tracelight"
+              }
+            ]
+          },
+          {
+            "hash": "931fd147ccecd48b07cf34fd00c838974794c9c3",
+            "short": "931fd147",
+            "date": "2026-10-23T12:10:00+08:00",
+            "message": "feat: 本地索引增量更新",
+            "author": "Yibo",
+            "project_id": 8,
+            "project_name": "LinuxDoSearch",
+            "projects": [
+              {
+                "id": 8,
+                "name": "LinuxDoSearch"
+              }
+            ]
+          },
+          {
+            "hash": "20ec8a13df6c7a5715d4df46f137ebcbde026d9a",
+            "short": "20ec8a13",
+            "date": "2026-10-23T10:10:00+08:00",
+            "message": "feat: 首页布局与侧栏导航",
+            "author": "Yibo",
+            "project_id": 3,
+            "project_name": "Tracelight",
+            "projects": [
+              {
+                "id": 3,
+                "name": "Tracelight"
+              }
+            ]
+          },
+          {
+            "hash": "b7af649c2b95ad6f51eba568b8fa048f86c1b693",
+            "short": "b7af649c",
+            "date": "2026-10-23T09:20:00+08:00",
+            "message": "feat: 恢复多显示器窗口",
+            "author": "Yibo",
+            "project_id": 4,
+            "project_name": "WindowAnchor",
+            "projects": [
+              {
+                "id": 4,
+                "name": "WindowAnchor"
+              }
+            ]
+          },
+          {
+            "hash": "b0f66afc3c90c94a013053393382a3c89cc16f84",
+            "short": "b0f66afc",
+            "date": "2026-10-23T08:40:00+08:00",
+            "message": "feat: 剪贴板历史分组",
+            "author": "Yibo",
+            "project_id": 7,
+            "project_name": "NextPaste",
+            "projects": [
+              {
+                "id": 7,
+                "name": "NextPaste"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "date": "2026-10-22",
+        "weekday": "周四",
+        "total": 2,
+        "commits": [
+          {
+            "hash": "e7956755b0207c017995c51e03a66e60598cd658",
+            "short": "e7956755",
+            "date": "2026-10-22T15:00:00+08:00",
+            "message": "docs: 补充验收说明",
+            "author": "Yibo",
+            "project_id": 3,
+            "project_name": "Tracelight",
+            "projects": [
+              {
+                "id": 3,
+                "name": "Tracelight"
+              }
+            ]
+          },
+          {
+            "hash": "8279bfc0e9592ffc8470ecc14b9910cbbb3ea83a",
+            "short": "8279bfc0",
+            "date": "2026-10-22T14:00:00+08:00",
+            "message": "feat: 技能市场筛选",
+            "author": "Yibo",
+            "project_id": 5,
+            "project_name": "SkillManager",
+            "projects": [
+              {
+                "id": 5,
+                "name": "SkillManager"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "date": "2026-10-21",
+        "weekday": "周三",
+        "total": 2,
+        "commits": [
+          {
+            "hash": "4b68e0bad4c4a17dc4223525dfa5bcdf8960e3b8",
+            "short": "4b68e0ba",
+            "date": "2026-10-21T16:40:00+08:00",
+            "message": "test: 补充窗口恢复用例",
+            "author": "Yibo",
+            "project_id": 4,
+            "project_name": "WindowAnchor",
+            "projects": [
+              {
+                "id": 4,
+                "name": "WindowAnchor"
+              }
+            ]
+          },
+          {
+            "hash": "be2fbe5db8c8746ab75bbeccc0acfa18a73a2a92",
+            "short": "be2fbe5d",
+            "date": "2026-10-21T10:00:00+08:00",
+            "message": "fix: 处理隐藏窗口",
+            "author": "Yibo",
+            "project_id": 4,
+            "project_name": "WindowAnchor",
+            "projects": [
+              {
+                "id": 4,
+                "name": "WindowAnchor"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "date": "2026-10-20",
+        "weekday": "周二",
+        "total": 1,
+        "commits": [
+          {
+            "hash": "2a3e26b4df7eaad512b4cb377654eaa87384c89c",
+            "short": "2a3e26b4",
+            "date": "2026-10-20T11:00:00+08:00",
+            "message": "refactor: 拆分贡献聚合",
+            "author": "Yibo",
+            "project_id": 3,
+            "project_name": "Tracelight",
+            "projects": [
+              {
+                "id": 3,
+                "name": "Tracelight"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "date": "2026-10-19",
+        "weekday": "周一",
+        "total": 1,
+        "commits": [
+          {
+            "hash": "cd0f0b7a13c764f5dca23f46695be7a0c6901aae",
+            "short": "cd0f0b7a",
+            "date": "2026-10-19T16:00:00+08:00",
+            "message": "fix: 安装路径校验",
+            "author": "Yibo",
+            "project_id": 5,
+            "project_name": "SkillManager",
+            "projects": [
+              {
+                "id": 5,
+                "name": "SkillManager"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "repos": 5,
+    "failed_repos": 0,
+    "scan_errors": [],
+    "project_count_all": 10,
+    "authors": "mine",
+    "identity_required": false
+  }
+}
