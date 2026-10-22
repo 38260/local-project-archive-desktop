@@ -400,6 +400,16 @@ tools\build_installer.bat
 rem 产物：dist\tracelight\（目录版）+ dist\installer\tracelight-Setup-<版本>.exe
 ```
 
+**发版前必须同步三处版本号**（漏一处会出现「安装包是 1.12.0、exe 属性还是 1.11.1」）：
+
+| 位置 | 字段 |
+|---|---|
+| `app/config.py` | `APP_VERSION`（运行时版本、`/api/health` 与设置面板显示） |
+| `installer/tracelight.iss` | `#define MyAppVersion`（安装包文件名、控制面板版本） |
+| `installer/version_info.txt` | `filevers` / `prodvers` / `FileVersion` / `ProductVersion`（exe 属性） |
+
+核对：`(Get-Item dist\tracelight\tracelight.exe).VersionInfo.FileVersion` 应等于新版本。
+
 安装脚本设计要点：
 
 - **per-user 安装**（`PrivilegesRequired=lowest`）：不弹 UAC，装到
