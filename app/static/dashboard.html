@@ -194,6 +194,25 @@
         </div>
       </div>
 
+    <!-- 快捷视图（F3 会迁入左侧导航；先提供最近打开/已置顶入口） -->
+    <div class="quick-views" role="group" aria-label="快捷视图">
+      <button type="button" class="qv" :class="{on: !quickFilter}"
+              :aria-pressed="!quickFilter ? 'true' : 'false'"
+              @click="showAllProjects">
+        <tl-icon name="folder" :size="14"></tl-icon>全部项目
+      </button>
+      <button type="button" class="qv" :class="{on: quickFilter === 'recent'}"
+              :aria-pressed="quickFilter === 'recent' ? 'true' : 'false'"
+              @click="toggleQuick('recent')">
+        <tl-icon name="clock" :size="14"></tl-icon>最近打开
+      </button>
+      <button type="button" class="qv" :class="{on: quickFilter === 'pinned'}"
+              :aria-pressed="quickFilter === 'pinned' ? 'true' : 'false'"
+              @click="toggleQuick('pinned')">
+        <tl-icon name="pin" :size="14"></tl-icon>已置顶
+      </button>
+    </div>
+
     <!-- 筛选栏 -->
     <div class="filter-bar">
       <span class="search-wrap">
@@ -257,8 +276,9 @@
               <span class="spacer"></span>
               <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
               <span :class="statusBadgeClass(p.status)">{{ p.status }}</span>
-              <button type="button" class="icon-btn project-drag" :draggable="!orderSaving" :disabled="orderSaving"
-                      title="拖动调整顺序；也可按 Alt + 方向键移动" :aria-label="'调整' + p.name + '的顺序'"
+              <button type="button" class="icon-btn project-drag" :draggable="!dragLocked" :disabled="dragLocked"
+                      :title="quickFilter === 'recent' ? '最近打开视图按访问时间排序，拖动已暂停' : '拖动调整顺序；也可按 Alt + 方向键移动'"
+                      :aria-label="'调整' + p.name + '的顺序'"
                       @click.stop @keydown.stop
                       @keydown.alt.up.prevent="moveProjectByKey(p, -1)" @keydown.alt.left.prevent="moveProjectByKey(p, -1)"
                       @keydown.alt.down.prevent="moveProjectByKey(p, 1)" @keydown.alt.right.prevent="moveProjectByKey(p, 1)"
@@ -306,9 +326,22 @@
               <span v-if="p.category" class="cat-chip">{{ p.category }}</span>
               <span v-for="t in p.tags.slice(0, 3)" :key="t" :class="tagClass(t)">{{ t }}</span>
               <span v-if="p.tags.length > 3" class="section-note tag-more">+{{ p.tags.length - 3 }}</span>
+            </div>
+            <!-- 访问时间与磁盘修改时间分开标注，避免相对时间含义混淆 -->
+            <div class="card-times">
+              <span class="ctime open-time" :class="{empty: !p.last_opened_at}"
+                    :title="openAgeTitle(p.last_opened_at)"
+                    :data-tip="openAgeTitle(p.last_opened_at)"
+                    :aria-label="openAgeTitle(p.last_opened_at)" tabindex="0">
+                <tl-icon name="clock" :size="13"></tl-icon>
+                上次打开：{{ openAgeText(p.last_opened_at) }}
+              </span>
               <span class="fill"></span>
-              <span :title="'最后修改 ' + fmtTime(p.fs_modified) + ' ｜ 档案更新 ' + fmtTime(p.updated_at)">
-                {{ relTime(p.fs_modified) }}
+              <span class="ctime mod-time"
+                    :title="'最后修改：' + (p.fs_modified ? fmtTime(p.fs_modified) : '未知')"
+                    :data-tip="'最后修改：' + (p.fs_modified ? fmtTime(p.fs_modified) : '未知')"
+                    tabindex="0">
+                修改于 {{ p.fs_modified ? relTime(p.fs_modified) : "未知" }}
               </span>
             </div>
           </div>

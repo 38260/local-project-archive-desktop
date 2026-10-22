@@ -568,7 +568,8 @@ input[type="search"] { width: 320px; }
   color: var(--muted);
 }
 .card {
-  position: relative; overflow: hidden;
+  /* 不裁切：底部时间提示需要在悬停/键盘聚焦时浮出卡片 */
+  position: relative; overflow: visible;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -581,6 +582,7 @@ input[type="search"] { width: 320px; }
 .card::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
   background: var(--st, var(--border));
+  border-radius: var(--r-lg) 0 0 var(--r-lg);
 }
 .card:nth-child(1) { animation-delay: 0ms; }
 .card:nth-child(2) { animation-delay: 30ms; }
@@ -593,7 +595,9 @@ input[type="search"] { width: 320px; }
   border-color: var(--accent);
   transform: translateY(-2px);
   box-shadow: var(--shadow);
+  z-index: 3;
 }
+.card:focus-within { z-index: 3; }
 /* 按压即反馈：pointer-down 立即响应，不等 click */
 .card:active { transform: translateY(0) scale(.99); transition-duration: .06s; }
 .card.is-lost { background: var(--lost-bg); border-color: var(--lost-border); }
@@ -644,6 +648,44 @@ input[type="search"] { width: 320px; }
 .card.is-dragging { opacity: .45; }
 .card.drop-target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .order-hint { margin: -4px 0 16px; }
+
+/* 快捷视图（最近打开 / 已置顶）：临时筛选，不改变项目元数据 */
+.quick-views { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: -4px 0 var(--s-3); }
+.qv {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--panel);
+  color: var(--muted); font: 13px var(--sans); cursor: pointer;
+}
+.qv:hover { border-color: var(--accent); color: var(--accent); }
+.qv.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+
+/* 卡片底部：上次打开与磁盘修改时间分开标注 */
+.card-times {
+  display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap;
+  margin-top: 2px; padding-top: 9px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px; color: var(--muted);
+}
+.card-times .fill { flex: 1; }
+.ctime { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+.ctime .licon { opacity: .8; }
+.open-time.empty { opacity: .72; }
+/* 悬停 / 键盘聚焦显示完整本地时间（title 仍保留为原生兜底） */
+.ctime[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; left: 0; bottom: calc(100% + 7px); z-index: 40;
+  padding: 4px 9px; border-radius: 6px;
+  background: var(--text); color: var(--panel);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  opacity: 0; transform: translateY(2px); pointer-events: none;
+  transition: opacity .12s, transform .12s;
+}
+.ctime.mod-time[data-tip]::after { left: auto; right: 0; }
+.ctime[data-tip]:hover::after, .ctime[data-tip]:focus-visible::after {
+  opacity: 1; transform: none;
+}
 
 .empty-tip {
   text-align: center; color: var(--muted);

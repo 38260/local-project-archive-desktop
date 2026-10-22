@@ -4,11 +4,12 @@
   const { createApp } = Vue;
 
   // 排序下拉：规则只做「一键整理」，拖动卡片随时覆盖排列（没有独立的手动排序模式）
-  const SORT_LABELS = ["最近更新", "最近修改", "名称", "创建时间", "状态"];
+  const SORT_LABELS = ["最近更新", "最近修改", "最近打开", "名称", "创建时间", "状态"];
   const SORT_KEYS = {
-    "最近更新": "updated", "最近修改": "modified", "名称": "name",
-    "创建时间": "created", "状态": "status",
+    "最近更新": "updated", "最近修改": "modified", "最近打开": "opened",
+    "名称": "name", "创建时间": "created", "状态": "status",
   };
+  const QUICK_VIEWS = { recent: "最近打开", pinned: "已置顶" };
   const STATUS_ORDER = ["进行中", "已完成", "暂停", "归档", "废弃"];
 
   const app = createApp({
@@ -25,13 +26,15 @@
         stats: { total: 0, active: 0, archived: 0, discarded: 0, lost: 0 },
         statuses: [],
         themeTick: 0,
+        nowTick: Date.now(),    // 每 60 秒推进：跨午夜后重算“今天/昨天”
         // 筛选
         q: "",
         statusFilter: "",
         tagFilter: "",
         catFilter: "",
         showDiscarded: false,   // 废弃项目默认隐藏，勾选后显示（归档始终展示）
-        quickFilter: null,   // null | "active" | "lost"（统计卡下钻用）
+        // 快捷视图：null=全部 | recent | pinned（导航用），active | lost（统计卡下钻）
+        quickFilter: null,
         sortBy: "最近更新",
         sortOptions: SORT_LABELS,
         projectOrder: [],
@@ -123,14 +126,28 @@
       sorted() {
         const key = SORT_KEYS[this.sortBy] || "updated";
         const byTime = (f) => (a, b) => String(b[f] || "").localeCompare(String(a[f] || ""));
+        const openedAt = (p) => {
+          const t = Date.parse(p.last_opened_at || "");
+          return Number.isNaN(t) ? -Infinity : t;
+        };
+        // 最近打开：有记录在前、时间倒序；同一时刻按 id 稳定兜底，空记录永远在后
+        const cmpOpened = (a, b) => (openedAt(b) - openedAt(a)) || (a.id - b.id);
         const cmp = {
           updated: byTime("updated_at"),
           modified: byTime("fs_modified"),
+          opened: cmpOpened,
           created: byTime("created_at"),
           name: (a, b) => a.name.localeCompare(b.name, "zh-CN"),
           status: (a, b) => (STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status))
                             || byTime("updated_at")(a, b),
         }[key];
+        // 最近打开是派生临时视图：同状态组内固定按访问时间倒序，
+        // 不读取也不改写用户保存的手动顺序；置顶仍优先。
+        if (this.quickFilter === "recent") {
+          return this.projects.slice().sort(
+            (a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
+              || cmpOpened(a, b));
+        }
         // 置顶优先 → 拖动过的项目按保存的顺序 → 其余按所选规则。
         // 顺序只影响**同状态组内**的先后（展示永远按状态分组，见 displayGroups）；
         // 顺序里没有的项目（新增导入）落在组内末尾，不打乱已拖好的相对位置。
@@ -146,12 +163,16 @@
           if (this.statusFilter && p.status !== this.statusFilter) return false;
           if (this.tagFilter && !(p.tags || []).includes(this.tagFilter)) return false;
           if (this.catFilter && p.category !== this.catFilter) return false;
-          // 归档=有意收尾留档，始终展示；废弃=彻底不要，默认隐藏
-          if (!this.showDiscarded && p.status === "废弃") return false;
+          // 归档=有意收尾留档，始终展示；废弃=彻底不要，默认隐藏。
+          // 显式点击“废弃”状态时必须能看到，不受“显示废弃项目”开关阻挡。
+          if (!this.showDiscarded && p.status === "废弃" && this.statusFilter !== "废弃") return false;
           // 统计卡下钻：活跃 = 未归档/未废弃且路径有效；丢失 = 路径失效
           if (this.quickFilter === "active"
               && (p.status === "归档" || p.status === "废弃" || p.is_lost)) return false;
           if (this.quickFilter === "lost" && !p.is_lost) return false;
+          if (this.quickFilter === "recent"
+              && (!p.last_opened_at || Number.isNaN(Date.parse(p.last_opened_at)))) return false;
+          if (this.quickFilter === "pinned" && !p.pinned) return false;
           if (q) {
             const hay = [p.name, p.alias, p.path, p.category, (p.tags || []).join(",")]
               .join(" ").toLowerCase();
@@ -169,6 +190,10 @@
         if (this.catFilter) f.push({ k: "cat", label: "分类：" + this.catFilter, clear: () => { this.catFilter = ""; } });
         if (this.quickFilter === "active") f.push({ k: "qf", label: "仅活跃", clear: () => { this.quickFilter = null; } });
         if (this.quickFilter === "lost") f.push({ k: "qf", label: "仅路径丢失", clear: () => { this.quickFilter = null; } });
+        if (QUICK_VIEWS[this.quickFilter]) f.push({
+          k: "qf", label: QUICK_VIEWS[this.quickFilter],
+          clear: () => { this.quickFilter = null; },
+        });
         if (this.showDiscarded) f.push({ k: "arch", label: "含废弃项目", clear: () => { this.showDiscarded = false; } });
         return f;
       },
@@ -176,9 +201,20 @@
         return this.candidates ? this.candidates.candidates.filter(c => c.checked).length : 0;
       },
       // 永远保留状态分组；有搜索或筛选时合成单个"搜索结果"组（平铺）。
-      // 拖动顺序只作用于组内先后，不再切换到「置顶项目 / 项目」的另一种视图。
+      // 最近打开/已置顶是临时导航视图：继续保留状态分组，便于和普通列表对照。
+      dragLocked() {
+        return this.orderSaving || this.quickFilter === "recent";
+      },
+      todayLabel() {
+        this.nowTick;
+        const d = new Date();
+        const week = ["日", "一", "二", "三", "四", "五", "六"][d.getDay()];
+        return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 星期${week}`;
+      },
       displayGroups() {
-        if (this.q || this.statusFilter || this.tagFilter || this.catFilter || this.quickFilter) {
+        const quickGrouped = this.quickFilter === "recent" || this.quickFilter === "pinned";
+        if (!quickGrouped
+            && (this.q || this.statusFilter || this.tagFilter || this.catFilter || this.quickFilter)) {
           return [{ status: "搜索结果", items: this.filtered }];
         }
         const map = {};
@@ -305,6 +341,33 @@
       },
       // 走统一出口（common.js 的软导航）：同文档切换，不整页重载
       goto(p) { window.tlNavigate("/project/" + p.id); },
+      // 本地日历日差：今天/昨天按日历而不是 24 小时判断；跨午夜由 nowTick 驱动重算
+      openAgeInfo(iso, nowMs) {
+        this.nowTick;   // 建立响应式依赖
+        const empty = { text: "尚无打开记录", title: "尚无打开记录", empty: true };
+        if (!iso) return empty;
+        const d = new Date(iso);
+        const now = new Date(nowMs == null ? Date.now() : nowMs);
+        if (Number.isNaN(d.getTime())) return { ...empty, title: "打开时间无效" };
+        const dayStart = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+        const diff = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+        let text;
+        if (diff === 0) text = "今天";
+        else if (diff === 1) text = "昨天";
+        else if (diff > 1) text = `${diff} 天前`;
+        else text = "刚刚";
+        return { text, title: "上次打开：" + fmtTime(iso), empty: false };
+      },
+      openAgeText(iso) { return this.openAgeInfo(iso).text; },
+      openAgeTitle(iso) { return this.openAgeInfo(iso).title; },
+      toggleQuick(kind) {
+        this.quickFilter = this.quickFilter === kind ? null : kind;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      },
+      showAllProjects() {
+        this.quickFilter = null;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      },
       // 选择整理规则：立即按规则重排并清掉旧的拖动顺序（重新整理后再拖可随时覆盖）。
       async saveSort(value) {
         if (this.orderSaving) return;
@@ -324,7 +387,8 @@
         finally { this.orderSaving = false; }
       },
       onProjectDragStart(p, ev) {
-        if (this.orderSaving) { ev.preventDefault(); return; }
+        // 最近打开视图按访问时间派生，拖动会改写普通列表的手动顺序，因此暂停
+        if (this.dragLocked) { ev.preventDefault(); return; }
         this.dragProjectId = p.id;
         ev.dataTransfer.effectAllowed = "move";
         ev.dataTransfer.setData("text/plain", String(p.id));
@@ -347,6 +411,7 @@
         await this.moveProject(id, p.id, ev.clientX >= rect.left + rect.width / 2);
       },
       moveProjectByKey(p, direction) {
+        if (this.dragLocked) return;
         // 同状态 + 同置顶边界内的相邻项（组内移动）
         const items = this.filtered.filter(item =>
           item.status === p.status && !!item.pinned === !!p.pinned);
@@ -354,7 +419,7 @@
         if (target) return this.moveProject(p.id, target.id, direction > 0);
       },
       async moveProject(id, targetId, after) {
-        if (this.orderSaving || id === targetId) return;
+        if (this.dragLocked || id === targetId) return;
         const source = this.projects.find(p => p.id === id);
         const target = this.projects.find(p => p.id === targetId);
         if (!source || !target
@@ -710,12 +775,23 @@
       });
       // 回到前台：切窗口、最小化恢复；桌面壳恢复也会调 tlOnWindowResume
       this._onVisible = () => {
-        if (document.visibilityState === "visible") this.autoRefreshStart();
+        if (document.visibilityState === "visible") {
+          this.nowTick = Date.now();
+          this.autoRefreshStart();
+        }
       };
       document.addEventListener("visibilitychange", this._onVisible);
-      this._onFocus = () => this.autoRefreshStart();
+      this._onFocus = () => {
+        this.nowTick = Date.now();
+        this.autoRefreshStart();
+      };
       window.addEventListener("focus", this._onFocus);
-      window.tlOnWindowResume = () => this.autoRefreshStart();
+      window.tlOnWindowResume = () => {
+        this.nowTick = Date.now();
+        this.autoRefreshStart();
+      };
+      // 跨午夜后“今天/昨天”和顶部日期要自动翻页，不要求用户刷新
+      this._nowTimer = setInterval(() => { this.nowTick = Date.now(); }, 60000);
       // 展示数据文件位置，明确档案是持久化的
       api("/api/health", { silent: true })
         .then(h => {
@@ -762,6 +838,7 @@
     beforeUnmount() {
       this._disposed = true;                    // 停止自动更新轮询与回填
       clearTimeout(this._arTimer);
+      clearInterval(this._nowTimer);
       document.removeEventListener("visibilitychange", this._onVisible);
       window.removeEventListener("focus", this._onFocus);
       window.tlOnWindowResume = null;
