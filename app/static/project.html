@@ -68,28 +68,58 @@
   </header>
 
   <main class="container project-container" v-if="p">
-    <!-- 项目名片：标题 / 路径 / 徽章 / 主操作收成一块 -->
-    <div class="proj-card">
-      <div class="proj-card-top">
-        <div class="proj-card-titles">
-          <h1>{{ p.name }}</h1>
-          <span class="alias-chip alias-lg" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
+    <!-- 紧凑项目头部：Logo / 名称 / 简介 / 状态 / 标签 / 分支 / 唯一路径 / 主次操作 -->
+    <div class="proj-card detail-head" :data-status="p.status">
+      <div class="head-top">
+        <span class="head-logo" :style="{ background: logoColor(p) }"
+              aria-hidden="true">{{ projectInitials(p.name) }}</span>
+        <div class="head-main">
+          <div class="head-title-row">
+            <h1 :title="p.name">{{ p.name }}</h1>
+            <span class="alias-chip alias-lg" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
+            <span class="head-status">
+              <tl-select v-model="p.status" :options="statuses" accent
+                         @update:model-value="saveStatus"></tl-select>
+            </span>
+          </div>
+          <p class="info-intro head-summary" v-if="headSummary">{{ headSummary }}</p>
+          <div class="head-chips">
+            <span class="badge lost" v-if="p.is_lost" title="项目文件夹已被删除或移动">丢失项目</span>
+            <span v-if="p.category" class="cat-chip">{{ p.category }}</span>
+            <span v-for="t in p.tags" :key="t" :class="tagClass(t)">{{ t }}</span>
+            <span class="head-branch" v-if="headBranch" :title="'当前分支：' + headBranch">
+              <tl-icon name="branch" :size="13"></tl-icon>{{ headBranch }}
+            </span>
+          </div>
+          <button class="proj-card-path head-path" type="button" @click="copyText(p.path)"
+                  :title="'点击复制：' + p.path" :disabled="p.is_lost">
+            <tl-icon name="folder" :size="14"></tl-icon>
+            <span class="proj-path-text">{{ p.path }}</span>
+            <tl-icon name="copy" :size="13" class="proj-path-copy"></tl-icon>
+          </button>
         </div>
-        <tl-select v-model="p.status" :options="statuses" accent @update:model-value="saveStatus"></tl-select>
+        <div class="head-side">
+          <div class="head-updated" :title="'磁盘最后修改：' + fmtTime(p.fs_modified)">
+            最近修改：{{ relTime(p.fs_modified) }}
+          </div>
+          <div class="head-side-ops">
+            <button type="button" class="icon-btn head-pin" :class="{ on: p.pinned }"
+                    :title="p.pinned ? '取消置顶' : '置顶项目'" :aria-label="p.pinned ? '取消置顶' : '置顶项目'"
+                    @click="togglePin">
+              <tl-icon name="pin" :size="18"></tl-icon>
+            </button>
+            <button type="button" class="head-more-toggle" @click="toggleHeadMore"
+                    :aria-expanded="headMoreOpen ? 'true' : 'false'" aria-controls="head-more">
+              更多信息
+              <tl-icon name="chevron-down" :size="13" class="head-more-chev"
+                       :class="{ folded: !headMoreOpen }"></tl-icon>
+            </button>
+          </div>
+        </div>
       </div>
-      <button class="proj-card-path" type="button" @click="copyText(p.path)"
-              :title="'点击复制：' + p.path" :disabled="p.is_lost">
-        <tl-icon name="folder" :size="14"></tl-icon>
-        <span class="proj-path-text">{{ p.path }}</span>
-        <tl-icon name="copy" :size="13" class="proj-path-copy"></tl-icon>
-      </button>
-      <div class="badge-row" v-if="headBadges.length">
-        <span class="dbadge" v-for="b in headBadges" :key="b.label">
-          <tl-icon :name="b.icon" :size="13" class="db-ico"></tl-icon><b>{{ b.val }}</b>{{ b.label }}
-        </span>
-      </div>
-      <div class="action-row">
-        <span class="launch-split" v-if="launch && launch.supported && primaryLaunchEntry">
+
+      <div class="head-actions">
+        <span class="launch-split" v-if="!p.is_lost && launch && launch.supported && primaryLaunchEntry">
           <button class="btn primary split-main" @click="quickLaunch" :disabled="!!launchBusyKey || launchPrefsSaving"
                   :title="'启动：' + primaryLaunchEntry.command">
             <tl-icon name="zap" :size="15"></tl-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
@@ -114,24 +144,29 @@
             </button>
           </span>
         </span>
-        <button class="btn primary" @click="openIn('explorer')" :disabled="p.is_lost">
+        <button v-else class="btn primary" disabled
+                :title="p.is_lost ? '项目路径丢失，修复后可启动'
+                  : (launch && launch.supported ? '暂未检测到可用启动入口'
+                    : (launch ? '当前环境不支持一键启动' : '正在读取启动入口…'))">
+          <tl-icon name="zap" :size="15"></tl-icon>启动
+        </button>
+        <button class="btn head-secondary" @click="openIn('vscode')" :disabled="p.is_lost"
+                :title="'用 ' + editorName(editorCmd) + ' 打开项目'">
+          <tl-icon :name="editorIcon(editorCmd)" :size="15"></tl-icon>编辑器打开
+        </button>
+        <button class="btn head-secondary" @click="openIn('explorer')" :disabled="p.is_lost">
           <tl-icon name="folder-open" :size="15"></tl-icon>资源管理器
         </button>
-        <button class="btn primary" @click="openIn('vscode')" :disabled="p.is_lost">
-          <tl-icon :name="editorIcon(editorCmd)" :size="15"></tl-icon>{{ editorName(editorCmd) }}
-        </button>
-        <button class="btn" @click="copyText(p.path)">
-          <tl-icon name="copy" :size="15"></tl-icon>复制路径
-        </button>
-        <button class="btn" @click="openEdit">
-          <tl-icon name="pencil" :size="15"></tl-icon>编辑档案
-        </button>
         <span class="more-wrap">
-          <button class="btn" @click.stop="moreOpen = !moreOpen" aria-haspopup="menu" :aria-expanded="moreOpen ? 'true' : 'false'">
+          <button class="btn head-secondary" @click.stop="moreOpen = !moreOpen"
+                  aria-haspopup="menu" :aria-expanded="moreOpen ? 'true' : 'false'">
             <tl-icon name="more" :size="15"></tl-icon>更多
           </button>
           <span class="more-mask" v-if="moreOpen" @click="moreOpen = false"></span>
           <span class="more-list" v-if="moreOpen" style="z-index:80" role="menu" @click="moreOpen = false">
+            <button class="btn" role="menuitem" @click="openEditFromMenu">
+              <tl-icon name="pencil" :size="15"></tl-icon>编辑档案
+            </button>
             <button class="btn" role="menuitem" @click="rescan" :disabled="rescanning">
               <tl-icon name="refresh" :size="15" :class="{spin: rescanning}"></tl-icon>{{ rescanning ? "解析中…" : "重新解析" }}
             </button>
@@ -146,6 +181,58 @@
             </button>
           </span>
         </span>
+      </div>
+
+      <!-- 更多信息：创建/更新时间、完整 Git 元信息，收起时不占正文高度 -->
+      <div class="head-more" id="head-more" v-show="headMoreOpen">
+        <div class="badge-row" v-if="headBadges.length">
+          <span class="dbadge" v-for="b in headBadges" :key="b.label">
+            <tl-icon :name="b.icon" :size="13" class="db-ico"></tl-icon><b>{{ b.val }}</b>{{ b.label }}
+          </span>
+        </div>
+        <div class="info-tiles head-more-tiles">
+          <div class="info-tile">
+            <span class="info-k">磁盘创建</span>
+            <span class="info-v mono">{{ fmtTime(p.fs_created) }}</span>
+          </div>
+          <div class="info-tile">
+            <span class="info-k">磁盘修改</span>
+            <span class="info-v mono">{{ fmtTime(p.fs_modified) }}</span>
+          </div>
+          <div class="info-tile">
+            <span class="info-k">上次打开</span>
+            <span class="info-v mono">{{ p.last_opened_at ? fmtTime(p.last_opened_at) : "尚无打开记录" }}</span>
+          </div>
+          <div class="info-tile">
+            <span class="info-k">档案创建</span>
+            <span class="info-v mono">{{ fmtTime(p.created_at) }}</span>
+          </div>
+          <div class="info-tile">
+            <span class="info-k">档案更新</span>
+            <span class="info-v mono">{{ fmtTime(p.updated_at) }}</span>
+          </div>
+        </div>
+        <div class="meta-grid head-git" v-if="gitInfo.is_repo">
+          <div class="kv"><span class="k">当前分支</span><span class="v"><span class="chip-value">{{ gitInfo.branch || "－" }}</span></span></div>
+          <div class="kv"><span class="k">仓库提交总数</span><span class="v" style="font-size:16px;font-weight:700">{{ fmtNum(gitInfo.commit_count) }}</span></div>
+          <div class="kv"><span class="k">远端仓库</span><span class="v">{{ gitInfo.remote || "（无远端）" }}</span></div>
+          <div class="kv" v-if="gitInfo.first_commit_date"><span class="k">首次提交</span><span class="v">{{ fmtTime(gitInfo.first_commit_date) }}</span></div>
+          <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.branches && gitInfo.branches.length">
+            <span class="k">分支</span>
+            <span class="v"><span class="chip-soft" v-for="b in gitInfo.branches" :key="b">{{ b }}</span></span>
+          </div>
+          <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.contributors && gitInfo.contributors.length">
+            <span class="k">仓库贡献者</span>
+            <span class="v"><span class="chip-soft" v-for="c in gitInfo.contributors" :key="c.name">{{ c.name }} · {{ c.commits }} 次</span></span>
+          </div>
+          <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.last_commit">
+            <span class="k">最近提交</span>
+            <span class="v">{{ gitInfo.last_commit.hash }} · {{ gitInfo.last_commit.author }} ·
+              {{ fmtTime(gitInfo.last_commit.date) }} · {{ gitInfo.last_commit.message }}</span>
+          </div>
+          <div class="section-note head-git-note">解析于 {{ fmtTime(meta.parsed_at) }}</div>
+        </div>
+        <div class="section-note" v-else>非 Git 仓库<span v-if="gitInfo.error">（{{ gitInfo.error }}）</span></div>
       </div>
     </div>
 
@@ -197,73 +284,6 @@
       </div>
     </nav>
     <div class="detail-main">
-
-    <!-- 基础元信息 -->
-    <section class="panel" id="sec-info">
-      <h2>基础信息</h2>
-      <p class="info-intro" v-if="meta && meta.intro">{{ meta.intro }}</p>
-      <div class="info-path-row">
-        <span class="info-k">本地路径</span>
-        <code class="info-path" :title="p.path">{{ p.path }}</code>
-        <button class="icon-btn" title="复制路径" aria-label="复制路径" @click="copyText(p.path)">
-          <tl-icon name="copy" :size="15"></tl-icon>
-        </button>
-      </div>
-      <div class="info-tiles">
-        <div class="info-tile">
-          <span class="info-k">项目分类</span>
-          <span class="info-v">{{ p.category || "－" }}</span>
-        </div>
-        <div class="info-tile">
-          <span class="info-k">状态</span>
-          <span class="info-v">{{ p.status }}</span>
-        </div>
-        <div class="info-tile">
-          <span class="info-k">创建时间</span>
-          <span class="info-v mono">{{ fmtTime(p.fs_created) }}</span>
-        </div>
-        <div class="info-tile">
-          <span class="info-k">最后修改</span>
-          <span class="info-v mono">{{ fmtTime(p.fs_modified) }}</span>
-        </div>
-        <div class="info-tile tile-wide">
-          <span class="info-k">档案建立 → 更新</span>
-          <span class="info-v mono">{{ fmtTime(p.created_at) }} → {{ fmtTime(p.updated_at) }}</span>
-        </div>
-      </div>
-      <div class="info-tags">
-        <span class="info-k">技术栈</span>
-        <div class="info-tags-list">
-          <span v-for="t in p.tags" :key="t" :class="tagClass(t)">{{ t }}</span>
-          <span v-if="!p.tags.length" class="section-note">（无，可在编辑档案中添加）</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Git 信息 -->
-    <section class="panel" id="sec-git" v-if="meta">
-      <h2>Git 信息 <span class="right section-note">解析于 {{ fmtTime(meta.parsed_at) }}</span></h2>
-      <div class="meta-grid" v-if="gitInfo.is_repo">
-        <div class="kv"><span class="k">当前分支</span><span class="v"><span class="chip-value">{{ gitInfo.branch || "－" }}</span></span></div>
-        <div class="kv"><span class="k">仓库提交总数</span><span class="v" style="font-size:16px;font-weight:700">{{ fmtNum(gitInfo.commit_count) }}</span></div>
-        <div class="kv"><span class="k">远端仓库</span><span class="v">{{ gitInfo.remote || "（无远端）" }}</span></div>
-        <div class="kv" v-if="gitInfo.first_commit_date"><span class="k">首次提交</span><span class="v">{{ fmtTime(gitInfo.first_commit_date) }}</span></div>
-        <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.branches && gitInfo.branches.length">
-          <span class="k">分支</span>
-          <span class="v"><span class="chip-soft" v-for="b in gitInfo.branches" :key="b">{{ b }}</span></span>
-        </div>
-        <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.contributors && gitInfo.contributors.length">
-          <span class="k">仓库贡献者</span>
-          <span class="v"><span class="chip-soft" v-for="c in gitInfo.contributors" :key="c.name">{{ c.name }} · {{ c.commits }} 次</span></span>
-        </div>
-        <div class="kv" style="grid-column: 1 / -1" v-if="gitInfo.last_commit">
-          <span class="k">最近提交</span>
-          <span class="v">{{ gitInfo.last_commit.hash }} · {{ gitInfo.last_commit.author }} ·
-            {{ fmtTime(gitInfo.last_commit.date) }} · {{ gitInfo.last_commit.message }}</span>
-        </div>
-      </div>
-      <div class="section-note" v-else>非 Git 仓库<span v-if="gitInfo.error">（{{ gitInfo.error }}）</span></div>
-    </section>
 
     <!-- 流程图：自动识别 flowchart / workflow / 流程图 等命名的图片；可替换为候选或上传图 -->
     <section class="panel" id="sec-flowchart" v-if="p && !p.is_lost">

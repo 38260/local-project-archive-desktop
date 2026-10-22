@@ -6,6 +6,23 @@
   const DRAFT_PREFIX = "tl-draft-desc-";
   // 每个项目记住自己看过的那份 README 语言版本（多语言项目切换后刷新仍保持）
   const README_LANG_KEY = "tl-readme-lang-";
+  // 与首页一致的默认字母/缩写图标规则（首页实现在 dashboard.js，详情页独立复用同一口径）
+  const LOGO_COLORS = ["#2F81F7", "#22A66A", "#9061F9", "#D97706", "#DB2777", "#0D9488"];
+  function projectInitials(name) {
+    const text = String(name || "").trim();
+    if (!text) return "?";
+    if (/[\u3400-\u9fff]/.test(text[0])) return text.slice(0, 2);
+    const words = text
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .split(/[\s_.\-/\\]+/)
+      .filter(Boolean);
+    const letters = words.map(w => w[0]).filter(Boolean).join("");
+    if (letters.length >= 2) return letters.slice(0, 2).toUpperCase();
+    const first = words[0] || text;
+    const pair = first.slice(0, 2);
+    if (/^[a-z0-9]{2}$/i.test(pair)) return pair.toUpperCase();
+    return (first.replace(/[^a-z0-9]/gi, "").slice(0, 2) || "?").toUpperCase();
+  }
   // 描述预览防抖定时器（非响应式，放组件外即可）
   let descTimer = null;
 
@@ -230,11 +247,12 @@
         shotsDrag: false,
         // 更多菜单 / 描述实时预览
         moreOpen: false,
+        headMoreOpen: false,     // 头部“更多信息”展开区
         descLive: "",
         // 目录树收起状态（记忆在 localStorage，默认展开）
         treeCollapsed: localStorage.getItem("tl-tree-collapsed") === "1",
         // 左侧锚点目录（sections 已改为计算属性，空面板自动隐藏）
-        activeSection: "sec-info",
+        activeSection: "sec-launch",
         spySuspendedUntil: 0,
         // 目录树分组的折叠状态（记忆在 localStorage，默认全部展开）
         tocCollapsed: (() => {
@@ -303,6 +321,18 @@
       nextProject() {
         const i = this.siblings.findIndex(s => s.id === this.projectId);
         return (i >= 0 && i < this.siblings.length - 1) ? this.siblings[i + 1] : null;
+      },
+      // 紧凑头部摘要：优先 README 解析出的 intro，其次项目描述首行
+      headSummary() {
+        const intro = ((this.meta && this.meta.intro) || (this.p && this.p.intro) || "").trim();
+        if (intro) return intro;
+        const desc = ((this.p && this.p.description) || "").trim();
+        return desc ? desc.split("\n").find(x => x.trim()) || "" : "";
+      },
+      // 更多信息中的 Git 贡献者一行展示上限（完整字段仍保留在展开区）
+      headBranch() {
+        const g = this.gitInfo;
+        return g && g.is_repo ? (g.branch || "") : "";
       },
       // 头部数据徽章
       headBadges() {
@@ -543,8 +573,6 @@
       // 左侧目录：隐藏空内容面板的锚点
       sections() {
         const list = [
-          { id: "sec-info", label: "基础信息" },
-          { id: "sec-git", label: "Git 信息", hide: !this.gitInfo.is_repo },
           { id: "sec-flowchart", label: "流程图", hide: !!(this.p && this.p.is_lost) },
           { id: "sec-launch", label: "启动", hide: !!(this.p && this.p.is_lost) },
           { id: "sec-configs", label: "构建配置", hide: !(this.meta && this.meta.configs && this.meta.configs.length) },
@@ -567,7 +595,7 @@
         const pick = ids => ids.filter(id => byId[id]).map(id => ({ id, label: byId[id] }));
         return [
           { id: "g-overview", icon: "folder", label: "概览",
-            items: pick(["sec-info", "sec-git", "sec-flowchart", "sec-launch"]) },
+            items: pick(["sec-flowchart", "sec-launch"]) },
           { id: "g-build", icon: "package", label: "构建与统计",
             items: pick(["sec-configs", "sec-stats"]) },
           { id: "g-records", icon: "file-text", label: "内容记录",
@@ -1451,6 +1479,16 @@
           .then(ok => { if (ok) window.tlSoftNavigate(url); });
       },
       switchTheme() { window.cycleTheme(); this.themeTick++; },
+      projectInitials(name) { return projectInitials(name); },
+      logoColor(project) {
+        const id = Number(project && project.id) || 1;
+        return LOGO_COLORS[Math.abs(id - 1) % LOGO_COLORS.length];
+      },
+      toggleHeadMore() { this.headMoreOpen = !this.headMoreOpen; },
+      openEditFromMenu() {
+        this.moreOpen = false;
+        this.openEdit();
+      },
       // ---- 开发笔记 ----
       async loadNotes() {
         this.notesError = false;
