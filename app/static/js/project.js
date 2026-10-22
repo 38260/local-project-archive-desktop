@@ -303,8 +303,8 @@
         moreOpen: false,
         headMoreOpen: false,     // 头部“更多信息”展开区
         descLive: "",
-        // 目录树收起状态（记忆在 localStorage，默认展开；F4 改为按需抽屉）
-        treeCollapsed: localStorage.getItem("tl-tree-collapsed") === "1",
+        // 目录树按需抽屉：首次默认关闭；开关状态按本机偏好记住
+        treeOpen: localStorage.getItem("tl-tree-open") === "1",
         // 四个内容分区与页内锚点
         tabs: DETAIL_TABS,
         activeTab: "overview",
@@ -940,9 +940,10 @@
           this.newPath = p.is_lost ? "" : p.path;
           this.syncDesc();
           this.restoreDescDraft();
+          if (p.is_lost) this.treeOpen = false;
           this.loadSiblings();
           this.loadReadme();
-          this.loadTree();
+          if (this.treeOpen) this.loadTree();
           this.loadNotes();
           this.loadChangelogs();
           this.loadShots();
@@ -1044,7 +1045,7 @@
           this.descLive = latest.description_html || "";
         }
         this.loadReadme();
-        this.loadTree();
+        if (this.treeOpen) this.loadTree();
         this.loadFlowchart();
         await this.reloadGitQuiet();
       },
@@ -1926,8 +1927,22 @@
       },
       firstLine(msg) { return ((msg || "").split("\n")[0] || "").slice(0, 120); },
       toggleTree() {
-        this.treeCollapsed = !this.treeCollapsed;
-        localStorage.setItem("tl-tree-collapsed", this.treeCollapsed ? "1" : "0");
+        if (this.treeOpen) this.closeTree();
+        else this.openTree();
+      },
+      openTree() {
+        if (!this.p || this.p.is_lost) return;
+        this.treeOpen = true;
+        try { localStorage.setItem("tl-tree-open", "1"); } catch (e) { /* 隐私模式 */ }
+        if (this.tree === undefined) this.loadTree();
+        this.$nextTick(() => {
+          const btn = this.$refs.treeClose;
+          if (btn && btn.focus) btn.focus();
+        });
+      },
+      closeTree() {
+        this.treeOpen = false;
+        try { localStorage.setItem("tl-tree-open", "0"); } catch (e) { /* 隐私模式 */ }
       },
       // 月柱状图折叠（状态跨项目记忆）
       toggleMonthChart() {
@@ -2119,7 +2134,7 @@
             this.readme = null;
             this.tree = undefined;
             this.loadReadme();
-            this.loadTree();
+            if (this.treeOpen) this.loadTree();
             this.loadCommits();
             this.loadRecentActivity();
           } else {
@@ -2139,7 +2154,7 @@
           this.readme = null;
           this.tree = undefined;
           this.loadReadme();
-          this.loadTree();
+          if (this.treeOpen) this.loadTree();
           this.loadCommits();
         } catch (e) { /* toast 已提示 */ }
       },
@@ -2236,7 +2251,8 @@
         if (this.showLaunchForm) { this.closeLaunchForm(); return; }
         if (this.launchMenuOpen) { this.launchMenuOpen = false; return; }
         if (this.moreOpen) { this.moreOpen = false; return; }
-        if (this.showEdit) this.showEdit = false;
+        if (this.showEdit) { this.showEdit = false; return; }
+        if (this.treeOpen) this.closeTree();
       };
       document.addEventListener("keydown", this._onKey);
       // Markdown 区链接全局拦截（捕获阶段，先于默认跳转）

@@ -59,6 +59,12 @@
       <span class="btn-text">归迹 · tracelight <span class="dim">/ 项目详情</span></span>
     </span>
     <span class="spacer"></span>
+    <button class="btn" @click="toggleTree" :disabled="!p || p.is_lost"
+            :aria-expanded="treeOpen ? 'true' : 'false'" aria-controls="tree-drawer"
+            aria-label="目录树"
+            :title="p && p.is_lost ? '项目路径丢失，无法浏览目录' : '目录树（只读预览）'">
+      <tl-icon name="list" :size="15"></tl-icon><span class="btn-text">目录树</span>
+    </button>
     <button class="btn icon-only" @click="openSettings" title="设置" aria-label="设置">
       <tl-icon name="settings" :size="15"></tl-icon>
     </button>
@@ -264,7 +270,7 @@
       <button class="btn primary" @click="updatePath" :disabled="!newPath">更新路径</button>
     </div>
 
-    <div class="detail-layout" :class="{ 'tree-collapsed': treeCollapsed }">
+    <div class="detail-layout">
     <!-- 左侧项目内部导航：四个主分区 + 当前分区页内锚点 -->
     <aside class="detail-nav" aria-label="项目内部导航">
       <a class="detail-back" href="/" @click.prevent="leaveConfirm('/')">
@@ -1301,47 +1307,6 @@
     </section>
 
     </div>
-
-    <!-- 目录树：右侧边栏 -->
-    <aside class="detail-side">
-      <section class="panel tree-panel">
-        <h2>
-          <tl-icon name="list" :size="15"></tl-icon>
-          <span v-if="!treeCollapsed">目录树（只读预览）</span>
-          <span v-else title="目录树（只读预览）">目录树</span>
-          <span class="right">
-            <button class="icon-btn" @click="toggleTree"
-                    :title="treeCollapsed ? '展开目录树' : '收起目录树'"
-                    :aria-expanded="treeCollapsed ? 'false' : 'true'">
-              <tl-icon :name="treeCollapsed ? 'chevron-right' : 'chevron-down'" :size="14"></tl-icon>
-              {{ treeCollapsed ? "展开" : "收起" }}
-            </button>
-          </span>
-        </h2>
-        <div class="tree-scroll" v-show="!treeCollapsed">
-          <div class="tree" v-if="tree">
-            <ul style="padding-left:0">
-              <li class="t-row">
-                <tl-icon name="folder-open" :size="14"></tl-icon>
-                <span class="t-name" style="font-weight:600">{{ p.name }}</span>
-                <ul>
-                  <tree-node v-for="c in tree.children" :key="c.name" :node="c"></tree-node>
-                </ul>
-              </li>
-            </ul>
-          </div>
-          <div class="skel-stack" v-else-if="tree === undefined">
-            <span class="skel" v-for="i in 8" :key="i"
-                  :style="{ width: (50 + (i % 4) * 12) + '%', height: '16px' }"></span>
-          </div>
-          <div class="section-note" v-else>目录树不可用（路径丢失或读取失败）</div>
-        </div>
-        <div class="section-note" v-if="tree && tree.truncated && !treeCollapsed" style="margin-top:8px">
-          目录较大，已省略部分条目；node_modules、.git、.venv 等依赖与构建目录始终不列出。
-        </div>
-      </section>
-    </aside>
-    </div>
   </main>
 
   <main class="container" v-else-if="notFound">
@@ -1373,6 +1338,44 @@
       <span class="skel" style="width:100%;height:200px"></span>
     </div>
   </div>
+
+  <!-- 目录树按需抽屉：关闭后从 DOM 移除，焦点归还触发按钮 -->
+  <div class="tree-drawer-mask" v-if="treeOpen && p" @click="closeTree" aria-hidden="true"></div>
+  <aside class="tree-drawer" id="tree-drawer" v-if="treeOpen && p" v-modal
+         role="dialog" aria-modal="true" aria-labelledby="tree-drawer-title">
+    <div class="tree-drawer-head">
+      <h3 id="tree-drawer-title">
+        <tl-icon name="list" :size="16"></tl-icon>
+        目录树 <span class="section-note">只读预览</span>
+      </h3>
+      <button type="button" class="icon-btn" ref="treeClose" @click="closeTree"
+              title="关闭目录树（Esc）" aria-label="关闭目录树">
+        <tl-icon name="x" :size="18"></tl-icon>
+      </button>
+    </div>
+    <div class="tree-drawer-body">
+      <div class="tree" v-if="tree">
+        <ul style="padding-left:0">
+          <li class="t-row">
+            <tl-icon name="folder-open" :size="14"></tl-icon>
+            <span class="t-name" style="font-weight:600">{{ p.name }}</span>
+            <ul>
+              <tree-node v-for="c in tree.children" :key="c.name" :node="c"></tree-node>
+            </ul>
+          </li>
+        </ul>
+      </div>
+      <div class="skel-stack" v-else-if="tree === undefined">
+        <span class="skel" v-for="i in 8" :key="i"
+              :style="{ width: (50 + (i % 4) * 12) + '%', height: '16px' }"></span>
+      </div>
+      <div class="section-note" v-else>目录树不可用（路径丢失或读取失败）。</div>
+      <div class="section-note tree-truncated" v-if="tree && tree.truncated">
+        目录较大，已省略部分条目；node_modules、.git、.venv 等依赖与构建目录始终不列出。
+      </div>
+    </div>
+    <div class="tree-drawer-foot">单击复制相对路径 · 双击用系统默认应用打开 · 不修改源项目</div>
+  </aside>
 
   <!-- 流程图放大查看 -->
   <div class="lightbox" v-if="flowZoom" @click="flowZoom = null" role="dialog" aria-modal="true" aria-label="流程图预览">

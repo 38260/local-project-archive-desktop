@@ -1659,14 +1659,14 @@ body.modal-open { overflow: hidden; }
 @keyframes slide-in { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* 辅助栏收窄，主要空间留给正文；收起目录树时释放右栏宽度 */
-.project-container { max-width: 1680px; }
+.project-container { max-width: 1560px; }
 .detail-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) clamp(260px, 22vw, 340px);
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 22px;
   align-items: start;
 }
-.detail-layout.tree-collapsed { grid-template-columns: 220px minmax(0, 1fr) 156px; }
+.detail-layout.tree-collapsed { grid-template-columns: 220px minmax(0, 1fr); }
 .detail-main, .detail-side { min-width: 0; }
 /* 锚点跳转时为 sticky 顶栏留出空间（标签栏 + 顶栏两段高度） */
 .detail-main section.panel, .detail-main #sec-runs { scroll-margin-top: calc(var(--tabbar-h) + var(--topbar-h) + 12px); }
@@ -1894,6 +1894,45 @@ body.modal-open { overflow: hidden; }
 .detail-side { position: sticky; top: calc(var(--tabbar-h) + var(--topbar-h) + 12px); }
 .tree-panel { max-height: calc(100dvh - var(--tabbar-h) - var(--topbar-h) - 24px); display: flex; flex-direction: column; }
 .tree-panel .tree-scroll { overflow-y: auto; min-height: 60px; }
+
+/* ---- 目录树按需抽屉 ---- */
+.tree-drawer-mask {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(0, 0, 0, .38);
+  animation: mask-in .15s ease;
+}
+.tree-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 95;
+  width: min(440px, 92vw);
+  display: flex; flex-direction: column;
+  padding: 16px 16px 10px;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  animation: drawer-in .22s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes drawer-in {
+  from { transform: translateX(100%); opacity: .6; }
+  to { transform: none; opacity: 1; }
+}
+.tree-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s-2); padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.tree-drawer-head h3 {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0; font-size: 15px; line-height: 1.4;
+}
+.tree-drawer-body { flex: 1; min-height: 0; overflow: auto; padding: 10px 2px; }
+.tree-drawer-body .tree { font-size: 13.5px; line-height: 1.85; }
+.tree-drawer-foot {
+  padding-top: 8px; border-top: 1px solid var(--border);
+  color: var(--muted); font-size: 11.5px; line-height: 1.6;
+}
+.tree-truncated { margin-top: 10px; }
+@media (max-width: 640px) {
+  .tree-drawer { width: 94vw; padding: 12px 12px 8px; }
+}
 /* 收起后保留可展开的胶囊按钮 */
 .detail-layout.tree-collapsed .tree-panel {
   background: transparent; border: none; box-shadow: none;
@@ -1908,8 +1947,8 @@ body.modal-open { overflow: hidden; }
 }
 .detail-layout.tree-collapsed .tree-panel > h2 .right { font-size: 12px; }
 @media (min-width: 1025px) and (max-width: 1280px) {
-  .detail-layout { grid-template-columns: 200px minmax(0, 1fr) 260px; gap: 16px; }
-  .detail-layout.tree-collapsed { grid-template-columns: 200px minmax(0, 1fr) 156px; }
+  .detail-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 16px; }
+  .detail-layout.tree-collapsed { grid-template-columns: 200px minmax(0, 1fr); }
 }
 @media (max-width: 1024px) {
   .detail-layout, .detail-layout.tree-collapsed { grid-template-columns: 1fr; }
