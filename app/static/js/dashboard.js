@@ -140,7 +140,11 @@
       themeIcon() {
         this.themeTick; // 建立响应式依赖
         const p = window.themePref();
-        return p === "auto" ? "monitor" : (p === "dark" ? "moon" : "sun");
+        // 跟随系统时仍显示当前解析出的外观（日/月），比显示器图标更易读；
+        // 偏好本身仍在 title 中完整说明。
+        const dark = p === "dark"
+          || (p === "auto" && document.documentElement.getAttribute("data-theme") === "dark");
+        return dark ? "moon" : "sun";
       },
       themeLabel() {
         this.themeTick;

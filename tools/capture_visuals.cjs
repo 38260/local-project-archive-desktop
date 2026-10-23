@@ -17,7 +17,7 @@ fs.mkdirSync(output, { recursive: true });
   const project = listing.projects.find(p => p.name === "Tracelight") || listing.projects[0];
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   const page = await browser.newPage({
-    viewport: { width: 1440, height: 960 }, reducedMotion: "reduce",
+    viewport: { width: 1440, height: 1024 }, reducedMotion: "reduce",
   });
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -39,19 +39,19 @@ fs.mkdirSync(output, { recursive: true });
       await page.waitForFunction(() => window.__tlHomeVM && !window.__tlHomeVM.loading
         && document.querySelector(".home-sidebar"));
       await settle();
-      await shot("home-1440x960.png");
-      console.log("captured home-1440x960.png");
+      await shot("home-1440x1024.png");
+      console.log("captured home-1440x1024.png");
     }
     if (mode === "detail" || mode === "all") {
       await page.goto(`${state.base}/project/${project.id}`);
       await page.waitForFunction(() => window.__tlProjectVM && window.__tlProjectVM.p
         && window.__tlProjectVM.recentActivityLoading === false && window.__tlProjectVM.readme !== null);
       await settle();
-      await shot("detail-1440x960.png");
-      console.log("captured detail-1440x960.png");
-      for (const [label, file] of [["启动与运行", "detail-launch-1440x960.png"],
-                                   ["开发记录", "detail-records-1440x960.png"],
-                                   ["项目资料", "detail-materials-1440x960.png"]]) {
+      await shot("detail-1440x1024.png");
+      console.log("captured detail-1440x1024.png");
+      for (const [label, file] of [["启动与运行", "detail-launch-1440x1024.png"],
+                                   ["开发记录", "detail-records-1440x1024.png"],
+                                   ["项目资料", "detail-materials-1440x1024.png"]]) {
         await page.locator(".tab-nav .tab-btn").filter({ hasText: label }).click();
         await page.waitForTimeout(200);
         await settle();

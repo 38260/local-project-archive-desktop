@@ -80,11 +80,13 @@
         </button>
       </span>
     </span>
-    <button class="btn icon-only" @click="openSettings" title="设置" aria-label="设置">
-      <tl-icon name="settings" :size="15"></tl-icon>
+    <button class="btn icon-only ghost" @click="openSettings" title="设置" aria-label="设置">
+      <tl-icon name="settings" :size="18"></tl-icon>
     </button>
-    <button class="btn" @click="switchTheme" :title="'主题：' + themeLabel + '（点击切换：跟随系统 / 亮色 / 暗色）'">
-      <tl-icon :name="themeIcon" :size="15"></tl-icon><span class="btn-text">{{ themeLabel }}</span>
+    <button class="btn icon-only ghost" @click="switchTheme"
+            :title="'主题：' + themeLabel + '（点击切换：跟随系统 / 亮色 / 暗色）'"
+            :aria-label="'主题：' + themeLabel">
+      <tl-icon :name="themeIcon" :size="18"></tl-icon>
     </button>
   </header>
 
@@ -172,8 +174,8 @@
       </div>
       <div class="side-statusbar">
         <span class="run-state"><span class="run-dot"></span>本地运行中</span>
-        <button type="button" class="icon-btn" @click="openSettings" title="设置" aria-label="打开设置">
-          <tl-icon name="settings" :size="15"></tl-icon>
+        <button type="button" class="side-setting" @click="openSettings" title="设置" aria-label="打开设置">
+          <tl-icon name="settings" :size="15"></tl-icon>设置
         </button>
       </div>
     </aside>

@@ -46,7 +46,7 @@
     <span class="logo">
       <span class="brand-mark"><tl-icon name="folder" :size="17"></tl-icon></span>
       <span class="brand-text">归迹拾光 <span class="brand-sub">Tracelight</span></span>
-      <span class="dim">/ 项目详情 · 数据不出本机</span>
+      <span class="dim">本机索引库 · 数据不出本机</span>
     </span>
     <span class="spacer"></span>
     <button class="btn" @click="toggleTree" :disabled="!p || p.is_lost"
@@ -55,11 +55,13 @@
             :title="p && p.is_lost ? '项目路径丢失，无法浏览目录' : '目录树（只读预览）'">
       <tl-icon name="list" :size="15"></tl-icon><span class="btn-text">目录树</span>
     </button>
-    <button class="btn icon-only" @click="openSettings" title="设置" aria-label="设置">
-      <tl-icon name="settings" :size="15"></tl-icon>
+    <button class="btn icon-only ghost" @click="openSettings" title="设置" aria-label="设置">
+      <tl-icon name="settings" :size="18"></tl-icon>
     </button>
-    <button class="btn" @click="switchTheme" :title="'主题：' + themeLabel + '（点击切换：跟随系统 / 亮色 / 暗色）'">
-      <tl-icon :name="themeIcon" :size="15"></tl-icon><span class="btn-text">{{ themeLabel }}</span>
+    <button class="btn icon-only ghost" @click="switchTheme"
+            :title="'主题：' + themeLabel + '（点击切换：跟随系统 / 亮色 / 暗色）'"
+            :aria-label="'主题：' + themeLabel">
+      <tl-icon :name="themeIcon" :size="18"></tl-icon>
     </button>
   </header>
 
@@ -146,18 +148,21 @@
             <button type="button" class="icon-btn head-pin" :class="{ on: p.pinned }"
                     :title="p.pinned ? '取消置顶' : '置顶项目'" :aria-label="p.pinned ? '取消置顶' : '置顶项目'"
                     @click="togglePin">
-              <tl-icon name="star" :size="19"></tl-icon>
+              <tl-icon name="pin" :size="18"></tl-icon>
             </button>
           </div>
-          <div class="head-updated" :title="'磁盘最后修改：' + fmtTime(p.fs_modified)">
-            最近修改：{{ headModifiedText }}
+          <div class="head-meta-row">
+            <span class="head-updated" :title="'磁盘最后修改：' + fmtTime(p.fs_modified)">
+              最近修改：{{ headModifiedText }}
+            </span>
+            <span class="head-meta-sep" aria-hidden="true"></span>
+            <button type="button" class="head-more-toggle" @click="toggleHeadMore"
+                    :aria-expanded="headMoreOpen ? 'true' : 'false'" aria-controls="head-more">
+              更多信息
+              <tl-icon name="chevron-down" :size="13" class="head-more-chev"
+                       :class="{ folded: !headMoreOpen }"></tl-icon>
+            </button>
           </div>
-          <button type="button" class="head-more-toggle" @click="toggleHeadMore"
-                  :aria-expanded="headMoreOpen ? 'true' : 'false'" aria-controls="head-more">
-            更多信息
-            <tl-icon name="chevron-down" :size="13" class="head-more-chev"
-                     :class="{ folded: !headMoreOpen }"></tl-icon>
-          </button>
         </div>
       </div>
 
@@ -195,7 +200,7 @@
         </button>
         <button class="btn head-secondary" @click="openIn('vscode')" :disabled="p.is_lost"
                 :title="'用 ' + editorName(editorCmd) + ' 打开项目'">
-          <tl-icon :name="editorIcon(editorCmd)" :size="15"></tl-icon>编辑器打开
+          <tl-icon name="pencil" :size="15"></tl-icon>编辑器打开
         </button>
         <button class="btn head-secondary" @click="openIn('explorer')" :disabled="p.is_lost">
           <tl-icon name="folder-open" :size="15"></tl-icon>资源管理器
@@ -313,7 +318,7 @@
       <div class="overview-grid">
         <section class="panel ov-progress" id="ov-progress">
           <h2>最近进展
-            <span class="count" v-if="recentProgress.isRepo && !recentProgress.identityRequired">近 7 天 · 仅本人</span>
+            <span class="ov-sub" v-if="recentProgress.isRepo && !recentProgress.identityRequired">近 7 天 · 仅本人</span>
             <span class="right">
               <button type="button" class="ov-link" @click="overviewAllCommits">
                 全部提交 <tl-icon name="chevron-right" :size="13"></tl-icon>
@@ -369,7 +374,7 @@
                 <span class="ct-type" :class="'ct-' + (commitType(c.message) || 'plain')"
                       v-if="commitType(c.message)">{{ commitType(c.message) }}</span>
                 <span class="ov-commit-msg" :title="c.message">{{ commitMsgText(c.message) }}</span>
-                <span class="ov-commit-time" :title="fmtTime(c.date)">{{ relTime(c.date) }}</span>
+                <span class="ov-commit-time" :title="fmtTime(c.date)">{{ ovCommitTime(c.date) }}</span>
               </div>
             </div>
             <div class="panel-compact-bar" v-else-if="recentCommitErrorText">
@@ -403,6 +408,7 @@
           <template v-else-if="recentNotes.length">
             <button type="button" class="ov-note" v-for="n in recentNotes" :key="n.id"
                     @click="overviewAllNotes" :title="'查看全部笔记：' + noteTitle(n)">
+              <tl-icon name="file-text" :size="14" class="ov-note-icon"></tl-icon>
               <span class="ov-note-title">{{ noteTitle(n) }}</span>
               <span class="ov-note-time">{{ relTime(n.updated_at || n.created_at) }}</span>
               <span class="ov-note-preview" v-if="notePreview(n)">{{ notePreview(n) }}</span>
@@ -419,7 +425,6 @@
 
         <section class="panel ov-launch" id="ov-launch">
           <h2>常用启动
-            <span class="count" v-if="launchEntryCount">{{ launchEntryCount }} 个入口</span>
             <span class="right">
               <button type="button" class="ov-link" @click="overviewAllLaunches">
                 全部启动项 <tl-icon name="chevron-right" :size="13"></tl-icon>
@@ -434,23 +439,24 @@
           </div>
           <div class="ov-launch-grid" v-else-if="overviewLaunches.length">
             <div class="ov-launch-card" v-for="x in overviewLaunches" :key="x.key">
-              <div class="ov-launch-head">
-                <tl-icon :name="x.entry.mode === 'open' ? 'external' : 'terminal'" :size="15"></tl-icon>
-                <b class="ov-launch-name" :title="x.entry.name">{{ x.entry.name }}</b>
-                <span class="lb-tag" :class="{ 'lb-tag-src': x.kind === 'l' }">
-                  {{ x.kind === "l" ? "自定义" : "自动检测" }}
-                </span>
-                <span class="lb-primary" v-if="isPrimaryEntry(x.entry)">默认入口</span>
+              <span class="ov-launch-ico">
+                <tl-icon :name="x.entry.mode === 'open' ? 'external' : 'terminal'" :size="18"></tl-icon>
+              </span>
+              <div class="ov-launch-body">
+                <div class="ov-launch-head">
+                  <b class="ov-launch-name" :title="x.entry.name">{{ x.entry.name }}</b>
+                  <span class="lb-tag" :class="{ 'lb-tag-src': x.kind === 'l' }">
+                    {{ x.kind === "l" ? "自定义" : "自动检测" }}
+                  </span>
+                  <span class="lb-primary" v-if="isPrimaryEntry(x.entry)">默认入口</span>
+                </div>
+                <code class="ov-launch-cmd" :title="x.entry.command">{{ x.entry.command }}</code>
               </div>
-              <code class="ov-launch-cmd" :title="x.entry.command">{{ x.entry.command }}</code>
-              <div class="ov-launch-foot">
-                <span class="section-note">{{ x.entry.mode === "open" ? "直接运行" : "新终端窗口" }}</span>
-                <button type="button" class="btn sm" @click="runEntry(x.entry)"
-                        :disabled="!!launchBusyKey || launchPrefsSaving"
-                        :title="'启动：' + x.entry.command">
-                  <tl-icon name="play" :size="12"></tl-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
-                </button>
-              </div>
+              <button type="button" class="btn ov-launch-btn" @click="runEntry(x.entry)"
+                      :disabled="!!launchBusyKey || launchPrefsSaving"
+                      :title="'启动：' + x.entry.command">
+                <tl-icon name="play" :size="12"></tl-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
+              </button>
             </div>
           </div>
           <div class="ov-empty" v-else>
@@ -472,6 +478,7 @@
             <span class="skel" style="width:82%;height:16px"></span>
           </div>
           <template v-else-if="readme.exists">
+            <div class="ov-readme-name">{{ p.name }}</div>
             <p class="ov-readme-text" v-if="readmePreview">{{ readmePreview }}</p>
             <p class="section-note" v-else>README 已找到，但没有可预览的正文。</p>
           </template>

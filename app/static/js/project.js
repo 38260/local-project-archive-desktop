@@ -327,7 +327,11 @@
       themeIcon() {
         this.themeTick;
         const pref = window.themePref();
-        return pref === "auto" ? "monitor" : (pref === "dark" ? "moon" : "sun");
+        // 跟随系统时仍显示当前解析出的外观（日/月），比显示器图标更易读；
+        // 偏好本身仍在 title 中完整说明。
+        const dark = pref === "dark"
+          || (pref === "auto" && document.documentElement.getAttribute("data-theme") === "dark");
+        return dark ? "moon" : "sun";
       },
       themeLabel() {
         this.themeTick;
@@ -477,14 +481,17 @@
         return this.notes.slice().sort((a, b) =>
           String(b.updated_at || b.created_at || "")
             .localeCompare(String(a.updated_at || a.created_at || ""))
-        ).slice(0, 3);
+        ).slice(0, 2);
       },
       overviewLaunches() {
-        return this.orderedEntries.slice(0, 3);
+        return this.orderedEntries.slice(0, 2);
       },
       readmePreview() {
         if (!this.readme || !this.readme.exists) return "";
-        return this.plainMarkdown(this.readme.raw || "").slice(0, 360);
+        let text = this.plainMarkdown(this.readme.raw || "");
+        const name = ((this.p && this.p.name) || "").trim();
+        if (name && text.startsWith(name)) text = text.slice(name.length).trim();
+        return text.slice(0, 360);
       },
       // 头部数据徽章
       headBadges() {
@@ -1661,6 +1668,21 @@
         const title = this.noteTitle(note);
         const rest = plain.startsWith(title) ? plain.slice(title.length).trim() : plain;
         return rest.slice(0, 180);
+      },
+      // 概览提交时间按日历日显示（今天/昨天保留时分），与参考图的扫读方式一致；
+      // 完整时间仍在 title 中原样可查。
+      ovCommitTime(iso) {
+        if (!iso) return "";
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return iso;
+        const now = new Date();
+        const dayStart = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+        const diff = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+        const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+        if (diff === 0) return `今天 ${hm}`;
+        if (diff === 1) return `昨天 ${hm}`;
+        if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`;
+        return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
       },
       overviewAllCommits() { this.switchTab("records", "sec-commits"); },
       overviewAllNotes() { this.switchTab("records", "sec-notes"); },

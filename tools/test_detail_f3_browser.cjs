@@ -61,11 +61,11 @@ async function j(url, init) {
       .evaluate(el => getComputedStyle(el).backgroundColor);
     assert.equal(firstBarBg, "rgb(144, 97, 249)");   // id=3 紫色项目主色
     assert.equal(await page.locator(".ov-commit").count(), 3);
-    assert.equal(await page.locator(".ov-notes .ov-note").count(), 3);
+    assert.equal(await page.locator(".ov-notes .ov-note").count(), 2);
     assert((await page.locator(".ov-launch-card").count()) >= 2);
     assert.equal(await page.locator(".ov-launch-card .lb-primary").count(), 1);
     assert.match(await page.locator(".ov-readme-text").innerText(), /本地项目归档与快速启动/);
-    assert.match(await page.locator("#ov-progress .count").innerText(), /近 7 天 · 仅本人/);
+    assert.match(await page.locator("#ov-progress .ov-sub").innerText(), /近 7 天 · 仅本人/);
 
     // 2) 全部入口跳转链路
     await page.locator("#ov-progress").getByRole("button", { name: /全部提交/ }).click();
