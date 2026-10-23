@@ -94,22 +94,28 @@
     <aside id="home-sidebar" class="home-sidebar" :class="{ open: sidebarOpen }" aria-label="项目导航">
       <template v-for="sec in navSections" :key="sec">
         <nav v-if="sec === 'quick'" class="side-section" aria-label="快捷导航">
-          <div class="side-head"><span>快捷导航</span></div>
+          <div class="side-head">
+            <span>快捷导航</span>
+            <button type="button" class="side-head-icon" @click="openNavConfig"
+                    title="管理导航" aria-label="打开导航配置">
+              <tl-icon name="sliders" :size="14"></tl-icon>
+            </button>
+          </div>
           <button type="button" class="nav-item" :class="{ on: !quickFilter }"
                   :aria-pressed="!quickFilter ? 'true' : 'false'" @click="showAllProjects">
-            <tl-icon name="folder" :size="15"></tl-icon>
+            <tl-icon name="grid" :size="16"></tl-icon>
             <span class="nav-name">全部项目</span>
             <span class="nav-count">{{ navCounts.all }}</span>
           </button>
           <button type="button" class="nav-item" :class="{ on: quickFilter === 'recent' }"
                   :aria-pressed="quickFilter === 'recent' ? 'true' : 'false'" @click="toggleQuick('recent')">
-            <tl-icon name="clock" :size="15"></tl-icon>
+            <tl-icon name="clock" :size="16"></tl-icon>
             <span class="nav-name">最近打开</span>
             <span class="nav-count">{{ navCounts.recent }}</span>
           </button>
           <button type="button" class="nav-item" :class="{ on: quickFilter === 'pinned' }"
                   :aria-pressed="quickFilter === 'pinned' ? 'true' : 'false'" @click="toggleQuick('pinned')">
-            <tl-icon name="pin" :size="15"></tl-icon>
+            <tl-icon name="pin" :size="16"></tl-icon>
             <span class="nav-name">已置顶</span>
             <span class="nav-count">{{ navCounts.pinned }}</span>
           </button>
@@ -119,13 +125,17 @@
           <div class="side-head">
             <span>项目状态</span>
             <button type="button" class="side-link" @click="openNavConfig"
-                    title="选择导航模板与管理显示项">模板</button>
+                    title="选择导航模板与管理显示项">
+              模板 <tl-icon name="chevron-down" :size="12"></tl-icon>
+            </button>
           </div>
           <button type="button" class="nav-item" v-for="s in navStatusItems" :key="s.status"
                   :class="{ on: statusFilter === s.status }"
                   :aria-pressed="statusFilter === s.status ? 'true' : 'false'"
                   @click="toggleStatus(s.status)">
-            <span class="nav-dot" :data-status="s.status"></span>
+            <span v-if="!s.icon" class="nav-dot" :data-status="s.status"></span>
+            <tl-icon v-else :name="s.icon" :size="16" class="nav-status-ico"
+                     :data-status="s.status"></tl-icon>
             <span class="nav-name">{{ s.status }}</span>
             <span class="nav-count">{{ s.count }}</span>
           </button>
@@ -157,17 +167,20 @@
       </template>
       <div class="side-foot">
         <button type="button" class="side-manage" @click="openNavConfig">
-          <tl-icon name="settings" :size="14"></tl-icon>管理导航
+          <tl-icon name="sliders" :size="14"></tl-icon>管理导航
+        </button>
+      </div>
+      <div class="side-statusbar">
+        <span class="run-state"><span class="run-dot"></span>本地运行中</span>
+        <button type="button" class="icon-btn" @click="openSettings" title="设置" aria-label="打开设置">
+          <tl-icon name="settings" :size="15"></tl-icon>
         </button>
       </div>
     </aside>
 
     <main class="container home-main">
     <div class="home-title">
-      <div class="home-title-text">
-        <h1>项目总览</h1>
-        <p>找到项目，接着上次的思路。</p>
-      </div>
+      <h1>项目总览 <span class="home-subtitle">找到项目，接着上次的思路。</span></h1>
       <span class="home-date">{{ todayLabel }}</span>
     </div>
     <!-- 自动更新：批量刷新期间的轻量进度，失败可重试 -->

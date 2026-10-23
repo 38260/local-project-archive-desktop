@@ -249,8 +249,10 @@
         return { all, recent, pinned };
       },
       navStatusItems() {
+        const icons = { 暂停: "pause", 已完成: "check", 归档: "archive", 废弃: "trash" };
         return this.navStatuses.map(status => ({
           status,
+          icon: icons[status] || "",
           count: this.projects.filter(p => this.navMatch(p, {
             ignoreStatus: true, statusCandidate: status,
           })).length,
