@@ -38,7 +38,7 @@ fs.mkdirSync(output, { recursive: true });
 
     // 1) 默认概览；四个主分区常驻导航
     assert.equal(await activeTab(), "overview");
-    assert.equal(await page.locator("#overview-panel").isVisible(), true);
+    assert.equal(await page.locator("#ov-progress").isVisible(), true);
     assert.equal(await page.locator("#sec-launch").isVisible(), false);
     assert.equal(await page.locator("#sec-commits").isVisible(), false);
     assert.equal(await page.locator(".tab-nav .tab-btn").count(), 4);
@@ -48,7 +48,7 @@ fs.mkdirSync(output, { recursive: true });
     await tab("启动与运行").click();
     assert.equal(await activeTab(), "launch");
     assert.equal(await page.locator("#sec-launch").isVisible(), true);
-    assert.equal(await page.locator("#overview-panel").isVisible(), false);
+    assert.equal(await page.locator("#ov-progress").isVisible(), false);
     // 没有运行记录时不显示空的“运行历史”锚点
     assert.deepEqual((await page.locator(".page-toc button").allInnerTexts()).map(s => s.trim()),
                      ["启动项与说明"]);

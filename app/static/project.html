@@ -48,18 +48,6 @@
       <span class="brand-text">归迹拾光 <span class="brand-sub">Tracelight</span></span>
       <span class="dim">/ 项目详情 · 数据不出本机</span>
     </span>
-    <a class="btn icon-only" href="/" title="返回首页" aria-label="返回首页"
-       @click.prevent="leaveConfirm('/')">
-      <tl-icon name="arrow-left" :size="15"></tl-icon>
-    </a>
-    <button class="btn icon-only" v-if="prevProject" @click="gotoSibling(prevProject)"
-            :title="'上一个项目：' + prevProject.name" aria-label="上一个项目">
-      <tl-icon name="chevron-left" :size="15"></tl-icon>
-    </button>
-    <button class="btn icon-only" v-if="nextProject" @click="gotoSibling(nextProject)"
-            :title="'下一个项目：' + nextProject.name" aria-label="下一个项目">
-      <tl-icon name="chevron-right" :size="15"></tl-icon>
-    </button>
     <span class="spacer"></span>
     <button class="btn" @click="toggleTree" :disabled="!p || p.is_lost"
             :aria-expanded="treeOpen ? 'true' : 'false'" aria-controls="tree-drawer"
@@ -76,6 +64,53 @@
   </header>
 
   <main class="container project-container" v-if="p">
+    <div class="detail-layout">
+    <!-- 左侧项目内部导航：四个主分区 + 当前分区页内锚点 -->
+    <aside class="detail-nav" aria-label="项目内部导航">
+      <a class="detail-back" href="/" @click.prevent="leaveConfirm('/')">
+        <tl-icon name="arrow-left" :size="15"></tl-icon>返回项目库
+      </a>
+      <div class="detail-nav-label">项目导航</div>
+      <nav class="tab-nav" aria-label="项目内容分区">
+        <button type="button" class="tab-btn" v-for="t in tabs" :key="t.key"
+                :class="{ on: activeTab === t.key }"
+                :aria-current="activeTab === t.key ? 'page' : false"
+                @click="switchTab(t.key)">
+          <tl-icon :name="t.icon" :size="16"></tl-icon>
+          <span>{{ t.label }}</span>
+        </button>
+      </nav>
+      <div class="page-toc" v-if="activeAnchors.length" aria-label="本页内容">
+        <div class="page-toc-title">本页内容</div>
+        <button type="button" v-for="a in activeAnchors" :key="a.id"
+                :class="{ on: activeSection === a.id }"
+                :aria-current="activeSection === a.id ? 'location' : false"
+                @click="scrollTo(a.id)">
+          <tl-icon :name="a.icon || 'file-text'" :size="14"></tl-icon>
+          <span>{{ a.label }}</span>
+        </button>
+      </div>
+      <div class="detail-nav-foot"><span class="run-dot"></span>本地运行中</div>
+    </aside>
+    <div class="detail-main">
+
+    <!-- 轻量面包屑：项目库 / 当前项目；相邻项目切换保留为低强调小按钮 -->
+    <div class="detail-crumb">
+      <a href="/" @click.prevent="leaveConfirm('/')">项目库</a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">{{ p.name }}</span>
+      <span class="spacer"></span>
+      <button type="button" class="icon-btn crumb-nav" v-if="prevProject"
+              @click="gotoSibling(prevProject)" :title="'上一个项目：' + prevProject.name"
+              aria-label="上一个项目">
+        <tl-icon name="chevron-left" :size="14"></tl-icon>
+      </button>
+      <button type="button" class="icon-btn crumb-nav" v-if="nextProject"
+              @click="gotoSibling(nextProject)" :title="'下一个项目：' + nextProject.name"
+              aria-label="下一个项目">
+        <tl-icon name="chevron-right" :size="14"></tl-icon>
+      </button>
+    </div>
     <!-- 紧凑项目头部：Logo / 名称 / 简介 / 状态 / 标签 / 分支 / 唯一路径 / 主次操作 -->
     <div class="proj-card detail-head" :data-status="p.status">
       <div class="head-top">
@@ -84,11 +119,7 @@
         <div class="head-main">
           <div class="head-title-row">
             <h1 :title="p.name">{{ p.name }}</h1>
-            <span class="alias-chip alias-lg" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
-            <span class="head-status">
-              <tl-select v-model="p.status" :options="statuses" accent
-                         @update:model-value="saveStatus"></tl-select>
-            </span>
+            <span class="alias-inline" v-if="p.alias" :title="'别名：' + p.alias">{{ p.alias }}</span>
           </div>
           <p class="info-intro head-summary" v-if="headSummary">{{ headSummary }}</p>
           <div class="head-chips">
@@ -107,22 +138,26 @@
           </button>
         </div>
         <div class="head-side">
-          <div class="head-updated" :title="'磁盘最后修改：' + fmtTime(p.fs_modified)">
-            最近修改：{{ relTime(p.fs_modified) }}
-          </div>
-          <div class="head-side-ops">
+          <div class="head-side-top">
+            <span class="head-status">
+              <tl-select v-model="p.status" :options="statuses"
+                         @update:model-value="saveStatus"></tl-select>
+            </span>
             <button type="button" class="icon-btn head-pin" :class="{ on: p.pinned }"
                     :title="p.pinned ? '取消置顶' : '置顶项目'" :aria-label="p.pinned ? '取消置顶' : '置顶项目'"
                     @click="togglePin">
-              <tl-icon name="pin" :size="18"></tl-icon>
-            </button>
-            <button type="button" class="head-more-toggle" @click="toggleHeadMore"
-                    :aria-expanded="headMoreOpen ? 'true' : 'false'" aria-controls="head-more">
-              更多信息
-              <tl-icon name="chevron-down" :size="13" class="head-more-chev"
-                       :class="{ folded: !headMoreOpen }"></tl-icon>
+              <tl-icon name="star" :size="19"></tl-icon>
             </button>
           </div>
+          <div class="head-updated" :title="'磁盘最后修改：' + fmtTime(p.fs_modified)">
+            最近修改：{{ headModifiedText }}
+          </div>
+          <button type="button" class="head-more-toggle" @click="toggleHeadMore"
+                  :aria-expanded="headMoreOpen ? 'true' : 'false'" aria-controls="head-more">
+            更多信息
+            <tl-icon name="chevron-down" :size="13" class="head-more-chev"
+                     :class="{ folded: !headMoreOpen }"></tl-icon>
+          </button>
         </div>
       </div>
 
@@ -272,32 +307,6 @@
       <button class="btn primary" @click="updatePath" :disabled="!newPath">更新路径</button>
     </div>
 
-    <div class="detail-layout">
-    <!-- 左侧项目内部导航：四个主分区 + 当前分区页内锚点 -->
-    <aside class="detail-nav" aria-label="项目内部导航">
-      <a class="detail-back" href="/" @click.prevent="leaveConfirm('/')">
-        <tl-icon name="arrow-left" :size="15"></tl-icon>返回项目库
-      </a>
-      <div class="detail-nav-label">项目导航</div>
-      <nav class="tab-nav" aria-label="项目内容分区">
-        <button type="button" class="tab-btn" v-for="t in tabs" :key="t.key"
-                :class="{ on: activeTab === t.key }"
-                :aria-current="activeTab === t.key ? 'page' : false"
-                @click="switchTab(t.key)">
-          <tl-icon :name="t.icon" :size="16"></tl-icon>
-          <span>{{ t.label }}</span>
-        </button>
-      </nav>
-      <div class="page-toc" v-if="activeAnchors.length" aria-label="本页内容">
-        <div class="page-toc-title">本页内容</div>
-        <button type="button" v-for="a in activeAnchors" :key="a.id"
-                :class="{ on: activeSection === a.id }"
-                :aria-current="activeSection === a.id ? 'location' : false"
-                @click="scrollTo(a.id)">{{ a.label }}</button>
-      </div>
-      <div class="detail-nav-foot"><span class="run-dot"></span>本地运行中</div>
-    </aside>
-    <div class="detail-main">
 
     <!-- 概览：最近进展 / 最近笔记 / 常用启动 / 项目简介，全部来自真实数据 -->
     <div class="detail-tab overview-tab" v-show="activeTab === 'overview'">
@@ -1308,6 +1317,7 @@
       </div>
     </section>
 
+    </div>
     </div>
   </main>
 

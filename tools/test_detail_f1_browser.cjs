@@ -35,7 +35,7 @@ fs.mkdirSync(output, { recursive: true });
     assert.equal((await page.locator(".head-logo").innerText()).trim(), "TR");
     assert.equal(await page.locator(".head-logo").evaluate(el => getComputedStyle(el).backgroundColor),
                  "rgb(144, 97, 249)");   // id=3 → 紫色
-    assert.match(await page.locator(".alias-chip").first().innerText(), /归迹/);
+    assert.match(await page.locator(".alias-inline").first().innerText(), /归迹/);
     assert.match(await page.locator(".info-intro").innerText(), /本地项目归档与快速启动/);
     assert.equal(await page.locator(".head-chips .cat-chip").count(), 1);
     assert((await page.locator(".head-chips .tag").count()) >= 3);

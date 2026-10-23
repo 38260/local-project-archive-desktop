@@ -34,27 +34,27 @@
   // 「本页内容」锚点：只列当前分区，避免和四个主分区重复堆叠
   const TAB_ANCHORS = {
     overview: [
-      { id: "ov-progress", label: "最近进展" },
-      { id: "ov-notes", label: "最近笔记" },
-      { id: "ov-launch", label: "常用启动" },
-      { id: "ov-readme", label: "项目简介" },
+      { id: "ov-progress", label: "最近进展", icon: "bar-chart" },
+      { id: "ov-notes", label: "最近笔记", icon: "file-text" },
+      { id: "ov-launch", label: "常用启动", icon: "play" },
+      { id: "ov-readme", label: "项目简介", icon: "book" },
     ],
     launch: [
-      { id: "sec-launch", label: "启动项与说明" },
-      { id: "sec-runs", label: "运行历史" },
+      { id: "sec-launch", label: "启动项与说明", icon: "play" },
+      { id: "sec-runs", label: "运行历史", icon: "terminal" },
     ],
     records: [
-      { id: "sec-desc", label: "项目描述" },
-      { id: "sec-notes", label: "开发笔记" },
-      { id: "sec-changelogs", label: "变更日志" },
-      { id: "sec-commits", label: "Git 提交记录" },
+      { id: "sec-desc", label: "项目描述", icon: "file-text" },
+      { id: "sec-notes", label: "开发笔记", icon: "book" },
+      { id: "sec-changelogs", label: "变更日志", icon: "list" },
+      { id: "sec-commits", label: "Git 提交记录", icon: "commit" },
     ],
     materials: [
-      { id: "sec-flowchart", label: "流程图" },
-      { id: "sec-configs", label: "构建配置" },
-      { id: "sec-stats", label: "文件统计" },
-      { id: "sec-shots", label: "项目截图" },
-      { id: "sec-readme", label: "README" },
+      { id: "sec-flowchart", label: "流程图", icon: "image" },
+      { id: "sec-configs", label: "构建配置", icon: "package" },
+      { id: "sec-stats", label: "文件统计", icon: "files" },
+      { id: "sec-shots", label: "项目截图", icon: "image" },
+      { id: "sec-readme", label: "README", icon: "book" },
     ],
   };
   const ANCHOR_TAB = (() => {
@@ -373,6 +373,21 @@
       nextProject() {
         const i = this.siblings.findIndex(s => s.id === this.projectId);
         return (i >= 0 && i < this.siblings.length - 1) ? this.siblings[i + 1] : null;
+      },
+      // 紧凑头部的时间文案：今天/昨天显示到时分，更早显示日期
+      headModifiedText() {
+        const iso = this.p && this.p.fs_modified;
+        if (!iso) return "未知";
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return "未知";
+        const now = new Date();
+        const dayStart = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+        const diff = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+        const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+        if (diff === 0) return `今天 ${hm}`;
+        if (diff === 1) return `昨天 ${hm}`;
+        if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`;
+        return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
       },
       // 紧凑头部摘要：优先 README 解析出的 intro，其次项目描述首行
       headSummary() {
