@@ -27,6 +27,11 @@ fs.mkdirSync(output, { recursive: true });
     await page.locator(".tab-nav .tab-btn").filter({ hasText: "开发记录" }).click();
     await page.locator("#sec-commits").waitFor({ state: "visible" });
   }
+  async function waitWeekTotal(n) {
+    await waitText(".week-sub", "近 7 天 · 仅本人");
+    await page.waitForFunction(n => (document.querySelector(".week-big")?.textContent || "").trim() === String(n),
+      n, { timeout: 15000 });
+  }
   const waitText = (locator, text) => page.waitForFunction(({ selector, text }) =>
     document.querySelector(selector)?.textContent.includes(text), { selector: locator, text });
   async function saveEmails(value) {
@@ -47,7 +52,7 @@ fs.mkdirSync(output, { recursive: true });
     await rejected;
     assert.equal(await invalidInput.inputValue(), "not-an-email");
     await saveEmails("ME+WORK@example.com\nold@example.com");
-    await waitText(".week-sub", "2 次提交");
+    await waitWeekTotal(2);
     ok("首页设置多个邮箱后本周拾光重算为 2 条，fork 副本不重复计数");
 
     // 柱悬停/键盘聚焦提示、查看近 7 天明细
@@ -69,7 +74,7 @@ fs.mkdirSync(output, { recursive: true });
     await page.locator(".week-toggle").click();
     assert.equal(await page.locator("#week-body").isVisible(), false);
     await page.reload();
-    await waitText(".week-sub", "2 次提交");
+    await waitWeekTotal(2);
     assert.equal(await page.locator("#week-body").isVisible(), false);
     await page.locator(".week-toggle").click();
     assert.equal(await page.locator("#week-body").isVisible(), true);
@@ -130,7 +135,7 @@ fs.mkdirSync(output, { recursive: true });
     }
     ok("详情亮暗主题、1440/390 宽度无横向溢出并留存截图");
     await page.goto(state.base);
-    await waitText(".week-sub", "2 次提交");
+    await waitWeekTotal(2);
     await page.getByRole("button", { name: "设置", exact: true }).click();
     const emailInput = page.getByLabel("我的 Git 邮箱", { exact: true });
     assert.equal(await emailInput.inputValue(), "me+work@example.com\nold@example.com");

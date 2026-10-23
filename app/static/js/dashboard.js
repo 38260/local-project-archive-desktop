@@ -78,6 +78,7 @@
         tagFilter: "",
         catFilter: "",
         showDiscarded: false,   // 废弃项目默认隐藏，勾选后显示（归档始终展示）
+        filtersOpen: false,     // “更多筛选”浮层：分类 + 显示废弃
         // 快捷视图：null=全部 | recent | pinned（导航用），active | lost（统计卡下钻）
         quickFilter: null,
         // 左侧导航：区域/状态/标签均可配置，保存在 ui.nav_* 设置里
@@ -344,8 +345,7 @@
       todayLabel() {
         this.nowTick;
         const d = new Date();
-        const week = ["日", "一", "二", "三", "四", "五", "六"][d.getDay()];
-        return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 星期${week}`;
+        return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
       },
       displayGroups() {
         const quickGrouped = this.quickFilter === "recent" || this.quickFilter === "pinned";
@@ -709,6 +709,11 @@
         this.tagFilter = "";
         this.catFilter = "";
         this.quickFilter = null;
+        this.showDiscarded = false;
+        this.filtersOpen = false;
+      },
+      clearExtraFilters() {
+        this.catFilter = "";
         this.showDiscarded = false;
       },
       async quickOpen(p, target) {
@@ -1133,6 +1138,7 @@
           return;
         }
         if (e.key === "Escape") {
+          if (this.filtersOpen) { this.filtersOpen = false; return; }
           if (this.weekTip) { this.weekTip = null; return; }
           if (this.showWeeklyDetail) { this.closeWeeklyDetail(); return; }
           if (this.showNavConfig) { this.closeNavConfig(); return; }

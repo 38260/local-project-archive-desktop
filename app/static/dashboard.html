@@ -214,7 +214,7 @@
               @click="applyStatFilter('active')"
               title="点击查看未归档/未废弃且路径有效的项目">
         <span class="stat-ico"><tl-icon name="zap" :size="15"></tl-icon></span>
-        <b>{{ stats.active }}</b>活跃项目
+        <b>{{ stats.active }}</b>活跃
       </button>
       <button type="button" class="stat stat-archived" :class="{on: statActive('archived')}"
               @click="applyStatFilter('archived')"
@@ -240,20 +240,22 @@
     <div class="week-panel" v-if="weeklyLoading || weekly || weeklyError">
       <div class="week-head">
         <button type="button" class="week-toggle" @click="toggleWeekly"
-                :aria-expanded="weeklyExpanded ? 'true' : 'false'" aria-controls="week-body">
-          <tl-icon name="chevron-down" :size="13" class="heat-chev"
-                    :class="{ folded: !weeklyExpanded }"></tl-icon>
+                :aria-expanded="weeklyExpanded ? 'true' : 'false'" aria-controls="week-body"
+                title="仅统计本人作者邮箱，相同提交跨仓库只计一次；提交数不代表工时或效率">
           <span class="week-title">本周拾光</span>
-          <span class="week-sub" v-if="weeklyView">
-            近 7 天 · 仅本人 · 共 <b>{{ fmtNum(weeklyView.total) }}</b> 次提交
-          </span>
-          <span class="week-sub" v-else>近 7 天 · 仅本人</span>
+          <span class="week-sub">近 7 天 · 仅本人</span>
         </button>
         <div class="week-tools">
           <button type="button" class="week-detail-link"
                   :disabled="!weeklyView || !weeklyView.total"
                   @click="openWeeklyDetail">
             查看明细 <tl-icon name="chevron-right" :size="13"></tl-icon>
+          </button>
+          <button type="button" class="week-fold" @click="toggleWeekly"
+                  :aria-expanded="weeklyExpanded ? 'true' : 'false'"
+                  :aria-label="weeklyExpanded ? '收起本周拾光' : '展开本周拾光'">
+            <tl-icon name="chevron-down" :size="14" class="heat-chev"
+                      :class="{ folded: !weeklyExpanded }"></tl-icon>
           </button>
         </div>
       </div>
@@ -298,10 +300,7 @@
             </div>
 
             <div class="week-chart-wrap">
-              <div class="week-chart-head">
-                <span>每日节奏</span>
-                <span class="section-note">{{ weeklyView.rangeLabel }}</span>
-              </div>
+              <div class="week-chart-head"><span>每日节奏</span></div>
               <div class="week-chart" role="group" aria-label="近 7 天每日提交">
                 <button type="button" class="week-col"
                         v-for="day in weeklyView.days" :key="day.date"
@@ -329,34 +328,30 @@
               <div class="week-chart-head"><span>最近推进</span></div>
               <ul class="week-projects" v-if="weeklyView.top.length">
                 <li class="week-project" v-for="p in weeklyView.top" :key="p.id">
-                  <div class="week-project-row">
+                  <div class="week-project-line">
                     <span class="week-dot" :style="{ background: p.color }"></span>
                     <button type="button" class="week-project-name"
                             :title="'打开项目「' + p.name + '」'" @click="openWeeklyProject(p.id)">
                       {{ p.name }}
                     </button>
+                    <span class="week-track">
+                      <span class="week-fill" :style="{ width: p.barPct + '%', background: p.color }"></span>
+                    </span>
                     <span class="week-pcount">{{ p.count }}</span>
                   </div>
-                  <span class="week-track">
-                    <span class="week-fill" :style="{ width: p.barPct + '%', background: p.color }"></span>
-                  </span>
                 </li>
                 <li class="week-project other" v-if="weeklyView.otherProjectCount">
-                  <div class="week-project-row">
+                  <div class="week-project-line other-line">
                     <span class="week-dot" :style="{ background: weekOtherColor }"></span>
-                    <span class="week-project-name">其他 {{ weeklyView.otherProjectCount }} 个项目</span>
-                    <span class="week-pcount">{{ weeklyView.otherTotal }}</span>
+                    <span class="week-other-label">
+                      其他 {{ weeklyView.otherProjectCount }} 个项目 · {{ weeklyView.otherTotal }} 次
+                    </span>
                   </div>
-                  <span class="week-track">
-                    <span class="week-fill"
-                          :style="{ width: weeklyView.otherBarPct + '%', background: weekOtherColor }"></span>
-                  </span>
                 </li>
               </ul>
               <p class="week-empty-note" v-else>这 7 天还没有推进记录。</p>
             </div>
           </div>
-          <div class="week-foot-note">仅统计本人作者邮箱，相同提交跨仓库只计一次；提交数不代表工时或效率。</div>
         </template>
       </div>
 
@@ -384,17 +379,35 @@
         </button>
         <kbd class="search-kbd" v-else title="按 / 快速聚焦搜索">/</kbd>
       </span>
-      <tl-select v-model="catFilter" :options="allCategories" all-label="全部分类"></tl-select>
       <tl-select :model-value="sortBy" :options="sortOptions" all-label=""
                   @update:model-value="saveSort"></tl-select>
-      <label class="check-label">
-        <input type="checkbox" v-model="showDiscarded"> 显示废弃项目
-      </label>
+      <span class="filter-extra-wrap">
+        <button type="button" class="btn icon-only filter-extra"
+                :class="{ on: catFilter || showDiscarded }"
+                @click.stop="filtersOpen = !filtersOpen"
+                :aria-expanded="filtersOpen ? 'true' : 'false'"
+                aria-haspopup="true" title="更多筛选" aria-label="更多筛选">
+          <tl-icon name="sliders" :size="15"></tl-icon>
+          <span class="filter-active-dot" v-if="catFilter || showDiscarded"></span>
+        </button>
+        <span class="more-mask" v-if="filtersOpen" @click="filtersOpen = false"></span>
+        <span class="filter-pop" v-if="filtersOpen" @click.stop role="dialog" aria-label="更多筛选">
+          <label class="filter-pop-label">项目分类</label>
+          <tl-select v-model="catFilter" :options="allCategories" all-label="全部分类"></tl-select>
+          <label class="check-label">
+            <input type="checkbox" v-model="showDiscarded"> 显示废弃项目
+          </label>
+          <div class="filter-pop-actions">
+            <button type="button" class="btn sm" @click="clearExtraFilters">清除</button>
+            <button type="button" class="btn sm primary" @click="filtersOpen = false">完成</button>
+          </div>
+        </span>
+      </span>
       <span class="spacer"></span>
-      <span class="section-note">共 {{ filtered.length }} 个项目</span>
+      <span class="section-note filter-count">共 {{ filtered.length }} 个项目</span>
     </div>
     <p class="section-note order-hint" v-if="filtered.length > 1">
-      {{ orderSaving ? "正在保存顺序…" : "拖动卡片右上角调整顺序（同状态组内），自动保存；排序下拉用于一键整理，之后仍可拖动覆盖。" }}
+      {{ orderSaving ? "正在保存顺序…" : "拖动卡片调整顺序，自动保存。" }}
     </p>
 
     <!-- 已生效的筛选条件（可单个移除） -->
@@ -422,6 +435,8 @@
                         'is-dragging': dragProjectId === p.id, 'drop-target': dropProjectId === p.id}"
                :data-project-id="p.id"
                :data-status="p.status"
+               :data-last-commit="p.last_commit ? p.last_commit.message : ''"
+               :data-last-commit-hash="p.last_commit ? p.last_commit.hash : ''"
                @dragover="onProjectDragOver(p, $event)" @dragleave="dropProjectId === p.id && (dropProjectId = null)"
                @drop.prevent.stop="onProjectDrop(p, $event)"
                role="link" tabindex="0"
@@ -432,7 +447,7 @@
                     aria-hidden="true">{{ projectInitials(p.name) }}</span>
               <div class="card-head-main">
                 <div class="title-row">
-                  <h3 :title="p.name">
+                  <h3 :title="p.name + (p.alias ? '（别名：' + p.alias + '）' : '')">
                     <a :href="'/project/' + p.id" @click.stop>{{ p.name }}</a>
                   </h3>
                   <span class="spacer"></span>
@@ -442,7 +457,7 @@
                           :title="p.pinned ? '取消置顶' : '置顶（列表中优先展示）'"
                           :aria-label="p.pinned ? '取消置顶' : '置顶'"
                           @click.stop="togglePin(p)" @keydown.stop>
-                    <tl-icon name="pin" :size="20"></tl-icon>
+                    <tl-icon name="star" :size="19"></tl-icon>
                   </button>
                   <button type="button" class="icon-btn project-drag" :draggable="!dragLocked" :disabled="dragLocked"
                           :title="quickFilter === 'recent' ? '最近打开视图按访问时间排序，拖动已暂停' : '拖动调整顺序；也可按 Alt + 方向键移动'"
@@ -451,15 +466,12 @@
                           @keydown.alt.up.prevent="moveProjectByKey(p, -1)" @keydown.alt.left.prevent="moveProjectByKey(p, -1)"
                           @keydown.alt.down.prevent="moveProjectByKey(p, 1)" @keydown.alt.right.prevent="moveProjectByKey(p, 1)"
                           @dragstart.stop="onProjectDragStart(p, $event)" @dragend="onProjectDragEnd">
-                    <tl-icon name="arrow-up-down" :size="18"></tl-icon>
+                    <tl-icon name="grip" :size="17"></tl-icon>
                   </button>
                 </div>
                 <div class="card-desc" v-if="p.intro" :title="p.intro">{{ p.intro }}</div>
-                <div class="card-commit" v-if="p.last_commit">
-                  <span class="ct-type" :class="'ct-' + (commitType(p.last_commit.message) || 'plain')"
-                        v-if="commitType(p.last_commit.message)">{{ commitType(p.last_commit.message) }}</span>
-                  <span class="card-desc-text commit-line" :title="p.last_commit.message">{{ commitMsgText(p.last_commit.message) }}</span>
-                  <span class="ct-hash-inline">{{ p.last_commit.hash }}</span>
+                <div class="card-desc" v-else-if="p.last_commit" :title="p.last_commit.message">
+                  {{ commitMsgText(p.last_commit.message) }}
                 </div>
               </div>
             </div>
@@ -480,7 +492,6 @@
               </span>
             </div>
             <div class="meta-row foot-row">
-              <span v-if="p.alias" class="alias-chip" :title="'别名：' + p.alias">{{ p.alias }}</span>
               <span v-if="p.category" class="cat-chip">{{ p.category }}</span>
               <span v-for="t in p.tags.slice(0, 3)" :key="t" :class="tagClass(t)">{{ t }}</span>
               <span v-if="p.tags.length > 3" class="section-note tag-more">+{{ p.tags.length - 3 }}</span>

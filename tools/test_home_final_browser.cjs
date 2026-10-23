@@ -110,7 +110,8 @@ async function json(url) {
     ok("统计条全库口径与侧栏候选计数、默认隐藏废弃一致");
 
     // 2) 本周拾光：Top3 + 其他、颜色对应、提示与两种明细
-    assert.match(await page.locator(".week-sub").innerText(), /共 11 次提交/);
+    assert.match(await page.locator(".week-sub").innerText(), /近 7 天 · 仅本人/);
+    assert.equal((await page.locator(".week-big").innerText()).trim(), "11");
     assert.equal(await page.locator(".week-col").count(), 7);
     assert.equal(await page.locator(".week-col.has-commits").count(), 5);
     const topNames = await page.locator(".week-project:not(.other) .week-project-name").allInnerTexts();
@@ -118,8 +119,7 @@ async function json(url) {
     assert.deepEqual(topNames.map(s => s.trim()), ["Tracelight", "WindowAnchor", "SkillManager"]);
     assert.deepEqual(topCounts.map(s => s.trim()), ["4", "3", "2"]);
     const other = page.locator(".week-project.other");
-    assert.match(await other.innerText(), /其他 2 个项目/);
-    assert.equal((await other.locator(".week-pcount").innerText()).trim(), "2");
+    assert.match(await other.innerText(), /其他 2 个项目 · 2 次/);
     const dotColor = i => page.locator(".week-project").nth(i).locator(".week-dot")
       .evaluate(el => getComputedStyle(el).backgroundColor);
     assert.equal(await dotColor(0), "rgb(47, 129, 247)");
@@ -183,7 +183,7 @@ async function json(url) {
     ok("状态 + 标签 + 搜索组合、废弃显式可见与清除全部");
 
     // 5) 排序：选择“最近打开”立即重排并保存
-    const sortSelect = page.locator(".filter-bar .lsel").nth(1);
+    const sortSelect = page.locator(".filter-bar .lsel").first();
     await sortSelect.locator(".lsel-trigger").click();
     const sortSaved = page.waitForResponse(r => r.url().endsWith("/api/settings")
       && r.request().method() === "PUT" && r.status() === 200);

@@ -117,8 +117,8 @@ async function homeInfo() {
       state: vm.autoRefresh.state,
       auto: JSON.parse(JSON.stringify(vm.autoRefresh)),
       strip: (document.querySelector('.auto-refresh-strip') || {}).innerText || '',
-      lastCommit: aCard ? (aCard.querySelector('.commit-line') || {}).textContent || '' : '',
-      hash: aCard ? (aCard.querySelector('.ct-hash-inline') || {}).textContent || '' : '',
+      lastCommit: aCard ? (aCard.dataset.lastCommit || '') : '',
+      hash: aCard ? (aCard.dataset.lastCommitHash || '') : '',
     };`);
 }
 

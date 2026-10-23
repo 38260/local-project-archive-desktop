@@ -396,28 +396,28 @@ input[type="search"] { width: 320px; }
 
 /* ---- 徽标 / 标签 ---- */
 .badge {
-  display: inline-block; padding: 3px 12px;
-  border-radius: 999px;
-  font-size: 13px; font-weight: 600; line-height: 1.6;
-  border: 1px solid var(--st, var(--border));
+  display: inline-block; padding: 1px 8px;
+  border-radius: 5px;
+  font-size: 12px; font-weight: 600; line-height: 1.6;
+  border: 1px solid color-mix(in srgb, var(--st, var(--border)) 42%, transparent);
   color: var(--st, var(--muted));
-  background: var(--panel-2);
+  background: color-mix(in srgb, var(--st, var(--border)) 9%, var(--panel));
   white-space: nowrap;
 }
-/* 进行中 / 已完成 / 暂停：实色填充；归档：保持弱化描边，不抢视觉 */
-.badge.s-进行中, .badge.s-已完成, .badge.s-暂停 { color: #fff; background: var(--st); }
-.badge.s-归档, .badge.s-废弃 { color: var(--muted); background: var(--panel-2); border-color: var(--border); }
-.badge.lost { color: #fff; border-color: var(--danger); background: var(--danger); font-weight: 700; }
-[data-theme="dark"] .badge.lost { background: #da3633; border-color: #da3633; }  /* 暗色下降一档亮度 */
-.tag {
-  display: inline-block; padding: 2px 10px; margin: 2px 3px 2px 0;
-  border-radius: var(--r-sm); font-size: 13px; font-weight: 600; font-family: var(--mono);
-  background: var(--panel-2); color: var(--muted);
+.badge.s-归档, .badge.s-废弃 {
+  color: var(--muted);
+  background: var(--panel-2);
+  border-color: var(--border);
 }
-/* 语言类：青绿 */
-.tag.tag-lang { background: var(--c-teal-bg); color: var(--c-teal-fg); }
-/* 框架类：紫 */
-.tag.tag-fw { background: var(--c-purple-bg); color: var(--c-purple-fg); }
+.badge.lost { color: #fff; border-color: var(--danger); background: var(--danger); font-weight: 700; }
+[data-theme="dark"] .badge.lost { background: #da3633; border-color: #da3633; }
+.tag {
+  display: inline-block; padding: 1px 8px; margin: 2px 4px 2px 0;
+  border: 1px solid var(--border);
+  border-radius: 5px; font-size: 12px; font-weight: 500; font-family: var(--sans);
+  background: var(--panel); color: var(--muted);
+}
+.tag.tag-lang, .tag.tag-fw { background: var(--panel); color: var(--muted); border-color: var(--border); }
 
 /* 别名：琥珀橙，全站唯一使用该色，重点突出 */
 .alias-chip {
@@ -428,11 +428,18 @@ input[type="search"] { width: 320px; }
   font-size: 13px; font-weight: 800; white-space: nowrap; flex: none;
 }
 
-/* 项目分类：玫红点缀 */
+/* 项目分类：参考图的淡紫小标签 */
 .cat-chip {
-  display: inline-block; padding: 2px 10px;
-  background: var(--c-rose-bg); color: var(--c-rose-fg);
-  border-radius: 999px; font-size: 13px; font-weight: 600;
+  display: inline-block; padding: 1px 8px;
+  background: color-mix(in srgb, #7c3aed 10%, var(--panel));
+  color: #6d3bd1;
+  border: 1px solid color-mix(in srgb, #7c3aed 22%, transparent);
+  border-radius: 5px; font-size: 12px; font-weight: 600;
+}
+[data-theme="dark"] .cat-chip {
+  color: #c4b5fd;
+  background: rgba(124, 58, 237, .2);
+  border-color: rgba(196, 181, 253, .28);
 }
 
 /* 强调数值型内联徽章（git 分支等） */
@@ -466,7 +473,7 @@ input[type="search"] { width: 320px; }
   padding: 18px 26px 56px;
   min-width: 0;
 }
-.home-main .filter-bar .search-wrap { max-width: none; flex: 1 1 320px; }
+.home-main .filter-bar .search-wrap { max-width: 780px; flex: 1 1 520px; }
 .home-title {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: var(--s-3); flex-wrap: wrap; margin-bottom: 14px;
@@ -706,35 +713,41 @@ input[type="search"] { width: 320px; }
 /* ---- 本周拾光：近 7 天本人贡献 ---- */
 .week-panel {
   margin: 0 0 var(--s-4);
-  padding: 4px 18px 12px;
+  padding: 12px 20px 14px;
   background: var(--panel); border: 1px solid var(--border);
-  border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
+  border-radius: var(--r-lg); box-shadow: none;
 }
 .week-head {
   display: flex; align-items: center; gap: var(--s-3);
-  min-height: 44px;
+  min-height: 34px;
 }
 .week-toggle {
-  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
-  padding: 4px 0; border: none; background: none;
+  display: flex; align-items: baseline; gap: 10px; flex: 1; min-width: 0;
+  padding: 2px 0; border: none; background: none;
   color: var(--text); font: inherit; text-align: left; cursor: pointer;
 }
 .week-toggle:hover .week-title { color: var(--accent); }
-.week-title { flex: none; font-size: 15px; font-weight: 750; }
+.week-title { flex: none; font-size: 17px; font-weight: 750; }
 .week-sub {
-  min-width: 0; font-size: 12.5px; font-weight: 400; color: var(--muted);
+  min-width: 0; font-size: 13.5px; font-weight: 400; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.week-sub b { color: var(--text); font-variant-numeric: tabular-nums; }
-.week-tools { display: flex; align-items: center; gap: 4px; flex: none; }
+.week-tools { display: flex; align-items: center; gap: 2px; flex: none; }
 .week-detail-link {
   display: inline-flex; align-items: center; gap: 2px;
   padding: 4px 6px; border: none; border-radius: var(--r-sm);
-  background: none; color: var(--accent); font: 12.5px var(--sans); cursor: pointer;
+  background: none; color: var(--accent); font: 13px var(--sans); cursor: pointer;
 }
 .week-detail-link:hover:not(:disabled) { background: var(--accent-soft); }
 .week-detail-link:disabled { color: var(--muted); opacity: .55; cursor: not-allowed; }
-.week-body { padding: 2px 0 0; }
+.week-fold {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0;
+  border: none; border-radius: var(--r-sm); background: none;
+  color: var(--muted); cursor: pointer;
+}
+.week-fold:hover { background: var(--panel-2); color: var(--text); }
+.week-body { padding: 8px 2px 0; }
 .week-loading { display: flex; flex-direction: column; gap: 9px; padding: 12px 4px 16px; }
 .week-error {
   display: flex; align-items: center; gap: 8px;
@@ -755,34 +768,33 @@ input[type="search"] { width: 320px; }
 .week-identity .btn { margin-left: auto; flex: none; }
 .week-grid {
   display: grid;
-  grid-template-columns: minmax(170px, 210px) minmax(250px, 1fr) minmax(230px, 300px);
-  gap: 20px; align-items: stretch;
+  grid-template-columns: minmax(190px, 0.9fr) minmax(280px, 1.5fr) minmax(250px, 1.2fr);
+  gap: 24px; align-items: center;
 }
 .week-summary {
   display: flex; flex-direction: column; justify-content: center;
-  min-width: 0; padding: 4px 16px 4px 2px;
-  border-right: 1px solid var(--border);
+  min-width: 0; padding: 2px 4px;
 }
-.week-big-row { display: flex; align-items: baseline; gap: 7px; }
+.week-big-row { display: flex; align-items: baseline; gap: 8px; }
 .week-big {
-  font-size: 42px; line-height: 1; font-weight: 800; letter-spacing: -0.03em;
+  font-size: 52px; line-height: .95; font-weight: 800; letter-spacing: -0.035em;
   color: var(--accent); font-variant-numeric: tabular-nums;
 }
-.week-big-unit { font-size: 13px; color: var(--muted); font-weight: 600; }
-.week-summary-line { margin-top: 9px; font-size: 13px; color: var(--muted); }
-.week-summary-line b { color: var(--text); font-variant-numeric: tabular-nums; }
-.week-note { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.week-big-unit { font-size: 14.5px; color: var(--muted); font-weight: 500; }
+.week-summary-line { margin-top: 10px; font-size: 15px; color: var(--muted); }
+.week-summary-line b { color: var(--text); font-size: 17px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.week-note { margin-top: 5px; font-size: 12.5px; color: var(--muted); }
 .week-warn { margin-top: 8px; font-size: 12px; color: var(--warn); line-height: 1.6; }
 .week-chart-wrap { min-width: 0; display: flex; flex-direction: column; }
 .week-chart-head {
   display: flex; align-items: baseline; justify-content: space-between;
-  gap: var(--s-2); margin: 0 2px 6px;
-  font-size: 12.5px; font-weight: 600; color: var(--text);
+  gap: var(--s-2); margin: 0 2px 8px;
+  font-size: 13.5px; font-weight: 600; color: var(--text);
 }
 .week-chart {
   display: flex; align-items: stretch; justify-content: space-between;
   gap: clamp(4px, 1vw, 12px);
-  height: 132px; padding: 0 2px;
+  height: 116px; padding: 0 2px;
 }
 .week-col {
   flex: 1 1 0; min-width: 0;
@@ -818,36 +830,32 @@ input[type="search"] { width: 320px; }
 .week-today-spacer { width: 1px; }
 .week-empty-note { margin: 2px 0 8px; color: var(--muted); font-size: 12.5px; text-align: center; }
 .week-projects-wrap {
-  min-width: 0; padding-left: 18px;
-  border-left: 1px solid var(--border);
+  min-width: 0; padding: 0;
   display: flex; flex-direction: column;
 }
-.week-projects { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.week-projects { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .week-project { min-width: 0; }
-.week-project-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.week-project-line { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .week-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; }
 .week-project-name {
-  flex: 1; min-width: 0; padding: 0; border: none; background: none;
-  color: var(--text); font: 13.5px var(--sans); text-align: left;
+  flex: 0 1 auto; min-width: 54px; max-width: 132px;
+  padding: 0; border: none; background: none;
+  color: var(--text); font: 14px var(--sans); font-weight: 500; text-align: left;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   cursor: default;
 }
 button.week-project-name { cursor: pointer; }
 button.week-project-name:hover { color: var(--accent); text-decoration: underline; }
-.week-project.other .week-project-name { color: var(--muted); }
+.week-other-label { min-width: 0; color: var(--muted); font-size: 13px; white-space: nowrap; }
 .week-pcount {
-  flex: none; font-size: 13px; font-weight: 700; color: var(--text);
+  flex: none; font-size: 13.5px; font-weight: 700; color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .week-track {
-  display: block; height: 7px; margin: 5px 0 0 17px;
+  flex: 1 1 auto; display: block; height: 7px; min-width: 30px; margin: 0;
   background: var(--panel-2); border-radius: 999px; overflow: hidden;
 }
 .week-fill { display: block; height: 100%; min-width: 0; border-radius: 999px; }
-.week-foot-note {
-  margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border);
-  font-size: 11.5px; color: var(--muted);
-}
 /* 悬浮/键盘聚焦提示：显示日期、总数与项目明细 */
 .week-tip {
   position: fixed; z-index: 130;
@@ -905,10 +913,36 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
 .path-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
 .filter-bar {
-  display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap;
-  margin-bottom: var(--s-4);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 10px;
 }
+.filter-bar .search-wrap input[type="search"] { height: 38px; font-size: 14.5px; }
+.filter-bar .lsel-trigger { min-height: 38px; min-width: 150px; }
+.filter-count { font-size: 13.5px; }
 .check-label { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--muted); font-size: 14px; cursor: pointer; }
+
+/* 更多筛选：分类与废弃开关收进轻量浮层，主工具栏保持搜索 + 排序 */
+.filter-extra-wrap { position: relative; display: inline-flex; flex: none; }
+.filter-extra {
+  position: relative; width: 38px; min-height: 38px;
+  justify-content: center; padding: 0;
+  color: var(--muted);
+}
+.filter-extra.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.filter-active-dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+.filter-pop {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 82;
+  display: flex; flex-direction: column; gap: 12px;
+  width: 268px; padding: 14px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow);
+}
+.filter-pop-label { font-size: 12.5px; color: var(--muted); }
+.filter-pop .lsel, .filter-pop .lsel-trigger { width: 100%; }
+.filter-pop-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* 已生效的筛选条件（可单个移除） */
 .active-filters {
@@ -934,17 +968,17 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
 }
 
 /* ---- 状态分组小节标题 ---- */
-.status-group { margin-bottom: 20px; }
+.status-group { margin-bottom: 22px; }
 .status-group:last-child { margin-bottom: 0; }
 .group-head {
   display: flex; align-items: center; gap: var(--s-2);
-  margin: 2px 0 var(--s-3);
+  margin: 2px 0 12px;
 }
 .g-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--st, var(--muted)); flex: none; }
-.g-label { font-size: 15px; font-weight: 700; }
+.g-label { font-size: 16px; font-weight: 700; }
 .g-count {
-  font-size: 12px; font-weight: 700; color: var(--muted);
-  background: var(--panel-2); border-radius: 999px; padding: 0 var(--s-2);
+  font-size: 12.5px; font-weight: 600; color: var(--muted);
+  background: var(--panel-2); border-radius: 999px; padding: 0 8px;
 }
 .g-line { flex: 1; height: 1px; background: var(--border); }
 /* 卡片上的最近提交 / 简介行 */
@@ -959,39 +993,27 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: 16px 18px 12px 21px;
+  padding: 15px 18px 11px;
   cursor: pointer;
   transition: border-color .18s, box-shadow .18s, transform .18s;
   animation: fade-up .28s ease backwards;
 }
-.card-head { display: flex; align-items: flex-start; gap: 11px; min-width: 0; }
+.card-head { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .card-head-main { flex: 1; min-width: 0; }
 .proj-logo {
-  width: 44px; height: 44px; flex: none;
+  width: 42px; height: 42px; flex: none;
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 11px;
-  color: #fff; font-size: 15px; font-weight: 800; line-height: 1;
+  border-radius: 10px;
+  color: #fff; font-size: 14px; font-weight: 800; line-height: 1;
   letter-spacing: .01em;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3);
 }
 .card-desc {
-  margin-top: 1px; min-height: 20px;
-  font-size: 13px; line-height: 1.55; color: var(--muted);
+  margin-top: 2px; min-height: 0;
+  font-size: 13.5px; line-height: 1.55; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .card-desc-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-commit {
-  display: flex; align-items: center; gap: 6px;
-  min-height: 18px; margin-top: 1px;
-  font-size: 12.5px; color: var(--muted);
-}
-.card .foot-row .alias-chip { max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
-/* 左侧状态色条：进行中蓝 / 已完成绿 / 暂停橙 / 归档灰 */
-.card::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--st, var(--border));
-  border-radius: var(--r-lg) 0 0 var(--r-lg);
-}
 .card:nth-child(1) { animation-delay: 0ms; }
 .card:nth-child(2) { animation-delay: 30ms; }
 .card:nth-child(3) { animation-delay: 60ms; }
@@ -1000,24 +1022,26 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
 .card:nth-child(6) { animation-delay: 150ms; }
 .card:nth-child(n+7) { animation-delay: 180ms; }
 .card:hover {
-  border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
+  border-color: color-mix(in srgb, var(--border) 50%, var(--muted));
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
   z-index: 3;
 }
 .card:focus-within { z-index: 3; }
 /* 按压即反馈：pointer-down 立即响应，不等 click */
-.card:active { transform: translateY(0) scale(.99); transition-duration: .06s; }
+.card:active { transform: translateY(0) scale(.995); transition-duration: .06s; }
 .card.is-lost { background: var(--lost-bg); border-color: var(--lost-border); }
-.card.is-lost::before { background: var(--danger); }
-.card.is-archived { opacity: .62; }
+.card.is-archived { opacity: .72; }
 .card.is-archived:hover { opacity: 1; }
-.card .title-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.card .title-row { display: flex; align-items: center; gap: 7px; margin-bottom: 1px; }
 /* min-width:0 让长名称能真正收缩出省略号，而不是把右侧徽章顶出卡片 */
-.card .title-row h3 { margin: 0; font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
-.card .title-row .badge { padding: 1px 8px; font-size: 12px; line-height: 1.5; }
-.card .project-pin { min-width: 28px; min-height: 28px; padding: 2px 4px; }
-.card .project-drag { min-width: 28px; min-height: 28px; padding: 2px 4px; }
+.card .title-row h3 { margin: 0; font-size: 18px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; letter-spacing: -0.01em; }
+.card .title-row .badge { padding: 0 7px; font-size: 11.5px; line-height: 1.7; }
+.card .project-pin { min-width: 28px; min-height: 28px; padding: 2px 4px; color: var(--muted); }
+.card .project-pin.pin-on { color: var(--accent); }
+.card .project-pin.pin-on:hover { color: var(--accent); background: var(--accent-soft); }
+.card .project-drag { min-width: 26px; min-height: 28px; padding: 2px 3px; }
+.card .project-drag .licon { opacity: .75; }
 .card .title-row h3 a { color: inherit; text-decoration: none; }
 .card .title-row h3:hover { color: var(--accent); }
 /* 别名独占一行：与徽章争位会让主信息（项目名）被挤没 */
@@ -1025,13 +1049,13 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
 .card .alias-row .alias-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .card .path-row {
   display: flex; align-items: center; gap: 6px;
-  font-family: var(--mono); font-size: 12.5px; color: var(--muted);
-  margin: 9px 0 6px;
+  font-family: var(--mono); font-size: 13px; color: var(--muted);
+  margin: 8px 0 6px;
 }
 /* 路径用 ltr 截断（rtl 会让反斜杠与尾部标点被 BiDi 算法重排） */
 .card .path-row .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* P0-3：操作按钮常驻低对比，hover / 键盘聚焦时提亮；触屏无 hover 时常显 */
-.card .path-row .row-actions { display: flex; gap: 2px; opacity: .45; transition: opacity .15s; }
+.card .path-row .row-actions { display: flex; gap: 2px; opacity: .58; transition: opacity .15s; }
 .card:hover .path-row .row-actions,
 .card:focus-within .path-row .row-actions,
 .card:focus-visible .path-row .row-actions { opacity: 1; }
@@ -1040,7 +1064,7 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
 .card .meta-row .fill { flex: 1; }
 /* P1-4：简介与提交合并为弱化行，标签并入元信息行 */
 .card .meta-row.sub-row { min-height: 21px; margin: 0 0 var(--s-2); }
-.card .meta-row.foot-row { margin-top: 0; }
+.card .meta-row.foot-row { margin-top: 0; min-height: 21px; }
 .ct-hash-inline { font-family: var(--mono); font-size: 12px; color: var(--muted); flex: none; }
 .tag-more { flex: none; }
 .icon-btn {
@@ -1058,12 +1082,12 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
 .project-drag:active { cursor: grabbing; }
 .card.is-dragging { opacity: .45; }
 .card.drop-target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.order-hint { margin: -4px 0 16px; }
+.order-hint { margin: -2px 0 14px; font-size: 13px; }
 
 /* 卡片底部：上次打开与磁盘修改时间分开标注 */
 .card-times {
   display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap;
-  margin-top: 2px; padding-top: 9px;
+  margin-top: 2px; padding-top: 8px;
   border-top: 1px solid var(--border);
   font-size: 12.5px; color: var(--muted);
 }
@@ -1110,7 +1134,10 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
   .navcfg-cols { grid-template-columns: 1fr; }
 }
 @media (max-width: 1280px) {
-  .week-grid { grid-template-columns: minmax(160px, 185px) minmax(220px, 1fr) 245px; gap: 16px; }
+  .week-grid {
+    grid-template-columns: minmax(170px, 0.9fr) minmax(250px, 1.5fr) minmax(220px, 1.2fr);
+    gap: 16px;
+  }
 }
 @media (max-width: 1000px) {
   .week-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
@@ -1128,13 +1155,14 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
   .home-date { font-size: 12px; }
   .home-layout > .home-main { padding: 12px 12px 40px; }
   .navcfg-modal { padding: var(--s-4) 16px; }
-  .week-panel { padding: 2px 12px 10px; }
-  .week-chart { height: 118px; gap: 2px; }
+  .week-panel { padding: 10px 14px 12px; }
+  .week-chart { height: 104px; gap: 2px; }
   .week-total { font-size: 11px; }
   .week-day { font-size: 11px; }
-  .week-big { font-size: 36px; }
-  .week-title { font-size: 14px; }
-  .week-sub { font-size: 11.5px; }
+  .week-big { font-size: 44px; }
+  .week-title { font-size: 16px; }
+  .week-sub { font-size: 12.5px; }
+  .week-project-name { max-width: 150px; }
   .week-identity { flex-wrap: wrap; }
   .week-identity .btn { margin-left: 0; }
 }
