@@ -321,7 +321,8 @@ a:hover { text-decoration: underline; }
 /* 窄屏顶栏：只留图标，隐藏文字（图标按钮自带 title/aria-label） */
 @media (max-width: 900px) {
   :root { --topbar-h: 58px; }
-  .topbar { padding: 10px 16px; gap: var(--s-2); }
+  /* 换行后的第二排（设置/主题）靠右，避免在品牌下方悬空 */
+  .topbar { padding: 10px 16px; gap: var(--s-2); justify-content: flex-end; }
   .topbar .logo { font-size: 15px; }
   .topbar .logo .dim, .btn-text { display: none; }
   .topbar .btn { min-height: 34px; padding: 7px 11px; }
@@ -1957,8 +1958,9 @@ body.modal-open { overflow: hidden; }
 .ov-launch-ico {
   display: inline-flex; align-items: center; justify-content: center;
   width: 38px; height: 38px; flex: none;
-  border: 1px solid var(--text); border-radius: 8px;
-  background: var(--text); color: var(--panel);
+  /* 深色终端块在亮暗主题下都保持同一种识别色，不随主题反相 */
+  border: 1px solid #1f2937; border-radius: 8px;
+  background: #1f2937; color: #f8fafc;
 }
 .ov-launch-body { flex: 1; min-width: 0; }
 .ov-launch-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 13.5px; }
@@ -1978,10 +1980,11 @@ body.modal-open { overflow: hidden; }
 .ov-readme-text {
   margin: 0 0 8px; color: var(--text);
   font-size: 14px; line-height: 1.75;
+  max-width: 1000px;   /* 1920 宽屏下避免单行过长，保持摘要可读 */
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.ov-readme-actions { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--border); }
+.ov-readme-links { display: inline-flex; align-items: center; gap: 2px; }
 @media (max-width: 900px) {
   .overview-grid { grid-template-columns: minmax(0, 1fr); }
   .overview-grid .ov-launch,

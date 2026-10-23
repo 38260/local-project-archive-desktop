@@ -467,7 +467,10 @@
 
         <section class="panel ov-readme" id="ov-readme">
           <h2>项目简介
-            <span class="right">
+            <span class="right ov-readme-links">
+              <button type="button" class="ov-link" @click="overviewEditDesc">
+                编辑项目描述 <tl-icon name="chevron-right" :size="13"></tl-icon>
+              </button>
               <button type="button" class="ov-link" @click="overviewReadmeFull">
                 阅读全文 <tl-icon name="chevron-right" :size="13"></tl-icon>
               </button>
@@ -483,11 +486,6 @@
             <p class="section-note" v-else>README 已找到，但没有可预览的正文。</p>
           </template>
           <div class="ov-empty" v-else>项目根目录未找到 README.md。</div>
-          <div class="ov-readme-actions">
-            <button type="button" class="ov-link" @click="overviewEditDesc">
-              编辑项目描述 <tl-icon name="chevron-right" :size="13"></tl-icon>
-            </button>
-          </div>
         </section>
       </div>
     </div>

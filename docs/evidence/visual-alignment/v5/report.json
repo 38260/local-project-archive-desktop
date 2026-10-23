@@ -1,0 +1,433 @@
+{
+  "fixture": "C:\\Users\\luckyzyb\\AppData\\Local\\Temp\\tl-fixes-xtpb3qzk",
+  "project": "Tracelight",
+  "cases": [
+    {
+      "theme": "light",
+      "width": 1920,
+      "height": 1080,
+      "home": {
+        "file": "home-1920-light.png",
+        "metrics": {
+          "innerWidth": 1920,
+          "scrollWidth": 1910,
+          "bodyScrollWidth": 1910,
+          "horizontalOverflow": false,
+          "offscreen": []
+        }
+      },
+      "detail": {
+        "file": "detail-overview-1920-light.png",
+        "metrics": {
+          "innerWidth": 1920,
+          "scrollWidth": 1910,
+          "bodyScrollWidth": 1910,
+          "horizontalOverflow": false,
+          "offscreen": []
+        }
+      },
+      "sections": {},
+      "actualTheme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "height": 1024,
+      "home": {
+        "file": "home-1440-light.png",
+        "metrics": {
+          "innerWidth": 1440,
+          "scrollWidth": 1430,
+          "bodyScrollWidth": 1430,
+          "horizontalOverflow": false,
+          "offscreen": []
+        }
+      },
+      "detail": {
+        "file": "detail-overview-1440-light.png",
+        "metrics": {
+          "innerWidth": 1440,
+          "scrollWidth": 1430,
+          "bodyScrollWidth": 1430,
+          "horizontalOverflow": false,
+          "offscreen": []
+        }
+      },
+      "sections": {
+        "launch": {
+          "file": "detail-launch-1440-light.png",
+          "metrics": {
+            "innerWidth": 1440,
+            "scrollWidth": 1430,
+            "bodyScrollWidth": 1430,
+            "horizontalOverflow": false,
+            "offscreen": []
+          }
+        },
+        "records": {
+          "file": "detail-records-1440-light.png",
+          "metrics": {
+            "innerWidth": 1440,
+            "scrollWidth": 1430,
+            "bodyScrollWidth": 1430,
+            "horizontalOverflow": false,
+            "offscreen": []
+          }
+        },
+        "materials": {
+          "file": "detail-materials-1440-light.png",
+          "metrics": {
+            "innerWidth": 1440,
+            "scrollWidth": 1430,
+            "bodyScrollWidth": 1430,
+            "horizontalOverflow": false,
+            "offscreen": []
+          }
+        }
+      },
+      "actualTheme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "height": 768,
+      "home": {
+        "file": "home-1024-light.png",
+        "metrics": {
+          "innerWidth": 1024,
+          "scrollWidth": 1014,
+          "bodyScrollWidth": 1014,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "span.tab-label",
+            "span.tab-x",
+            "svg.[object",
+            "path.[object",
+            "path.[object"
+          ]
+        }
+      },
+      "detail": {
+        "file": "detail-overview-1024-light.png",
+        "metrics": {
+          "innerWidth": 1024,
+          "scrollWidth": 1014,
+          "bodyScrollWidth": 1014,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "span.tab-label",
+            "span.tab-x",
+            "svg.[object",
+            "path.[object",
+            "path.[object"
+          ]
+        }
+      },
+      "sections": {},
+      "actualTheme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "light",
+      "width": 768,
+      "height": 1024,
+      "home": {
+        "file": "home-768-light.png",
+        "metrics": {
+          "innerWidth": 768,
+          "scrollWidth": 758,
+          "bodyScrollWidth": 758,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "span.tab-label",
+            "span.tab-x",
+            "svg.[object",
+            "path.[object",
+            "path.[object"
+          ]
+        }
+      },
+      "detail": {
+        "file": "detail-overview-768-light.png",
+        "metrics": {
+          "innerWidth": 768,
+          "scrollWidth": 758,
+          "bodyScrollWidth": 758,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "span.tab-label",
+            "span.tab-x",
+            "svg.[object",
+            "path.[object",
+            "path.[object"
+          ]
+        }
+      },
+      "sections": {},
+      "actualTheme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "height": 844,
+      "home": {
+        "file": "home-390-light.png",
+        "metrics": {
+          "innerWidth": 390,
+          "scrollWidth": 380,
+          "bodyScrollWidth": 380,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "span.tab-label",
+            "span.tab-x",
+            "svg.[object",
+            "path.[object",
+            "path.[object"
+          ]
+        }
+      },
+      "detail": {
+        "file": "detail-overview-390-light.png",
+        "metrics": {
+          "innerWidth": 390,
+          "scrollWidth": 380,
+          "bodyScrollWidth": 380,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "svg.[object",
+            "path.[object",
+            "path.[object",
+            "path.[object",
+            "span.tab-label"
+          ]
+        }
+      },
+      "sections": {},
+      "actualTheme": "light",
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "dark",
+      "width": 1920,
+      "height": 1080,
+      "home": {
+        "file": "home-1920-dark.png",
+        "metrics": {
+          "innerWidth": 1920,
+          "scrollWidth": 1910,
+          "bodyScrollWidth": 1910,
+          "horizontalOverflow": false,
+          "offscreen": []
+        }
+      },
+      "detail": {
+        "file": "detail-overview-1920-dark.png",
+        "metrics": {
+          "innerWidth": 1920,
+          "scrollWidth": 1910,
+          "bodyScrollWidth": 1910,
+          "horizontalOverflow": false,
+          "offscreen": []
+        }
+      },
+      "sections": {},
+      "actualTheme": "dark",
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "height": 1024,
+      "home": {
+        "file": "home-1440-dark.png",
+        "metrics": {
+          "innerWidth": 1440,
+          "scrollWidth": 1430,
+          "bodyScrollWidth": 1430,
+          "horizontalOverflow": false,
+          "offscreen": []
+        }
+      },
+      "detail": {
+        "file": "detail-overview-1440-dark.png",
+        "metrics": {
+          "innerWidth": 1440,
+          "scrollWidth": 1430,
+          "bodyScrollWidth": 1430,
+          "horizontalOverflow": false,
+          "offscreen": []
+        }
+      },
+      "sections": {
+        "launch": {
+          "file": "detail-launch-1440-dark.png",
+          "metrics": {
+            "innerWidth": 1440,
+            "scrollWidth": 1430,
+            "bodyScrollWidth": 1430,
+            "horizontalOverflow": false,
+            "offscreen": []
+          }
+        },
+        "records": {
+          "file": "detail-records-1440-dark.png",
+          "metrics": {
+            "innerWidth": 1440,
+            "scrollWidth": 1430,
+            "bodyScrollWidth": 1430,
+            "horizontalOverflow": false,
+            "offscreen": []
+          }
+        },
+        "materials": {
+          "file": "detail-materials-1440-dark.png",
+          "metrics": {
+            "innerWidth": 1440,
+            "scrollWidth": 1430,
+            "bodyScrollWidth": 1430,
+            "horizontalOverflow": false,
+            "offscreen": []
+          }
+        }
+      },
+      "actualTheme": "dark",
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "height": 768,
+      "home": {
+        "file": "home-1024-dark.png",
+        "metrics": {
+          "innerWidth": 1024,
+          "scrollWidth": 1014,
+          "bodyScrollWidth": 1014,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "span.tab-label",
+            "span.tab-x",
+            "svg.[object",
+            "path.[object",
+            "path.[object"
+          ]
+        }
+      },
+      "detail": {
+        "file": "detail-overview-1024-dark.png",
+        "metrics": {
+          "innerWidth": 1024,
+          "scrollWidth": 1014,
+          "bodyScrollWidth": 1014,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "span.tab-label",
+            "span.tab-x",
+            "svg.[object",
+            "path.[object",
+            "path.[object"
+          ]
+        }
+      },
+      "sections": {},
+      "actualTheme": "dark",
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "dark",
+      "width": 768,
+      "height": 1024,
+      "home": {
+        "file": "home-768-dark.png",
+        "metrics": {
+          "innerWidth": 768,
+          "scrollWidth": 758,
+          "bodyScrollWidth": 758,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "span.tab-label",
+            "span.tab-x",
+            "svg.[object",
+            "path.[object",
+            "path.[object"
+          ]
+        }
+      },
+      "detail": {
+        "file": "detail-overview-768-dark.png",
+        "metrics": {
+          "innerWidth": 768,
+          "scrollWidth": 758,
+          "bodyScrollWidth": 758,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "span.tab-label",
+            "span.tab-x",
+            "svg.[object",
+            "path.[object",
+            "path.[object"
+          ]
+        }
+      },
+      "sections": {},
+      "actualTheme": "dark",
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "height": 844,
+      "home": {
+        "file": "home-390-dark.png",
+        "metrics": {
+          "innerWidth": 390,
+          "scrollWidth": 380,
+          "bodyScrollWidth": 380,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "span.tab-label",
+            "span.tab-x",
+            "svg.[object",
+            "path.[object",
+            "path.[object"
+          ]
+        }
+      },
+      "detail": {
+        "file": "detail-overview-390-dark.png",
+        "metrics": {
+          "innerWidth": 390,
+          "scrollWidth": 380,
+          "bodyScrollWidth": 380,
+          "horizontalOverflow": false,
+          "offscreen": [
+            "div.tab",
+            "svg.[object",
+            "path.[object",
+            "path.[object",
+            "path.[object",
+            "span.tab-label"
+          ]
+        }
+      },
+      "sections": {},
+      "actualTheme": "dark",
+      "horizontalOverflow": false
+    }
+  ],
+  "errors": []
+}
