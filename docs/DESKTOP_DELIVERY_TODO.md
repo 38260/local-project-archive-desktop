@@ -31,3 +31,11 @@
 - 首页和详情顶部状态已与分项完成记录同步；本文件作为交付进度入口。根目录 `todo.md` 被现有规则忽略且未纳入 Git，保留其原文，不将用户既有本地笔记强制入库。
 - 当前 Python 运行时实际为项目 `.venv` 的 Python 3.13.9，PyInstaller 6.22.2；历史文档中的 Python 3.12 不作为本轮环境依据。
 - 仅做文档修改，不将历史测试结果当成本轮重测结果。
+
+## 1.13.0 原位升级记录（2026-10-24）
+
+- 起因：1.12.0 安装版的静态资源仍停留在视觉改版前；任务栏固定项指向 `C:\Users\luckyzyb\AppData\Local\Programs\Tracelight\tracelight.exe`，需要原位更新。
+- 构建：`app/config.py`、`installer/tracelight.iss`、`installer/version_info.txt` 三处版本号同步为 1.13.0；PyInstaller onedir 构建成功，exe 属性 `FileVersion/ProductVersion = 1.13.0.0`；Inno Setup 生成 `dist/installer/tracelight-Setup-1.13.0.exe`。
+- 安装：静默覆盖安装退出码 0，旧进程被关闭；`%LOCALAPPDATA%\Tracelight\projects.db` 与设置、备份、截图目录时间戳保持不变；`/api/health` 返回 `version: 1.13.0`。
+- 入口：任务栏固定项与三个桌面快捷方式指向安装目录或重建后的 `dist` 目录，启动后的窗口为最新界面。
+- 边界：本轮只验证了覆盖升级，不据此勾选 D4/D5；便携 ZIP、哈希一致性、卸载/回滚矩阵仍未执行。
