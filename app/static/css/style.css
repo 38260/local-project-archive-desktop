@@ -1926,6 +1926,10 @@ body.modal-open { overflow: hidden; }
 .overview-grid .panel { margin-bottom: 0; }
 .overview-grid .ov-launch,
 .overview-grid .ov-readme { grid-column: 1 / -1; }
+/* 真没有笔记：隐藏笔记面板，常用启动顶替右列，启动卡片随窄列改单排 */
+.overview-grid.no-notes .ov-notes { display: none; }
+.overview-grid.no-notes .ov-launch { grid-column: auto; }
+.overview-grid.no-notes .ov-launch-grid { grid-template-columns: minmax(0, 1fr); }
 .ov-link {
   display: inline-flex; align-items: center; gap: 2px;
   padding: 4px 6px; border: none; border-radius: var(--r-sm);

@@ -316,7 +316,7 @@
 
     <!-- 概览：最近进展 / 最近笔记 / 常用启动 / 项目简介，全部来自真实数据 -->
     <div class="detail-tab overview-tab" v-show="activeTab === 'overview'">
-      <div class="overview-grid">
+      <div class="overview-grid" :class="{ 'no-notes': !showNotesPanel }">
         <section class="panel ov-progress" id="ov-progress">
           <h2>最近进展
             <span class="ov-sub" v-if="recentProgress.isRepo && !recentProgress.identityRequired">近 7 天 · 仅本人</span>
@@ -387,7 +387,8 @@
           </template>
         </section>
 
-        <section class="panel ov-notes" id="ov-notes">
+        <!-- 真没有笔记时整个面板不展示，右列位置让给常用启动 -->
+        <section class="panel ov-notes" id="ov-notes" v-show="showNotesPanel">
           <h2>最近笔记
             <span class="right">
               <button type="button" class="btn sm" @click="overviewNewNote">

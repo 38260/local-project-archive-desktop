@@ -483,6 +483,10 @@
             .localeCompare(String(a.updated_at || a.created_at || ""))
         ).slice(0, 2);
       },
+      // 真没有笔记时概览右列让给常用启动；加载中（骨架）与加载失败（可重试）仍保留面板
+      showNotesPanel() {
+        return this.notesLoading || this.notesError || this.recentNotes.length > 0;
+      },
       overviewLaunches() {
         return this.orderedEntries.slice(0, 2);
       },
