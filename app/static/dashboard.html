@@ -168,6 +168,25 @@
         </section>
       </template>
       <div class="side-foot">
+        <!-- 自动更新：批量刷新期间的轻量进度，放在「管理导航」上方，失败可重试 -->
+        <div class="auto-refresh-strip" v-if="autoRefresh.state !== 'idle'"
+             :class="{ error: autoRefresh.state === 'error' }" role="status" aria-live="polite">
+          <template v-if="autoRefresh.state === 'running'">
+            <tl-icon name="refresh" :size="13" class="spin"></tl-icon>
+            <span>正在后台更新采集数据 {{ autoRefresh.done }}/{{ autoRefresh.total }}</span>
+          </template>
+          <template v-else-if="autoRefresh.state === 'done'">
+            <tl-icon name="check" :size="13"></tl-icon>
+            <span v-if="autoRefresh.changed">{{ autoRefresh.changed }} 个项目有变化，已更新</span>
+            <span v-else>采集数据已是最新</span>
+            <span class="section-note" v-if="autoRefresh.failed">（{{ autoRefresh.failed }} 个更新失败）</span>
+          </template>
+          <template v-else>
+            <tl-icon name="warning" :size="13"></tl-icon>
+            <span>自动更新失败：{{ autoRefresh.reason }}</span>
+            <button class="btn sm" @click="runAutoRefresh(true)">重试</button>
+          </template>
+        </div>
         <button type="button" class="side-manage" @click="openNavConfig">
           <tl-icon name="sliders" :size="14"></tl-icon>管理导航
         </button>
@@ -184,25 +203,6 @@
     <div class="home-title">
       <h1>项目总览 <span class="home-subtitle">找到项目，接着上次的思路。</span></h1>
       <span class="home-date">{{ todayLabel }}</span>
-    </div>
-    <!-- 自动更新：批量刷新期间的轻量进度，失败可重试 -->
-    <div class="auto-refresh-strip" v-if="autoRefresh.state !== 'idle'"
-         :class="{ error: autoRefresh.state === 'error' }" role="status" aria-live="polite">
-      <template v-if="autoRefresh.state === 'running'">
-        <tl-icon name="refresh" :size="13" class="spin"></tl-icon>
-        <span>正在后台更新采集数据 {{ autoRefresh.done }}/{{ autoRefresh.total }}（列表可正常使用）</span>
-      </template>
-      <template v-else-if="autoRefresh.state === 'done'">
-        <tl-icon name="check" :size="13"></tl-icon>
-        <span v-if="autoRefresh.changed">{{ autoRefresh.changed }} 个项目有变化，已更新</span>
-        <span v-else>采集数据已是最新</span>
-        <span class="section-note" v-if="autoRefresh.failed">（{{ autoRefresh.failed }} 个更新失败）</span>
-      </template>
-      <template v-else>
-        <tl-icon name="warning" :size="13"></tl-icon>
-        <span>自动更新失败：{{ autoRefresh.reason }}</span>
-        <button class="btn sm" @click="runAutoRefresh(true)">重试</button>
-      </template>
     </div>
     <!-- 统计：可点击下钻为筛选条件（全库口径，不受侧栏筛选影响） -->
     <div class="stats-row stats-strip">
@@ -297,7 +297,11 @@
               <div class="week-note">最近的开发足迹</div>
               <div class="week-warn" v-if="weeklyView.failedRepos">
                 {{ weeklyView.failedRepos }} 个仓库读取失败，统计可能不完整
-                <button type="button" class="side-link" @click="loadWeekly">重试</button>
+                <span class="week-warn-actions">
+                  <button type="button" class="side-link" v-if="weekScanErrors.length"
+                          @click="openWeekErrors">查看</button>
+                  <button type="button" class="side-link" @click="loadWeekly">重试</button>
+                </span>
               </div>
             </div>
 
@@ -328,8 +332,8 @@
 
             <div class="week-projects-wrap">
               <div class="week-chart-head"><span>最近推进</span></div>
-              <ul class="week-projects" v-if="weeklyView.top.length">
-                <li class="week-project" v-for="p in weeklyView.top" :key="p.id">
+              <ul class="week-projects" v-if="weeklyView.projectRows.length">
+                <li class="week-project" v-for="p in weeklyView.projectRows" :key="p.id">
                   <div class="week-project-line">
                     <span class="week-dot" :style="{ background: p.color }"></span>
                     <button type="button" class="week-project-name"
@@ -340,14 +344,6 @@
                       <span class="week-fill" :style="{ width: p.barPct + '%', background: p.color }"></span>
                     </span>
                     <span class="week-pcount">{{ p.count }}</span>
-                  </div>
-                </li>
-                <li class="week-project other" v-if="weeklyView.otherProjectCount">
-                  <div class="week-project-line other-line">
-                    <span class="week-dot" :style="{ background: weekOtherColor }"></span>
-                    <span class="week-other-label">
-                      其他 {{ weeklyView.otherProjectCount }} 个项目 · {{ weeklyView.otherTotal }} 次
-                    </span>
                   </div>
                 </li>
               </ul>
@@ -679,8 +675,21 @@
     <div class="modal day-modal" v-modal role="dialog" aria-modal="true" aria-labelledby="day-title">
       <h3 id="day-title">
         <tl-icon name="commit" :size="16"></tl-icon>
-        {{ dayLoading && !dayData ? "加载中…" : (dayData ? dayData.date + " 提交明细" : "提交明细") }}
+        {{ dayDate ? dayDate + " 提交明细" : "提交明细" }}
       </h3>
+      <!-- 日期标签栏：切换同一条周视图里的其他天，不必关弹窗再点 -->
+      <div class="day-tabs" v-if="weeklyView && weeklyView.days.length"
+           role="tablist" aria-label="按日期切换提交明细">
+        <button type="button" class="day-tab" role="tab"
+                v-for="d in weeklyView.days" :key="d.date"
+                :class="{ on: d.date === dayDate, empty: !d.total }"
+                :aria-selected="d.date === dayDate ? 'true' : 'false'"
+                :title="d.date + (d.total ? ' · ' + d.total + ' 次提交' : ' · 没有提交')"
+                @click="switchDay(d.date)">
+          <span class="day-tab-date">{{ d.label }}<span class="day-tab-weekday" v-if="d.weekday"> {{ d.weekday }}</span></span>
+          <span class="day-tab-count">{{ d.total }}</span>
+        </button>
+      </div>
       <div class="day-body">
         <div class="skel-stack" v-if="dayLoading">
           <span class="skel" style="width:60%;height:22px"></span>
@@ -769,6 +778,34 @@
             </li>
           </ul>
         </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- 读取失败的仓库：查看是哪几个、失败原因，并可直接重试 -->
+  <div class="modal-mask" v-if="showWeekErrors" @mousedown="maskPress($event)"
+       @mouseup="maskRelease($event, closeWeekErrors)">
+    <div class="modal week-errors-modal" v-modal role="dialog" aria-modal="true"
+         aria-labelledby="week-errors-title">
+      <h3 id="week-errors-title">
+        <tl-icon name="warning" :size="16"></tl-icon>
+        读取失败的仓库（{{ weekScanErrors.length }}）
+      </h3>
+      <p class="section-note week-errors-intro">
+        这些仓库本轮没能读取成功，近 7 天统计可能不完整。处理后可直接重试。
+      </p>
+      <ul class="week-errors-list">
+        <li v-for="(e, i) in weekScanErrors" :key="e.project + i">
+          <div class="we-head">
+            <b>{{ e.project }}</b>
+            <span class="we-reason">{{ e.reason || "未知错误" }}</span>
+          </div>
+          <div class="we-path" v-if="e.path">{{ e.path }}</div>
+        </li>
+      </ul>
+      <div class="actions">
+        <button type="button" class="btn" @click="closeWeekErrors">关闭</button>
+        <button type="button" class="btn primary" @click="retryWeekErrors">重试</button>
       </div>
     </div>
   </div>

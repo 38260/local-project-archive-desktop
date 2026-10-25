@@ -64,7 +64,7 @@ async function j(url, init) {
     assert.equal(await page.locator(".ov-notes .ov-note").count(), 2);
     assert((await page.locator(".ov-launch-card").count()) >= 2);
     assert.equal(await page.locator(".ov-launch-card .lb-primary").count(), 1);
-    assert.match(await page.locator(".ov-readme-text").innerText(), /本地项目归档与快速启动/);
+    assert.match(await page.locator(".ov-readme-full").innerText(), /本地项目归档与快速启动/);
     assert.match(await page.locator("#ov-progress .ov-sub").innerText(), /近 7 天 · 仅本人/);
 
     // 2) 全部入口跳转链路
@@ -92,11 +92,10 @@ async function j(url, init) {
     assert.equal(await page.locator("#sec-launch").isVisible(), true);
 
     await tab("概览").click();
-    await page.locator("#ov-readme").getByRole("button", { name: /阅读全文/ }).click();
-    assert.equal(await activeTab(), "materials");
-    assert.equal(await page.locator("#sec-readme").isVisible(), true);
+    // 概览已直接渲染 README 全文，不再有「阅读全文」入口
+    assert.equal(await page.locator("#ov-readme").getByRole("button", { name: /阅读全文/ }).count(), 0);
+    assert.equal(await page.locator("#ov-readme .ov-readme-full").isVisible(), true);
 
-    await tab("概览").click();
     await page.locator("#ov-readme").getByRole("button", { name: /编辑项目描述/ }).click();
     assert.equal(await activeTab(), "records");
     assert.equal(await page.locator("#sec-desc .record-body").isVisible(), true);

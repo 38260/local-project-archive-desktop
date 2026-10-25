@@ -109,30 +109,33 @@ async function json(url) {
     assert.equal(await cardCount(), 9);
     ok("统计条全库口径与侧栏候选计数、默认隐藏废弃一致");
 
-    // 2) 本周拾光：Top3 + 其他、颜色对应、提示与两种明细
+    // 2) 本周拾光：全部项目逐条列出、颜色对应、提示与两种明细
     assert.match(await page.locator(".week-sub").innerText(), /近 7 天 · 仅本人/);
     assert.equal((await page.locator(".week-big").innerText()).trim(), "11");
     assert.equal(await page.locator(".week-col").count(), 7);
     assert.equal(await page.locator(".week-col.has-commits").count(), 5);
-    const topNames = await page.locator(".week-project:not(.other) .week-project-name").allInnerTexts();
-    const topCounts = await page.locator(".week-project:not(.other) .week-pcount").allInnerTexts();
-    assert.deepEqual(topNames.map(s => s.trim()), ["Tracelight", "WindowAnchor", "SkillManager"]);
-    assert.deepEqual(topCounts.map(s => s.trim()), ["4", "3", "2"]);
-    const other = page.locator(".week-project.other");
-    assert.match(await other.innerText(), /其他 2 个项目 · 2 次/);
+    const weekNames = await page.locator(".week-project .week-project-name").allInnerTexts();
+    const weekCounts = await page.locator(".week-project .week-pcount").allInnerTexts();
+    assert.deepEqual(weekNames.map(s => s.trim()),
+      ["Tracelight", "WindowAnchor", "SkillManager", "NextPaste", "LinuxDoSearch"]);
+    assert.deepEqual(weekCounts.map(s => s.trim()), ["4", "3", "2", "1", "1"]);
+    assert.equal(await page.locator(".week-project.other").count(), 0);
+    assert.doesNotMatch(await page.locator(".week-panel").innerText(), /其他\s*\d+\s*个项目/);
     const dotColor = i => page.locator(".week-project").nth(i).locator(".week-dot")
       .evaluate(el => getComputedStyle(el).backgroundColor);
     assert.equal(await dotColor(0), "rgb(47, 129, 247)");
     assert.equal(await dotColor(1), "rgb(34, 166, 106)");
     assert.equal(await dotColor(2), "rgb(144, 97, 249)");
-    assert.equal(await dotColor(3), "rgb(160, 169, 184)");
+    assert.equal(await dotColor(3), "rgb(217, 119, 6)");
+    assert.equal(await dotColor(4), "rgb(219, 39, 119)");
 
     const weekBar = page.locator(".week-col.has-commits").first();
     await weekBar.hover();
     await page.locator(".week-tip").waitFor();
     const tipText = await page.locator(".week-tip").innerText();
     assert.match(tipText, /次提交/);
-    assert.match(tipText, /Tracelight|WindowAnchor|SkillManager|其他/);
+    assert.match(tipText, /Tracelight|WindowAnchor|SkillManager|NextPaste|LinuxDoSearch/);
+    assert.doesNotMatch(tipText, /其他\s*\d+\s*个项目/);
     await weekBar.focus();
     await page.locator(".week-tip").waitFor();
 
@@ -148,8 +151,17 @@ async function json(url) {
     await dayDialog.waitFor();
     assert.match(await dayDialog.locator(".day-summary").innerText(), /次提交/);
     assert((await dayDialog.locator(".day-group").count()) >= 1);
+    // 日期标签栏：7 天可切换，切换后标题与内容对应当天
+    assert.equal(await dayDialog.locator(".day-tab").count(), 7);
+    assert.equal(await dayDialog.locator(".day-tab.on").count(), 1);
+    const targetTab = dayDialog.locator(".day-tab:not(.on):not(.empty)").first();
+    const targetDate = (await targetTab.getAttribute("title")).split(" · ")[0];
+    await targetTab.click();
+    await page.waitForFunction(d => (document.querySelector("#day-title") || {})
+      .textContent.includes(d), targetDate);
+    assert.match(await dayDialog.locator("#day-title").innerText(), new RegExp(targetDate));
     await closeDialog(dayDialog);
-    ok("本周拾光 Top3/其他、稳定配色、悬停/聚焦提示、7 天明细与当日明细");
+    ok("本周拾光全部项目逐条列出、稳定配色、悬停/聚焦提示、7 天明细与当日明细");
 
     // 3) 折叠记忆
     await page.locator(".week-toggle").click();

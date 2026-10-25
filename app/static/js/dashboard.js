@@ -25,8 +25,9 @@
     return Number.isNaN(t) ? null : t;
   };
   const WEEKLY_EXPANDED_KEY = "tl-home-weekly-expanded";
-  const WEEK_COLORS = ["#2F81F7", "#22A66A", "#9061F9"];
-  const WEEK_OTHER_COLOR = "#A0A9B8";
+  const WEEK_COLORS = ["#2F81F7", "#22A66A", "#9061F9", "#D97706",
+                       "#DB2777", "#0D9488", "#CA8A04", "#DC2626"];
+  const WEEK_NEUTRAL_COLOR = "#A0A9B8";
   // 默认项目图标：字母/缩写 + 按项目 ID 稳定取色，保证同一项目每次外观一致
   const LOGO_COLORS = ["#2F81F7", "#22A66A", "#9061F9", "#D97706", "#DB2777", "#0D9488"];
   function projectInitials(name) {
@@ -105,12 +106,13 @@
         weeklyLoading: true,
         weeklyError: "",
         weeklyExpanded: initialWeeklyExpanded(),
-        weekOtherColor: WEEK_OTHER_COLOR,
         weekTip: null,
         showWeeklyDetail: false,
+        showWeekErrors: false,
         // 当日提交弹窗（点击本周拾光某天）
         dayRevision: 0,
         showDay: false,
+        dayDate: "",
         dayLoading: false,
         dayData: null,
         // 打开项目的编辑器（设置联动：卡片按钮图标/文字跟随）
@@ -157,8 +159,8 @@
       editorName() {
         return window.editorName(this.editorCmd);
       },
-      // 本周拾光视图：Top3 + “其他”共用同一归并集合与配色。
-      // 每日堆叠色块、右侧色点/横条都从同一 colorById 取色，重载不随机。
+      // 本周拾光视图：所有项目按提交量排序、各自取色，不再归并“其他”。
+      // 每日堆叠色块、右侧色点/横条、当日明细都从同一 colorById 取色，重载不随机。
       weeklyView() {
         this.nowTick;   // 跨午夜后“今天”标记重算
         const w = this.weekly;
@@ -169,18 +171,15 @@
         };
         const projects = (w.projects || []).slice().sort(
           (a, b) => (b.count - a.count) || (a.id - b.id));
-        const top = projects.slice(0, 3).map((p, i) => ({ ...p, color: WEEK_COLORS[i] }));
-        const topIds = new Set(top.map(p => p.id));
-        const colorById = new Map(top.map(p => [p.id, p.color]));
-        const otherProjects = projects.slice(3);
-        const otherTotal = otherProjects.reduce((sum, p) => sum + p.count, 0);
+        const ranked = projects.map((p, i) => ({ ...p, color: WEEK_COLORS[i % WEEK_COLORS.length] }));
+        const colorById = new Map(ranked.map(p => [p.id, p.color]));
         const maxDay = Math.max(1, ...(w.days || []).map(d => d.total));
         const todayKey = this.localDayKey();
         const days = (w.days || []).map(d => {
           const per = d.projects || [];
           const segments = [];
           const tipItems = [];
-          for (const p of top) {
+          for (const p of ranked) {
             const hit = per.find(x => x.id === p.id);
             if (!hit || !hit.count) continue;
             segments.push({
@@ -188,18 +187,6 @@
               segPct: d.total ? (hit.count / d.total) * 100 : 0,
             });
             tipItems.push({ name: p.name, count: hit.count, color: p.color });
-          }
-          const others = per.filter(x => !topIds.has(x.id));
-          const otherCount = others.reduce((sum, x) => sum + x.count, 0);
-          if (otherCount) {
-            segments.push({
-              key: "other", name: "其他", count: otherCount, color: WEEK_OTHER_COLOR,
-              segPct: d.total ? (otherCount / d.total) * 100 : 0, other: true,
-            });
-            tipItems.push({
-              name: `其他 ${others.length} 个项目`, count: otherCount,
-              color: WEEK_OTHER_COLOR,
-            });
           }
           const detailText = tipItems.map(x => `${x.name} ${x.count} 次`).join("，");
           return {
@@ -211,8 +198,8 @@
               + (detailText ? `：${detailText}` : "：这一天没有提交"),
           };
         });
-        const maxProject = Math.max(1, top[0] ? top[0].count : 0);
-        const topRows = top.map(p => ({
+        const maxProject = Math.max(1, ranked[0] ? ranked[0].count : 0);
+        const projectRows = ranked.map(p => ({
           ...p, barPct: Math.min(100, (p.count / maxProject) * 100),
         }));
         return {
@@ -221,15 +208,17 @@
           activeDays: w.active_days || 0,
           start: w.start, end: w.end,
           rangeLabel: `${mmdd(w.start)}～${mmdd(w.end)}`,
-          days, top: topRows,
-          otherTotal, otherProjectCount: otherProjects.length,
-          otherBarPct: Math.min(100, (otherTotal / maxProject) * 100),
+          days, projectRows,
           maxDay, colorById,
           repos: w.repos || 0,
           failedRepos: w.failed_repos || 0,
           identityRequired: !!w.identity_required,
           commitsByDay: w.commits_by_day || [],
         };
+      },
+      // 读取失败的仓库明细：首页本周拾光的“查看”弹窗直接消费接口回传的 scan_errors
+      weekScanErrors() {
+        return (this.weekly && this.weekly.scan_errors) || [];
       },
       allTags() {
         const set = new Set();
@@ -876,7 +865,7 @@
       },
       weekColorFor(projectId) {
         const view = this.weeklyView;
-        return (view && view.colorById.get(projectId)) || WEEK_OTHER_COLOR;
+        return (view && view.colorById.get(projectId)) || WEEK_NEUTRAL_COLOR;
       },
       showWeekTip(day, ev) {
         if (!day || !ev || !ev.currentTarget) return;
@@ -893,8 +882,17 @@
         const date = typeof value === "string" ? value : (value && value.date);
         if (!date) return;
         this.hideWeekTip();
-        const revision = ++this.dayRevision;
         this.showDay = true;
+        this.loadDayCommits(date);
+      },
+      // 弹窗内切换日期：同一日期已加载/加载中时不重复请求
+      switchDay(date) {
+        if (!date || (date === this.dayDate && (this.dayData || this.dayLoading))) return;
+        this.loadDayCommits(date);
+      },
+      loadDayCommits(date) {
+        this.dayDate = date;
+        const revision = ++this.dayRevision;
         this.dayData = null;
         this.dayLoading = true;
         api(`/api/day-commits?date=${encodeURIComponent(date)}&tz=local`, { silent: true })
@@ -902,13 +900,28 @@
           .catch(() => { if (revision === this.dayRevision) this.showDay = false; /* toast 已提示 */ })
           .finally(() => { if (revision === this.dayRevision) this.dayLoading = false; });
       },
-      closeDay() { this.dayRevision++; this.showDay = false; this.dayData = null; this.dayLoading = false; },
+      closeDay() {
+        this.dayRevision++;
+        this.showDay = false;
+        this.dayDate = "";
+        this.dayData = null;
+        this.dayLoading = false;
+      },
       openWeeklyDetail() {
         if (!this.weekly || !this.weekly.total) return;
         this.hideWeekTip();
         this.showWeeklyDetail = true;
       },
       closeWeeklyDetail() { this.showWeeklyDetail = false; },
+      openWeekErrors() {
+        if (!this.weekScanErrors.length) return;
+        this.showWeekErrors = true;
+      },
+      closeWeekErrors() { this.showWeekErrors = false; },
+      retryWeekErrors() {
+        this.showWeekErrors = false;
+        this.loadWeekly();
+      },
       openWeeklyProject(projectId) {
         const project = this.projects.find(p => p.id === projectId);
         if (project) { this.goto(project); return; }
@@ -1144,6 +1157,7 @@
         if (e.key === "Escape") {
           if (this.filtersOpen) { this.filtersOpen = false; return; }
           if (this.weekTip) { this.weekTip = null; return; }
+          if (this.showWeekErrors) { this.closeWeekErrors(); return; }
           if (this.showWeeklyDetail) { this.closeWeeklyDetail(); return; }
           if (this.showNavConfig) { this.closeNavConfig(); return; }
           if (this.toolsOpen) { this.toolsOpen = false; return; }

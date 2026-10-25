@@ -64,7 +64,9 @@ class GitIdentityTests(unittest.TestCase):
 
 class GitContributionTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="tl-git-contribution-")
+        # Windows 偶尔延迟释放 git 目录句柄，关掉清理报错（不影响断言与隔离）
+        self.temp = tempfile.TemporaryDirectory(prefix="tl-git-contribution-",
+                                                ignore_cleanup_errors=True)
         self.addCleanup(self.temp.cleanup)
         self.repo = make_repo(self.temp.name)
         self.emails = ["ME+WORK@example.com", "old@example.com"]
@@ -119,10 +121,23 @@ class GitContributionTests(unittest.TestCase):
         self.assertFalse(gitinfo.collect_heatmap(self.temp.name)["is_repo"])
         with patch.object(gitinfo, "_run_git", return_value=None):
             self.assertTrue(gitinfo.collect_heatmap(str(self.repo), author_emails=self.emails)["error"])
+        # 空仓库是正常状态：各读取入口返回空结果且不报错，不能提示“读取失败”
         empty = Path(self.temp.name) / "empty"
         empty.mkdir()
         git(empty, "init")
-        self.assertTrue(gitinfo.collect_commit_log(str(empty))["error"])
+        log = gitinfo.collect_commit_log(str(empty))
+        self.assertIsNone(log["error"])
+        self.assertEqual(log["total_count"], 0)
+        heat = gitinfo.collect_heatmap(str(empty), window_days=7, local_dates=True)
+        self.assertIsNone(heat.get("error"))
+        self.assertEqual(heat["total"], 0)
+        stats = gitinfo.collect_commit_stats(str(empty))
+        self.assertIsNone(stats.get("error"))
+        self.assertEqual(stats["scanned"], 0)
+        info = gitinfo.collect_git_info(str(empty))
+        self.assertIsNone(info.get("error"))
+        self.assertEqual(info["commit_count"], 0)
+        self.assertIsNone(info["last_commit"])
 
 
 if __name__ == "__main__":

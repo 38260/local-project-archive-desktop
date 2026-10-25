@@ -45,6 +45,20 @@ def _run_git(args: list[str], cwd: str, timeout: int = _GIT_TIMEOUT) -> str | No
 _NUMSTAT_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.+)$")
 
 
+def _has_commits(path: str) -> bool:
+    """HEAD 是否指向真实提交；git init 后尚未提交的空仓库返回 False。
+
+    空仓库是正常状态，不应按“读取失败”处理：git log 会以 128 退出，
+    只有结合这里才能把“还没有提交”和“超时/仓库损坏”区分开。
+    走 GitPython 读引用，不依赖可能超时的 git 子进程；判断不了时按有提交处理，
+    避免把真实故障误降级成空仓库。
+    """
+    try:
+        return Repo(path).head.is_valid()
+    except Exception:
+        return True
+
+
 def _author_args(author_emails: list[str] | None) -> list[str]:
     # 尖括号限定完整邮箱；转义正则，多个 --author 按 Git 的或关系匹配。
     if not author_emails:
@@ -85,15 +99,19 @@ def collect_git_info(path: str) -> dict:
         except Exception:
             pass
 
-        commit = repo.head.commit
-        result["last_commit"] = {
-            "hash": commit.hexsha[:8],
-            "author": commit.author.name,
-            # 统一输出带时区的 ISO 字符串，便于前端格式化
-            "date": commit.committed_datetime.isoformat(),
-            "message": (commit.message or "").strip().splitlines()[0][:120]
-            if (commit.message or "").strip() else "",
-        }
+        if repo.head.is_valid():
+            commit = repo.head.commit
+            result["last_commit"] = {
+                "hash": commit.hexsha[:8],
+                "author": commit.author.name,
+                # 统一输出带时区的 ISO 字符串，便于前端格式化
+                "date": commit.committed_datetime.isoformat(),
+                "message": (commit.message or "").strip().splitlines()[0][:120]
+                if (commit.message or "").strip() else "",
+            }
+        else:
+            # 空仓库：分支已存在但还没有首个提交
+            result["commit_count"] = 0
 
         # 提交总数：走 git 命令比遍历对象快得多；超时/失败降级为不计
         raw = _run_git(["rev-list", "--count", "HEAD"], path)
@@ -182,6 +200,9 @@ def collect_commit_log(path: str, limit: int = 50, date: str | None = None,
                     "--pretty=format:%x1e%H%x1f%an%x1f%ae%x1f%cI%x1f%B"], path)
     if raw is None:
         # rev-list --count 同样失败多半是空仓库（尚无任何提交），否则按超时/异常降级
+        if not _has_commits(path):
+            result["total_count"] = 0
+            return result
         result["error"] = ("仓库还没有任何提交" if result["total_count"] is None
                            else "提交记录读取失败（git 命令超时或异常）")
         return result
@@ -297,6 +318,8 @@ def collect_heatmap(path: str, weeks: int = 53,
             args.append(f"--until={(end + timedelta(days=2)).isoformat()}")
         raw = _run_git(args, path)
         if raw is None:
+            if not _has_commits(path):
+                return result
             result["error"] = "提交历史读取失败（仓库为空或 git 命令超时）"
             return result
         for line in raw.splitlines():
@@ -455,6 +478,8 @@ def collect_commit_stats(path: str, scope: str = "all",
 
         raw = _run_git(args, path)
         if raw is None:
+            if not _has_commits(path):
+                return result
             result["error"] = "提交历史读取失败（仓库为空或 git 命令超时）"
             return result
 
@@ -488,8 +513,7 @@ def collect_commit_stats(path: str, scope: str = "all",
             slot["types"][count_key] = slot["types"].get(count_key, 0) + 1
 
         if not scanned:
-            result["error"] = "仓库还没有任何提交"
-            return result
+            return result   # 空仓库或范围内没有匹配提交：按空态返回，不算读取失败
 
         # 类别收敛（两道，都只做「并类」，不改动任何计数总和）：
         #   ① 超出展示上限的尾部 → 「其他」（各种类按 count 倒序，同数时白名单类型

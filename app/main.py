@@ -237,11 +237,14 @@ def weekly_all():
     rows, results, identity_required = _personal_activity(
         window_days=weekly_service.WEEK_DAYS, local_dates=True)
     data = weekly_service.aggregate(results, start, end)
+    path_by_id = {row["id"]: row["path"] for row in rows}
     data.update({
         "repos": sum(bool(r.get("is_repo")) for r in results),
         "failed_repos": sum(bool(r.get("error")) for r in results),
         "scan_errors": [
-            {"project": r["project"]["name"], "reason": r.get("error")}
+            {"project": r["project"]["name"],
+             "path": path_by_id.get(r["project"]["id"], ""),
+             "reason": r.get("error")}
             for r in results if r.get("error")
         ],
         "project_count_all": len(rows),

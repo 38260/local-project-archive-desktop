@@ -486,13 +486,6 @@
       overviewLaunches() {
         return this.orderedEntries.slice(0, 2);
       },
-      readmePreview() {
-        if (!this.readme || !this.readme.exists) return "";
-        let text = this.plainMarkdown(this.readme.raw || "");
-        const name = ((this.p && this.p.name) || "").trim();
-        if (name && text.startsWith(name)) text = text.slice(name.length).trim();
-        return text.slice(0, 360);
-      },
       // 头部数据徽章
       headBadges() {
         const m = this.meta || {};
@@ -1691,7 +1684,6 @@
         this.openNoteDraft();
       },
       overviewAllLaunches() { this.switchTab("launch", "sec-launch"); },
-      overviewReadmeFull() { this.switchTab("materials", "sec-readme"); },
       overviewEditDesc() { this.switchTab("records", "sec-desc"); },
       // 概览固定“仅本人”，不读取/重置开发记录里的作者筛选
       async loadRecentActivity() {

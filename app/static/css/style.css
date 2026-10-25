@@ -477,7 +477,9 @@ input[type="search"] { width: 320px; }
   padding: 18px 26px 56px;
   min-width: 0;
 }
-.home-main .filter-bar .search-wrap { max-width: 780px; flex: 1 1 520px; }
+.home-main .filter-bar .search-wrap { max-width: none; flex: 1 1 520px; }
+/* 搜索行铺满：去掉中间弹性占位，让搜索框吃掉剩余宽度，排序/筛选/计数贴住右端 */
+.home-main .filter-bar .spacer { display: none; }
 .home-title {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: var(--s-3); flex-wrap: wrap; margin-bottom: 14px;
@@ -779,7 +781,7 @@ input[type="search"] { width: 320px; }
 .week-grid {
   display: grid;
   grid-template-columns: minmax(190px, 0.9fr) minmax(280px, 1.5fr) minmax(250px, 1.2fr);
-  gap: 24px; align-items: center;
+  gap: 24px; align-items: start;
 }
 .week-summary {
   display: flex; flex-direction: column; justify-content: center;
@@ -795,6 +797,38 @@ input[type="search"] { width: 320px; }
 .week-summary-line b { color: var(--text); font-size: 17px; font-weight: 750; font-variant-numeric: tabular-nums; }
 .week-note { margin-top: 5px; font-size: 12.5px; color: var(--muted); }
 .week-warn { margin-top: 8px; font-size: 12px; color: var(--warn); line-height: 1.6; }
+.week-warn-actions { display: inline-flex; gap: 6px; margin-left: 4px; white-space: nowrap; }
+.week-warn .side-link { color: var(--warn); font-size: 12px; font-weight: 600; }
+/* 读取失败仓库明细弹窗 */
+.week-errors-modal { width: 560px; }
+.week-errors-intro { margin: -4px 0 12px; }
+.week-errors-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 10px;
+  max-height: 52vh; overflow-y: auto;
+}
+.week-errors-list li {
+  padding: 10px 12px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--r-md);
+}
+.we-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 2px 10px; flex-wrap: wrap;
+}
+.we-head b { flex: none; font-size: 13.5px; }
+.we-reason {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 12.5px; color: var(--warn); text-align: right;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .we-head { flex-direction: column; align-items: flex-start; }
+  .we-reason { text-align: left; }
+}
+.we-path {
+  margin-top: 4px; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); word-break: break-all;
+}
 .week-chart-wrap { min-width: 0; display: flex; flex-direction: column; }
 .week-chart-head {
   display: flex; align-items: baseline; justify-content: space-between;
@@ -856,7 +890,6 @@ input[type="search"] { width: 320px; }
 }
 button.week-project-name { cursor: pointer; }
 button.week-project-name:hover { color: var(--accent); text-decoration: underline; }
-.week-other-label { min-width: 0; color: var(--muted); font-size: 13px; white-space: nowrap; }
 .week-pcount {
   flex: none; font-size: 13.5px; font-weight: 700; color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -1228,6 +1261,28 @@ body.modal-open { overflow: hidden; }
 .modal.wide { width: 840px; }
 /* 当日提交明细弹窗（首页热力图点击某天） */
 .modal.day-modal { width: 720px; }
+/* 日期标签栏：固定在滚动区外，切换其他天时内容单独滚动 */
+.day-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.day-tab {
+  flex: 1 1 72px; min-width: 72px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--panel-2); color: var(--muted);
+  font: 12px/1.35 var(--sans); cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.day-tab:hover { background: var(--accent-soft); color: var(--accent); }
+.day-tab.on {
+  border-color: var(--accent); background: var(--accent-soft);
+  color: var(--accent); font-weight: 700;
+}
+.day-tab.empty .day-tab-date { opacity: .6; }
+.day-tab-date { white-space: nowrap; }
+.day-tab-weekday { font-weight: 400; }
+.day-tab-count { font-size: 13px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.day-tab.on .day-tab-count { color: var(--accent); }
+.day-tab.empty .day-tab-count { color: var(--muted); opacity: .75; }
 .day-body { max-height: 62vh; overflow-y: auto; }
 .day-summary { margin: 0 0 var(--s-3); font-size: 13px; color: var(--muted); }
 .day-summary b { color: var(--text); }
@@ -1976,14 +2031,7 @@ body.modal-open { overflow: hidden; }
   border-color: var(--accent); color: var(--accent);
 }
 .ov-launch-btn:hover { background: var(--accent-soft); color: var(--accent); }
-.ov-readme-name { margin-bottom: 5px; font-size: 16px; font-weight: 700; color: var(--text); }
-.ov-readme-text {
-  margin: 0 0 8px; color: var(--text);
-  font-size: 14px; line-height: 1.75;
-  max-width: 1000px;   /* 1920 宽屏下避免单行过长，保持摘要可读 */
-  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
-  overflow: hidden;
-}
+/* 概览里的项目简介：直接渲染 README 全文，与「项目资料 → README」同一套排版（正文横向装满面板） */
 .ov-readme-links { display: inline-flex; align-items: center; gap: 2px; }
 @media (max-width: 900px) {
   .overview-grid { grid-template-columns: minmax(0, 1fr); }
@@ -2192,19 +2240,26 @@ body.modal-open { overflow: hidden; }
 .dep-stats .c-warn { color: var(--warn); }
 .dep-stats .c-danger { color: var(--danger); }
 
-/* ---- 详情页自动更新提示条（后台刷新时的一条轻量状态，不遮挡内容） ---- */
+/* ---- 自动更新提示：收在左侧栏底部（首页位于「管理导航」上方），随内容排布，不做浮层 ---- */
 .auto-refresh-strip {
-  display: flex; align-items: center; gap: 7px;
-  margin: -4px 0 var(--s-3); padding: 6px 12px;
-  font-size: 12.5px; color: var(--muted);
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin: 0 0 8px; padding: 7px 10px;
+  font-size: 12px; line-height: 1.45; color: var(--muted);
   background: var(--panel-2); border: 1px solid var(--border);
   border-radius: var(--r-md);
 }
+.auto-refresh-strip > span { flex: 1 1 auto; min-width: 0; }
 .auto-refresh-strip .licon { flex: none; color: var(--accent); }
-.auto-refresh-strip .btn { margin-left: auto; }
+.auto-refresh-strip .btn { margin-left: auto; flex: none; }
 .auto-refresh-strip.error { color: var(--danger); border-color: var(--danger); }
 .auto-refresh-strip.error .licon { color: var(--danger); }
 .auto-refresh-strip.error .btn { border-color: var(--danger); color: var(--danger); }
+/* 详情页侧栏：提示条与「本地运行中」一起沉到底部，中间内容多时也不遮正文 */
+.detail-nav-bottom { margin-top: auto; }
+@media (max-width: 1024px) {
+  /* 侧栏已改成顶部横排、自身无左右内边距，提示条与正文对齐 */
+  .detail-nav-bottom { margin: 8px 16px 0; }
+}
 
 /* ---- 个人记录：项目描述 / 笔记 / 变更日志统一收纳（默认折叠） ---- */
 .personal-panel > h2.personal-head {
