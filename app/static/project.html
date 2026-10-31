@@ -168,13 +168,6 @@
             <span class="head-updated" :title="'磁盘最后修改：' + fmtTime(p.fs_modified)">
               最近修改：{{ headModifiedText }}
             </span>
-            <span class="head-meta-sep" aria-hidden="true"></span>
-            <button type="button" class="head-more-toggle" @click="toggleHeadMore"
-                    :aria-expanded="headMoreOpen ? 'true' : 'false'" aria-controls="head-more">
-              更多信息
-              <tl-icon name="chevron-down" :size="13" class="head-more-chev"
-                       :class="{ folded: !headMoreOpen }"></tl-icon>
-            </button>
           </div>
         </div>
       </div>
@@ -253,7 +246,7 @@
           </div>
 
       <!-- 更多信息：创建/更新时间、完整 Git 元信息，收起时不占正文高度 -->
-      <div class="head-more" id="head-more" v-show="headMoreOpen">
+      <div class="head-more" id="head-more">
         <div class="badge-row" v-if="headBadges.length">
           <span class="dbadge" v-for="b in headBadges" :key="b.label">
             <tl-icon :name="b.icon" :size="13" class="db-ico"></tl-icon><b>{{ b.val }}</b>{{ b.label }}

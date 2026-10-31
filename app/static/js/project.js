@@ -303,7 +303,6 @@
         shotsDrag: false,
         // 更多菜单 / 描述实时预览
         moreOpen: false,
-        headMoreOpen: true,      // 头部“更多信息”展开区，默认展开
         descLive: "",
         // 目录树按需抽屉：首次默认关闭；开关状态按本机偏好记住
         treeOpen: localStorage.getItem("tl-tree-open") === "1",
@@ -1635,7 +1634,6 @@
         const id = Number(project && project.id) || 1;
         return LOGO_COLORS[Math.abs(id - 1) % LOGO_COLORS.length];
       },
-      toggleHeadMore() { this.headMoreOpen = !this.headMoreOpen; },
       openEditFromMenu() {
         this.moreOpen = false;
         this.openEdit();

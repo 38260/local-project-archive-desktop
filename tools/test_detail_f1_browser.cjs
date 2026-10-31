@@ -49,8 +49,8 @@ fs.mkdirSync(output, { recursive: true });
     const launch = page.locator(".head-actions .launch-split .btn.primary").first();
     await launch.waitFor();
     assert.equal(await launch.isEnabled(), true);
-    assert.equal(await page.locator(".head-actions .head-secondary").filter({ hasText: "编辑器打开" }).count(), 1);
-    assert.equal(await page.locator(".head-actions .head-secondary").filter({ hasText: "资源管理器" }).count(), 1);
+    assert.equal(await page.locator(".head-actions .head-editor").count(), 1);
+    assert.equal(await page.locator(".head-actions .head-explorer").count(), 1);
     assert.equal(await page.getByRole("button", { name: "复制路径", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "编辑档案", exact: true }).count(), 0);
     await page.locator(".head-actions .more-wrap > .btn").click();
@@ -61,8 +61,7 @@ fs.mkdirSync(output, { recursive: true });
     }
     await page.keyboard.press("Escape");
 
-    // 更多信息：创建/修改/上次打开 + Git 元信息
-    await page.getByRole("button", { name: /更多信息/ }).click();
+    // 更多信息区（已常驻展开，无开关）：创建/修改/上次打开 + Git 元信息
     const moreInfo = page.locator("#head-more");
     assert.equal(await moreInfo.isVisible(), true);
     assert.match(await moreInfo.innerText(), /磁盘创建/);

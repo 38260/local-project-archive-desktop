@@ -1561,19 +1561,10 @@ body.modal-open { overflow: hidden; }
 }
 .head-side-top { display: flex; align-items: center; gap: 6px; }
 .head-meta-row { display: flex; align-items: center; gap: 8px; }
-.head-meta-sep { width: 1px; height: 13px; background: var(--border); flex: none; }
 .head-updated { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .head-pin { color: var(--muted); }
 .head-pin.on { color: var(--accent); }
 .head-pin.on .licon { fill: currentColor; }
-.head-more-toggle {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 6px; border: none; border-radius: var(--r-sm);
-  background: none; color: var(--muted); font: 12.5px var(--sans); cursor: pointer;
-}
-.head-more-toggle:hover { color: var(--accent); background: var(--accent-soft); }
-.head-more-chev { transition: transform .18s ease; }
-.head-more-chev.folded { transform: rotate(-90deg); }
 /* 路径与操作按钮同行（卡片级整行）：路径弹性填充，按钮顶到卡片右缘；
    左缩进与标题对齐（Logo 56 + 间距 16），窄屏换行铺满 */
 .head-path-row {
