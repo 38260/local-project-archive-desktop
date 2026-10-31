@@ -151,12 +151,79 @@
               <tl-icon name="branch" :size="13"></tl-icon>{{ headBranch }}
             </span>
           </div>
-          <button class="proj-card-path head-path" type="button" @click="copyText(p.path)"
-                  :title="'点击复制：' + p.path" :disabled="p.is_lost">
-            <tl-icon name="folder" :size="14"></tl-icon>
-            <span class="proj-path-text">{{ p.path }}</span>
-            <tl-icon name="copy" :size="13" class="proj-path-copy"></tl-icon>
-          </button>
+          <!-- 路径与操作按钮同行：路径弹性填充，按钮靠右 -->
+          <div class="head-path-row">
+            <button class="proj-card-path head-path" type="button" @click="copyText(p.path)"
+                    :title="'点击复制：' + p.path" :disabled="p.is_lost">
+              <tl-icon name="folder" :size="14"></tl-icon>
+              <span class="proj-path-text">{{ p.path }}</span>
+              <tl-icon name="copy" :size="13" class="proj-path-copy"></tl-icon>
+            </button>
+            <div class="head-actions">
+              <span class="launch-split" v-if="!p.is_lost && launch && launch.supported && primaryLaunchEntry">
+                <button class="btn primary split-main" @click="quickLaunch" :disabled="!!launchBusyKey || launchPrefsSaving"
+                        :title="'启动：' + primaryLaunchEntry.command">
+                  <tl-icon name="zap" :size="15"></tl-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
+                </button>
+                <button class="btn primary split-caret" type="button" :disabled="!!launchBusyKey || launchPrefsSaving"
+                        @click.stop="launchMenuOpen = !launchMenuOpen"
+                        :aria-expanded="launchMenuOpen ? 'true' : 'false'" aria-haspopup="menu"
+                        title="选择「启动」按钮默认跑哪个入口" aria-label="选择「启动」按钮默认跑哪个入口">
+                  <tl-icon name="chevron-down" :size="13"></tl-icon>
+                </button>
+                <span class="more-mask" v-if="launchMenuOpen" @click="launchMenuOpen = false"></span>
+                <span class="more-list launch-menu" v-if="launchMenuOpen" role="menu">
+                  <span class="lm-head">「启动」按钮跑哪一个</span>
+                  <button v-for="x in orderedEntries" :key="x.key" class="btn" role="menuitemradio"
+                          :aria-checked="isPrimaryEntry(x.entry) ? 'true' : 'false'"
+                          :class="{ on: isPrimaryEntry(x.entry) }"
+                          :title="x.entry.command"
+                          @click="setPrimaryEntry(x.entry)" :disabled="launchPrefsSaving">
+                    <tl-icon :name="isPrimaryEntry(x.entry) ? 'check' : 'zap'" :size="13"></tl-icon>
+                    <span class="lm-name">{{ x.entry.name }}</span>
+                    <span class="lb-tag" v-if="x.kind === 's'">自动</span>
+                  </button>
+                </span>
+              </span>
+              <button v-else class="btn primary" disabled
+                      :title="p.is_lost ? '项目路径丢失，修复后可启动'
+                        : (launch && launch.supported ? '暂未检测到可用启动入口'
+                          : (launch ? '当前环境不支持一键启动' : '正在读取启动入口…'))">
+                <tl-icon name="zap" :size="15"></tl-icon>启动
+              </button>
+              <button class="btn head-explorer" @click="openIn('explorer')" :disabled="p.is_lost">
+                <tl-icon name="folder-open" :size="15"></tl-icon>资源管理器
+              </button>
+              <button class="btn head-editor" @click="openIn('vscode')" :disabled="p.is_lost"
+                      :title="'用 ' + editorName(editorCmd) + ' 打开项目'">
+                <tl-icon :name="editorIcon(editorCmd)" :size="15"></tl-icon>{{ editorName(editorCmd) }} 打开
+              </button>
+              <span class="more-wrap">
+                <button class="btn head-secondary" @click.stop="moreOpen = !moreOpen"
+                        aria-haspopup="menu" :aria-expanded="moreOpen ? 'true' : 'false'">
+                  <tl-icon name="more" :size="15"></tl-icon>更多
+                </button>
+                <span class="more-mask" v-if="moreOpen" @click="moreOpen = false"></span>
+                <span class="more-list" v-if="moreOpen" style="z-index:80" role="menu" @click="moreOpen = false">
+                  <button class="btn" role="menuitem" @click="openEditFromMenu">
+                    <tl-icon name="pencil" :size="15"></tl-icon>编辑档案
+                  </button>
+                  <button class="btn" role="menuitem" @click="rescan" :disabled="rescanning">
+                    <tl-icon name="refresh" :size="15" :class="{spin: rescanning}"></tl-icon>{{ rescanning ? "解析中…" : "重新解析" }}
+                  </button>
+                  <button class="btn" role="menuitem" @click="togglePin">
+                    <tl-icon name="pin" :size="15"></tl-icon>{{ p.pinned ? "取消置顶" : "置顶" }}
+                  </button>
+                  <button class="btn" role="menuitem" @click="exportHtml">
+                    <tl-icon name="download" :size="15"></tl-icon>导出 HTML
+                  </button>
+                  <button class="btn danger" role="menuitem" @click="removeProject">
+                    <tl-icon name="trash" :size="15"></tl-icon>删除档案
+                  </button>
+                </span>
+              </span>
+            </div>
+          </div>
         </div>
         <div class="head-side">
           <div class="head-side-top">
@@ -183,71 +250,6 @@
             </button>
           </div>
         </div>
-      </div>
-
-      <div class="head-actions">
-        <span class="launch-split" v-if="!p.is_lost && launch && launch.supported && primaryLaunchEntry">
-          <button class="btn primary split-main" @click="quickLaunch" :disabled="!!launchBusyKey || launchPrefsSaving"
-                  :title="'启动：' + primaryLaunchEntry.command">
-            <tl-icon name="zap" :size="15"></tl-icon>{{ launchBusyKey ? "启动中…" : "启动" }}
-          </button>
-          <button class="btn primary split-caret" type="button" :disabled="!!launchBusyKey || launchPrefsSaving"
-                  @click.stop="launchMenuOpen = !launchMenuOpen"
-                  :aria-expanded="launchMenuOpen ? 'true' : 'false'" aria-haspopup="menu"
-                  title="选择「启动」按钮默认跑哪个入口" aria-label="选择「启动」按钮默认跑哪个入口">
-            <tl-icon name="chevron-down" :size="13"></tl-icon>
-          </button>
-          <span class="more-mask" v-if="launchMenuOpen" @click="launchMenuOpen = false"></span>
-          <span class="more-list launch-menu" v-if="launchMenuOpen" role="menu">
-            <span class="lm-head">「启动」按钮跑哪一个</span>
-            <button v-for="x in orderedEntries" :key="x.key" class="btn" role="menuitemradio"
-                    :aria-checked="isPrimaryEntry(x.entry) ? 'true' : 'false'"
-                    :class="{ on: isPrimaryEntry(x.entry) }"
-                    :title="x.entry.command"
-                    @click="setPrimaryEntry(x.entry)" :disabled="launchPrefsSaving">
-              <tl-icon :name="isPrimaryEntry(x.entry) ? 'check' : 'zap'" :size="13"></tl-icon>
-              <span class="lm-name">{{ x.entry.name }}</span>
-              <span class="lb-tag" v-if="x.kind === 's'">自动</span>
-            </button>
-          </span>
-        </span>
-        <button v-else class="btn primary" disabled
-                :title="p.is_lost ? '项目路径丢失，修复后可启动'
-                  : (launch && launch.supported ? '暂未检测到可用启动入口'
-                    : (launch ? '当前环境不支持一键启动' : '正在读取启动入口…'))">
-          <tl-icon name="zap" :size="15"></tl-icon>启动
-        </button>
-        <button class="btn head-explorer" @click="openIn('explorer')" :disabled="p.is_lost">
-          <tl-icon name="folder-open" :size="15"></tl-icon>资源管理器
-        </button>
-        <button class="btn head-editor" @click="openIn('vscode')" :disabled="p.is_lost"
-                :title="'用 ' + editorName(editorCmd) + ' 打开项目'">
-          <tl-icon :name="editorIcon(editorCmd)" :size="15"></tl-icon>{{ editorName(editorCmd) }} 打开
-        </button>
-        <span class="more-wrap">
-          <button class="btn head-secondary" @click.stop="moreOpen = !moreOpen"
-                  aria-haspopup="menu" :aria-expanded="moreOpen ? 'true' : 'false'">
-            <tl-icon name="more" :size="15"></tl-icon>更多
-          </button>
-          <span class="more-mask" v-if="moreOpen" @click="moreOpen = false"></span>
-          <span class="more-list" v-if="moreOpen" style="z-index:80" role="menu" @click="moreOpen = false">
-            <button class="btn" role="menuitem" @click="openEditFromMenu">
-              <tl-icon name="pencil" :size="15"></tl-icon>编辑档案
-            </button>
-            <button class="btn" role="menuitem" @click="rescan" :disabled="rescanning">
-              <tl-icon name="refresh" :size="15" :class="{spin: rescanning}"></tl-icon>{{ rescanning ? "解析中…" : "重新解析" }}
-            </button>
-            <button class="btn" role="menuitem" @click="togglePin">
-              <tl-icon name="pin" :size="15"></tl-icon>{{ p.pinned ? "取消置顶" : "置顶" }}
-            </button>
-            <button class="btn" role="menuitem" @click="exportHtml">
-              <tl-icon name="download" :size="15"></tl-icon>导出 HTML
-            </button>
-            <button class="btn danger" role="menuitem" @click="removeProject">
-              <tl-icon name="trash" :size="15"></tl-icon>删除档案
-            </button>
-          </span>
-        </span>
       </div>
 
       <!-- 更多信息：创建/更新时间、完整 Git 元信息，收起时不占正文高度 -->

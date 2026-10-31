@@ -1559,7 +1559,6 @@ body.modal-open { overflow: hidden; }
   border: 1px solid var(--border); background: var(--panel);
   color: var(--muted); font: 12px var(--mono); font-weight: 500;
 }
-.head-path { margin-top: 10px; max-width: 440px; }
 .head-side {
   flex: none; min-width: 230px;
   display: flex; flex-direction: column; align-items: flex-end; gap: 7px;
@@ -1579,13 +1578,18 @@ body.modal-open { overflow: hidden; }
 .head-more-toggle:hover { color: var(--accent); background: var(--accent-soft); }
 .head-more-chev { transition: transform .18s ease; }
 .head-more-chev.folded { transform: rotate(-90deg); }
+/* 路径与操作按钮同行：路径弹性填充，按钮靠右；空间不足时按钮换行到路径下方 */
+.head-path-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 10px; min-width: 0; flex-wrap: wrap;
+}
+.head-path {
+  flex: 1 1 260px; width: auto; max-width: none; margin: 0;
+  min-width: 0;
+}
 .head-actions {
   display: flex; align-items: center; justify-content: flex-end;
-  gap: 8px; flex-wrap: wrap; margin-top: 12px;
-}
-@media (min-width: 1400px) {
-  .detail-head { position: relative; }
-  .head-actions { position: absolute; right: 20px; bottom: 16px; margin: 0; }
+  gap: 8px; flex-wrap: wrap; flex: none; margin: 0;
 }
 .head-actions .more-wrap { margin: 0; }
 /* 编辑器打开按钮：强调色淡底 + 实名展示，与资源管理器等普通次要按钮区分开 */
@@ -1622,6 +1626,11 @@ body.modal-open { overflow: hidden; }
   .head-side { flex-wrap: wrap; gap: 6px; }
   .head-status { margin-left: 0; }
   .head-summary { white-space: normal; }
+  /* 窄屏：路径独占一行，操作按钮换行铺满 */
+  .head-path { flex: 1 1 100%; }
+  .head-actions { flex: 1 1 100%; }
+  .head-actions .more-wrap { flex: 1 1 auto; display: flex; }
+  .head-actions .more-wrap .btn { flex: 1 1 auto; width: 100%; justify-content: center; }
   .head-actions .btn { flex: 1 1 auto; justify-content: center; }
   .detail-crumb { margin-bottom: 8px; }
 }
