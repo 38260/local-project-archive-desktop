@@ -85,9 +85,9 @@
       <div class="page-toc" v-if="activeAnchors.length" aria-label="本页内容">
         <div class="page-toc-title">{{ tocTitle }}</div>
         <button type="button" v-for="a in activeAnchors" :key="a.id"
-                :class="{ on: activeSection === a.id, sub: a.depth === 3 }"
-                :aria-current="activeSection === a.id ? 'location' : false"
-                @click="scrollTo(a.id)">
+                :class="{ on: activeSection === tocDomId(a), sub: a.depth === 3 }"
+                :aria-current="activeSection === tocDomId(a) ? 'location' : false"
+                @click="scrollTo(tocDomId(a))">
           <tl-icon :name="a.icon || 'file-text'" :size="14"></tl-icon>
           <span>{{ a.label }}</span>
         </button>
