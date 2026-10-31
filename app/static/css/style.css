@@ -884,7 +884,8 @@ input[type="search"] { width: 320px; }
 .week-project-line { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .week-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; }
 .week-project-name {
-  flex: 0 1 auto; min-width: 54px; max-width: 132px;
+  /* 名称列定宽：各行轨道的左边缘对齐（名称过长省略，短名称留白） */
+  flex: 0 0 132px; min-width: 0;
   padding: 0; border: none; background: none;
   color: var(--text); font: 14px var(--sans); font-weight: 500; text-align: left;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1207,7 +1208,7 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
   .week-big { font-size: 44px; }
   .week-title { font-size: 16px; }
   .week-sub { font-size: 12.5px; }
-  .week-project-name { max-width: 150px; }
+  .week-project-name { flex-basis: 150px; }
   .week-identity { flex-wrap: wrap; }
   .week-identity .btn { margin-left: 0; }
 }
