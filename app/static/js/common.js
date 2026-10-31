@@ -1285,17 +1285,13 @@
                  @contextmenu.prevent="openMenu(t, $event)"
                  @dragover="onDragOver(t, $event)"
                  @drop.prevent="onDragEnd">
-              <!-- 只有手柄可拖动：标签名称保持可拖选复制，拖整块标签不会误触发排序 -->
-              <span class="tab-handle" title="拖动标签调整顺序" draggable="true"
+              <!-- 固定标签：手柄图标换成图钉（名称前），× 常显可直接关闭 -->
+              <span class="tab-handle" :title="t.pinned ? '已固定：不会被「关闭其他/右侧」误关，拖动可调整顺序' : '拖动标签调整顺序'" draggable="true"
                     @dragstart.stop="onDragStart(t, $event)" @dragend.stop="onDragEnd">
-                <tl-icon name="folder" :size="13"></tl-icon>
+                <tl-icon :name="t.pinned ? 'pin' : 'folder'" :size="13"></tl-icon>
               </span>
               <span class="tab-label">{{ t.name }}</span>
-              <!-- 固定标记：位置不动、防误关（取消固定走右键菜单） -->
-              <span class="tab-pin" v-if="t.pinned" title="已固定：不会被「关闭其他/右侧」误关">
-                <tl-icon name="pin" :size="12"></tl-icon>
-              </span>
-              <span class="tab-x" role="button" tabindex="0" v-if="!t.pinned"
+              <span class="tab-x" role="button" tabindex="0"
                     :aria-label="'关闭 ' + t.name + ' 标签'"
                     @mousedown="xPressed = true"
                     @click.stop="closeTab(t)" @keydown.enter.stop.prevent="closeTab(t)"

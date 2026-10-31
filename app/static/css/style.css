@@ -222,12 +222,8 @@ a:hover { text-decoration: underline; }
   opacity: 0; transition: opacity .15s, background .15s, color .15s;
 }
 .tab:hover .tab-x, .tab.on .tab-x, .tab-x:focus-visible { opacity: 1; }
-/* 固定标记：替位 × 常驻显示（取消固定走右键菜单） */
-.tab-pin {
-  display: inline-flex; align-items: center; justify-content: center;
-  flex: 0 0 auto; width: 16px; height: 16px;
-  border-radius: var(--r-sm); color: var(--accent);
-}
+/* 固定标签：手柄图标为图钉（名称前），× 常显；图钉用强调色标示状态 */
+.tab.pinned .tab-handle .licon { color: var(--accent); }
 /* ---- 标签右键菜单（Chrome 同款）：固定 / 关闭 / 关闭其他 / 关闭右侧 ---- */
 .tab-ctx {
   position: fixed; z-index: 110; min-width: 168px;
