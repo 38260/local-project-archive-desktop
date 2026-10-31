@@ -217,12 +217,12 @@
                     : (launch ? '当前环境不支持一键启动' : '正在读取启动入口…'))">
           <tl-icon name="zap" :size="15"></tl-icon>启动
         </button>
-        <button class="btn head-secondary" @click="openIn('vscode')" :disabled="p.is_lost"
-                :title="'用 ' + editorName(editorCmd) + ' 打开项目'">
-          <tl-icon name="pencil" :size="15"></tl-icon>编辑器打开
-        </button>
         <button class="btn head-secondary" @click="openIn('explorer')" :disabled="p.is_lost">
           <tl-icon name="folder-open" :size="15"></tl-icon>资源管理器
+        </button>
+        <button class="btn head-editor" @click="openIn('vscode')" :disabled="p.is_lost"
+                :title="'用 ' + editorName(editorCmd) + ' 打开项目'">
+          <tl-icon :name="editorIcon(editorCmd)" :size="15"></tl-icon>{{ editorName(editorCmd) }} 打开
         </button>
         <span class="more-wrap">
           <button class="btn head-secondary" @click.stop="moreOpen = !moreOpen"

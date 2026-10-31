@@ -1516,6 +1516,11 @@ body.modal-open { overflow: hidden; }
   .head-actions { position: absolute; right: 20px; bottom: 16px; margin: 0; }
 }
 .head-actions .more-wrap { margin: 0; }
+/* 编辑器打开按钮：强调色淡底 + 实名展示，与资源管理器等普通次要按钮区分开 */
+.head-actions .btn.head-editor {
+  background: var(--accent-soft); color: var(--accent); font-weight: 600;
+}
+.head-actions .btn.head-editor:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
 .head-more {
   display: flex; flex-direction: column; gap: 12px;
   margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
