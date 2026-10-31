@@ -1900,6 +1900,8 @@ body.modal-open { overflow: hidden; }
 .page-toc {
   display: flex; flex-direction: column; gap: 1px;
   margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);
+  /* README 目录可能很长：超出侧栏可视高度时内部滚动，别把底部状态条顶出去 */
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain;
 }
 .page-toc-title {
   padding: 0 10px 6px; font-size: 12.5px; font-weight: 700;
@@ -1911,6 +1913,12 @@ body.modal-open { overflow: hidden; }
   border-radius: 0 7px 7px 0;
   background: none; color: var(--muted); font: 13.5px var(--sans);
   text-align: left; cursor: pointer;
+}
+/* README 三级标题：缩进一层区分层级 */
+.page-toc button.sub { padding-left: 24px; }
+.page-toc button span {
+  /* 标题长度不定：超宽省略，不撑破侧栏 */
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .page-toc button .licon { flex: none; color: var(--muted); }
 .page-toc button:hover { color: var(--text); background: var(--panel-2); }

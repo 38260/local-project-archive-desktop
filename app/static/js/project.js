@@ -181,6 +181,8 @@
         meta: null,
         readme: null,
         readmeSwitching: false,
+        // README 标题目录：进入 sec-readme 后「本页内容」自动换为这份目录
+        readmeHeadings: [],
         tree: undefined, // undefined=加载中, null=失败
         notFound: false,
         // 非 404 的加载失败（500/网络断）：显示错误态+重试，避免永远停在骨架屏
@@ -726,10 +728,20 @@
       runningCount() {
         return (this.runs || []).filter(r => r.running).length;
       },
-      // 「本页内容」：只展示当前分区中真实存在的锚点
+      // 「本页内容」：只展示当前分区中真实存在的锚点；
+      // 项目资料分区里滚进 README 后，自动换成 README 自己的标题目录
       activeAnchors() {
+        if (this.inReadmeToc) return this.readmeHeadings;
         return this.anchorsForTab(this.activeTab);
       },
+      // 是否处于「README 目录」状态：README 在 materials 分区内部，
+      // 以滚动位置（activeSection 落在 README 或其标题上）为准
+      inReadmeToc() {
+        return this.activeTab === "materials" && this.readmeHeadings.length > 0 &&
+          (this.activeSection === "sec-readme" ||
+           this.readmeHeadings.some(h => h.id === this.activeSection));
+      },
+      tocTitle() { return this.inReadmeToc ? "README 目录" : "本页内容"; },
       activeTabLabel() {
         const tab = DETAIL_TABS.find(t => t.key === this.activeTab);
         return tab ? tab.label : "";
@@ -816,6 +828,7 @@
           this.readme = await api(
             `/api/projects/${this.projectId}/readme?file=${encodeURIComponent(v.file)}`);
           localStorage.setItem(README_LANG_KEY + this.projectId, v.file);
+          this.$nextTick(() => this.collectReadmeHeadings());
         } catch (e) {
           // 读取失败（文件被删/无权限）：保留当前版本，不让面板塌成「未找到 README」
         } finally {
@@ -2045,7 +2058,8 @@
         this.$nextTick(() => {
           if (explicit) this.scrollToElement(target);
           else window.scrollTo({ top: this.sectionScroll[tab] || 0, behavior: "auto" });
-          this.spySuspendedUntil = Date.now() + 350;
+          this.spySuspendedUntil = Date.now() + 1000;
+          if (target === "sec-readme") this.refineReadmeSection();
         });
       },
       prepareAnchor(id) {
@@ -2061,6 +2075,27 @@
         el.classList.add("flash");
         setTimeout(() => el.classList.remove("flash"), 1200);
       },
+      // activeSection 停在 sec-readme 时细化到首个可见标题。
+      // 长距平滑滚动可能被布局变化打断、或落点带 scroll-margin（~118px），
+      // 且落定后未必再有滚动事件唤醒 spy——所以按 300ms 有界轮询收敛，
+      // 到达 README 即细化；4 秒仍不达（用户去了别处）就放弃，交给 spy。
+      refineReadmeSection(tries = 0) {
+        if (this.activeTab !== "materials" || !this.readmeHeadings.length) return;
+        if (this.readmeHeadings.some(h => h.id === this.activeSection)) return; // 已收敛
+        const box = document.getElementById("sec-readme");
+        if (!box) return;
+        const top = box.getBoundingClientRect().top;
+        if (top > 160 || top < -400) {
+          if (tries < 13) setTimeout(() => this.refineReadmeSection(tries + 1), 300);
+          return;
+        }
+        let hCurrent = this.readmeHeadings[0].id;
+        for (const h of this.readmeHeadings) {
+          const el = document.getElementById(h.id);
+          if (el && el.getBoundingClientRect().top <= 160) hCurrent = h.id;
+        }
+        this.activeSection = hCurrent;
+      },
       scrollTo(id) {
         const tab = this.tabOfAnchor(id) || this.activeTab;
         if (tab !== this.activeTab) { this.switchTab(tab, id); return; }
@@ -2068,18 +2103,30 @@
         this.activeSection = id;
         this.spySuspendedUntil = Date.now() + 1000;
         this.prepareAnchor(id);
-        this.$nextTick(() => this.scrollToElement(id));
+        this.$nextTick(() => {
+          this.scrollToElement(id);
+          if (id === "sec-readme") this.refineReadmeSection();
+        });
       },
-      // 滚动监听：只统计当前分区真实可见的锚点
+      // 滚动监听：只统计当前分区真实可见的锚点；
+      // 项目资料分区滚进 README 后，二级细化到 README 标题（配合「本页内容」自动换目录）
       onScroll() {
         if (Date.now() < (this.spySuspendedUntil || 0)) return;
-        const anchors = this.activeAnchors;
+        const anchors = this.anchorsForTab(this.activeTab);
         if (!anchors.length) return;
         const offset = 90;
         let current = anchors[0].id;
         for (const a of anchors) {
           const el = document.getElementById(a.id);
           if (el && el.getBoundingClientRect().top <= offset) current = a.id;
+        }
+        if (current === "sec-readme" && this.readmeHeadings.length) {
+          let hCurrent = this.readmeHeadings[0].id;
+          for (const h of this.readmeHeadings) {
+            const el = document.getElementById(h.id);
+            if (el && el.getBoundingClientRect().top <= offset) hCurrent = h.id;
+          }
+          current = hCurrent;
         }
         this.activeSection = current;
       },
@@ -2094,8 +2141,29 @@
           setTimeout(() => this.scrollToElement(hash), 80);
         });
       },
+      // 收集 README 标题生成页内目录：给 sec-readme 里的 h1~h3 补稳定 id。
+      // 概览的「项目简介」也渲染同一份 html，但只在 sec-readme 注入 id，避免重复。
+      collectReadmeHeadings() {
+        const heads = [];
+        const box = document.querySelector("#sec-readme .md-body");
+        if (box && this.readme && this.readme.exists) {
+          box.querySelectorAll("h1, h2, h3").forEach((el, i) => {
+            if (!el.id) el.id = "rmd-h-" + i;
+            const label = (el.textContent || "").trim();
+            if (label) heads.push({
+              id: el.id, label, depth: Number(el.tagName[1]),
+            });
+          });
+        }
+        this.readmeHeadings = heads;
+        // 语言切换后旧标题可能消失：仍指向已不存在的标题时退回 README 锚点
+        if (this.activeSection && this.activeSection.startsWith("rmd-h-") &&
+            !heads.some(h => h.id === this.activeSection)) {
+          this.activeSection = "sec-readme";
+        }
+      },
       async loadReadme() {
-        if (this.p.is_lost) { this.readme = { exists: false, variants: [] }; return; }
+        if (this.p.is_lost) { this.readme = { exists: false, variants: [] }; this.readmeHeadings = []; return; }
         // 带上本机记住的语言版本；该文件已不在根目录时后端自动回退主版本
         const pref = localStorage.getItem(README_LANG_KEY + this.projectId) || "";
         try {
@@ -2105,6 +2173,7 @@
         } catch (e) {
           this.readme = { exists: false, variants: [] };
         }
+        this.$nextTick(() => this.collectReadmeHeadings());
       },
       async loadTree() {
         if (this.p.is_lost) { this.tree = null; return; }
