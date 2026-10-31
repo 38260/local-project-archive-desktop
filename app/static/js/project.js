@@ -2057,6 +2057,11 @@
         if (explicit) this.prepareAnchor(target);
         this.$nextTick(() => {
           if (explicit) this.scrollToElement(target);
+          else if (tab === "materials") {
+            // 项目资料是查阅性质：每次进入都回到顶部，不恢复上次滚动位置
+            // （带锚点直达走上面的 explicit 分支，仍精确定位）
+            window.scrollTo({ top: 0, behavior: "auto" });
+          }
           else window.scrollTo({ top: this.sectionScroll[tab] || 0, behavior: "auto" });
           this.spySuspendedUntil = Date.now() + 1000;
           if (target === "sec-readme") this.refineReadmeSection();
