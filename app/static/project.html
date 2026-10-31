@@ -151,6 +151,33 @@
               <tl-icon name="branch" :size="13"></tl-icon>{{ headBranch }}
             </span>
           </div>
+        </div>
+        <div class="head-side">
+          <div class="head-side-top">
+            <span class="head-status">
+              <tl-select v-model="p.status" :options="statuses"
+                         @update:model-value="saveStatus"></tl-select>
+            </span>
+            <button type="button" class="icon-btn head-pin" :class="{ on: p.pinned }"
+                    :title="p.pinned ? '取消置顶' : '置顶项目'" :aria-label="p.pinned ? '取消置顶' : '置顶项目'"
+                    @click="togglePin">
+              <tl-icon name="pin" :size="18"></tl-icon>
+            </button>
+          </div>
+          <div class="head-meta-row">
+            <span class="head-updated" :title="'磁盘最后修改：' + fmtTime(p.fs_modified)">
+              最近修改：{{ headModifiedText }}
+            </span>
+            <span class="head-meta-sep" aria-hidden="true"></span>
+            <button type="button" class="head-more-toggle" @click="toggleHeadMore"
+                    :aria-expanded="headMoreOpen ? 'true' : 'false'" aria-controls="head-more">
+              更多信息
+              <tl-icon name="chevron-down" :size="13" class="head-more-chev"
+                       :class="{ folded: !headMoreOpen }"></tl-icon>
+            </button>
+          </div>
+        </div>
+      </div>
           <!-- 路径与操作按钮同行：路径弹性填充，按钮靠右 -->
           <div class="head-path-row">
             <button class="proj-card-path head-path" type="button" @click="copyText(p.path)"
@@ -224,33 +251,6 @@
               </span>
             </div>
           </div>
-        </div>
-        <div class="head-side">
-          <div class="head-side-top">
-            <span class="head-status">
-              <tl-select v-model="p.status" :options="statuses"
-                         @update:model-value="saveStatus"></tl-select>
-            </span>
-            <button type="button" class="icon-btn head-pin" :class="{ on: p.pinned }"
-                    :title="p.pinned ? '取消置顶' : '置顶项目'" :aria-label="p.pinned ? '取消置顶' : '置顶项目'"
-                    @click="togglePin">
-              <tl-icon name="pin" :size="18"></tl-icon>
-            </button>
-          </div>
-          <div class="head-meta-row">
-            <span class="head-updated" :title="'磁盘最后修改：' + fmtTime(p.fs_modified)">
-              最近修改：{{ headModifiedText }}
-            </span>
-            <span class="head-meta-sep" aria-hidden="true"></span>
-            <button type="button" class="head-more-toggle" @click="toggleHeadMore"
-                    :aria-expanded="headMoreOpen ? 'true' : 'false'" aria-controls="head-more">
-              更多信息
-              <tl-icon name="chevron-down" :size="13" class="head-more-chev"
-                       :class="{ folded: !headMoreOpen }"></tl-icon>
-            </button>
-          </div>
-        </div>
-      </div>
 
       <!-- 更多信息：创建/更新时间、完整 Git 元信息，收起时不占正文高度 -->
       <div class="head-more" id="head-more" v-show="headMoreOpen">

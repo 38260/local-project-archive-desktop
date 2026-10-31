@@ -1578,10 +1578,12 @@ body.modal-open { overflow: hidden; }
 .head-more-toggle:hover { color: var(--accent); background: var(--accent-soft); }
 .head-more-chev { transition: transform .18s ease; }
 .head-more-chev.folded { transform: rotate(-90deg); }
-/* 路径与操作按钮同行：路径弹性填充，按钮靠右；空间不足时按钮换行到路径下方 */
+/* 路径与操作按钮同行（卡片级整行）：路径弹性填充，按钮顶到卡片右缘；
+   左缩进与标题对齐（Logo 56 + 间距 16），窄屏换行铺满 */
 .head-path-row {
   display: flex; align-items: center; gap: 10px;
   margin-top: 10px; min-width: 0; flex-wrap: wrap;
+  padding-left: 72px;
 }
 .head-path {
   flex: 1 1 260px; width: auto; max-width: none; margin: 0;
@@ -1626,7 +1628,8 @@ body.modal-open { overflow: hidden; }
   .head-side { flex-wrap: wrap; gap: 6px; }
   .head-status { margin-left: 0; }
   .head-summary { white-space: normal; }
-  /* 窄屏：路径独占一行，操作按钮换行铺满 */
+  /* 窄屏：路径独占一行，操作按钮换行铺满；缩进随 Logo 缩小 */
+  .head-path-row { padding-left: 59px; }
   .head-path { flex: 1 1 100%; }
   .head-actions { flex: 1 1 100%; }
   .head-actions .more-wrap { flex: 1 1 auto; display: flex; }
