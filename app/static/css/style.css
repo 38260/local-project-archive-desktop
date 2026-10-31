@@ -12,6 +12,7 @@
   --accent-soft: rgba(9, 105, 218, .1);
   --ok: #1a7f37;
   --warn: #9a6700;
+  --warn-soft: rgba(154, 103, 0, .1);
   --danger: #cf222e;
   --lost-bg: #ffebe9;
   --lost-border: #ff818266;
@@ -74,6 +75,7 @@ html.has-tabbar { --tabbar-h: 40px; }
   --accent-soft: rgba(47, 129, 247, .15);
   --ok: #3fb950;
   --warn: #d29922;
+  --warn-soft: rgba(210, 153, 34, .15);
   --danger: #f85149;
   --lost-bg: rgba(248, 81, 73, .1);
   --lost-border: rgba(248, 81, 73, .45);
@@ -1521,6 +1523,11 @@ body.modal-open { overflow: hidden; }
   background: var(--accent-soft); color: var(--accent); font-weight: 600;
 }
 .head-actions .btn.head-editor:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+/* 资源管理器按钮：琥珀淡底成对标示（编辑器=强调蓝，资源管理器=琥珀） */
+.head-actions .btn.head-explorer {
+  background: var(--warn-soft); color: var(--warn); font-weight: 600;
+}
+.head-actions .btn.head-explorer:hover { border-color: var(--warn); box-shadow: var(--shadow-sm); }
 .head-more {
   display: flex; flex-direction: column; gap: 12px;
   margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
