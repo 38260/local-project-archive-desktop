@@ -2276,6 +2276,10 @@ body.modal-open { overflow: hidden; }
 .auto-refresh-strip .licon { flex: none; color: var(--accent); }
 .auto-refresh-strip .btn { margin-left: auto; flex: none; }
 .auto-refresh-strip.error { color: var(--danger); border-color: var(--danger); }
+/* 运行中只留一个转圈图标：收紧为小徽标，不占整行 */
+.auto-refresh-strip.auto-refresh-running {
+  width: fit-content; padding: 5px 8px;
+}
 .auto-refresh-strip.error .licon { color: var(--danger); }
 .auto-refresh-strip.error .btn { border-color: var(--danger); color: var(--danger); }
 /* 详情页侧栏：提示条与「本地运行中」一起沉到底部，中间内容多时也不遮正文 */

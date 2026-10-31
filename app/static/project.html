@@ -94,13 +94,13 @@
       </div>
       <div class="detail-nav-bottom">
         <!-- 自动更新提示：放在侧栏底部，轻量状态条，不遮挡正文，失败可重试 -->
-        <div class="auto-refresh-strip" v-if="autoRefresh.state !== 'idle'"
+        <div class="auto-refresh-strip auto-refresh-running" v-if="autoRefresh.state === 'running'"
+             title="正在后台更新采集数据…" aria-label="正在后台更新采集数据" role="status" aria-live="polite">
+          <tl-icon name="refresh" :size="13" class="spin"></tl-icon>
+        </div>
+        <div class="auto-refresh-strip" v-else-if="autoRefresh.state !== 'idle'"
              :class="{ error: autoRefresh.state === 'error' }" role="status" aria-live="polite">
-          <template v-if="autoRefresh.state === 'running'">
-            <tl-icon name="refresh" :size="13" class="spin"></tl-icon>
-            <span>正在后台更新采集数据…</span>
-          </template>
-          <template v-else-if="autoRefresh.state === 'done'">
+          <template v-if="autoRefresh.state === 'done'">
             <tl-icon name="check" :size="13"></tl-icon>
             <span>采集数据已更新</span>
           </template>
