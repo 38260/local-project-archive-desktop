@@ -168,14 +168,17 @@
         </section>
       </template>
       <div class="side-foot">
-        <!-- 自动更新：批量刷新期间的轻量进度，放在「管理导航」上方，失败可重试 -->
-        <div class="auto-refresh-strip" v-if="autoRefresh.state !== 'idle'"
+        <!-- 自动更新：批量刷新期间的轻量进度，放在「管理导航」上方，失败可重试；
+             运行中只留转圈小徽标（进度挪到悬停提示），完成/失败态保留文字 -->
+        <div class="auto-refresh-strip auto-refresh-running" v-if="autoRefresh.state === 'running'"
+             :title="'正在后台更新采集数据 ' + autoRefresh.done + '/' + autoRefresh.total"
+             :aria-label="'正在后台更新采集数据 ' + autoRefresh.done + '/' + autoRefresh.total"
+             role="status" aria-live="polite">
+          <tl-icon name="refresh" :size="13" class="spin"></tl-icon>
+        </div>
+        <div class="auto-refresh-strip" v-else-if="autoRefresh.state !== 'idle'"
              :class="{ error: autoRefresh.state === 'error' }" role="status" aria-live="polite">
-          <template v-if="autoRefresh.state === 'running'">
-            <tl-icon name="refresh" :size="13" class="spin"></tl-icon>
-            <span>正在后台更新采集数据 {{ autoRefresh.done }}/{{ autoRefresh.total }}</span>
-          </template>
-          <template v-else-if="autoRefresh.state === 'done'">
+          <template v-if="autoRefresh.state === 'done'">
             <tl-icon name="check" :size="13"></tl-icon>
             <span v-if="autoRefresh.changed">{{ autoRefresh.changed }} 个项目有变化，已更新</span>
             <span v-else>采集数据已是最新</span>
