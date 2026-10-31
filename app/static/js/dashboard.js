@@ -106,6 +106,8 @@
         weeklyLoading: true,
         weeklyError: "",
         weeklyExpanded: initialWeeklyExpanded(),
+        // 每日节奏图表形态：bars=柱状 / heat=热力图，按本机偏好记住
+        weeklyMode: localStorage.getItem("tl-week-mode") === "heat" ? "heat" : "bars",
         weekTip: null,
         showWeeklyDetail: false,
         showWeekErrors: false,
@@ -214,6 +216,35 @@
           failedRepos: w.failed_repos || 0,
           identityRequired: !!w.identity_required,
           commitsByDay: w.commits_by_day || [],
+        };
+      },
+      // 每日节奏热力图：项目 × 7 天提交矩阵。
+      // 行序与行色复用「最近推进」的排名配色，两块面板看起来是同一套口径；
+      // 明暗度按全局最大单元格归一，跨行可比。
+      weeklyHeat() {
+        const w = this.weekly;
+        if (!w || !w.days || !w.days.length) return null;
+        const mmdd = (s) => {
+          const parts = String(s || "").split("-");
+          return parts.length === 3 ? `${+parts[1]}/${+parts[2]}` : (s || "");
+        };
+        const todayKey = this.localDayKey();
+        const projects = (w.projects || []).slice().sort(
+          (a, b) => (b.count - a.count) || (a.id - b.id));
+        const rows = projects.map((p, i) => ({
+          id: p.id, name: p.name, count: p.count,
+          color: WEEK_COLORS[i % WEEK_COLORS.length],
+          cells: w.days.map(d => {
+            const hit = (d.projects || []).find(x => x.id === p.id);
+            return hit ? hit.count : 0;
+          }),
+        }));
+        return {
+          rows,
+          days: w.days.map(d => ({ date: d.date, label: mmdd(d.date), isToday: d.date === todayKey })),
+          totals: w.days.map(d => d.total || 0),
+          maxCell: Math.max(1, ...rows.flatMap(r => r.cells)),
+          maxTotal: Math.max(1, ...w.days.map(d => d.total || 0)),
         };
       },
       // 读取失败的仓库明细：首页本周拾光的“查看”弹窗直接消费接口回传的 scan_errors
@@ -862,6 +893,20 @@
         try {
           localStorage.setItem(WEEKLY_EXPANDED_KEY, this.weeklyExpanded ? "1" : "0");
         } catch (e) { /* 隐私模式下本次仍生效 */ }
+      },
+      // 切换每日节奏图表形态并记住本机偏好
+      setWeeklyMode(mode) {
+        if (mode !== "bars" && mode !== "heat") return;
+        this.weeklyMode = mode;
+        try { localStorage.setItem("tl-week-mode", mode); } catch (e) { /* 本次仍生效 */ }
+      },
+      // 热力图单元格底色：项目色按强度加透明度（浅色提示、深色强调），
+      // 数字用同色实色保证明暗主题下都可读
+      weekHeatColor(hex, count, max) {
+        const cap = max || (this.weeklyHeat && this.weeklyHeat.maxCell) || 1;
+        const ratio = Math.min(1, count / cap);
+        const alpha = 0.12 + 0.55 * ratio;
+        return hex + Math.round(alpha * 255).toString(16).padStart(2, "0");
       },
       weekColorFor(projectId) {
         const view = this.weeklyView;

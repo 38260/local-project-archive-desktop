@@ -306,8 +306,18 @@
             </div>
 
             <div class="week-chart-wrap">
-              <div class="week-chart-head"><span>每日节奏</span></div>
-              <div class="week-chart" role="group" aria-label="近 7 天每日提交">
+              <div class="week-chart-head">
+                <span>每日节奏</span>
+                <span class="week-mode-toggle" role="group" aria-label="切换每日图表形态">
+                  <button type="button" :class="{ on: weeklyMode === 'bars' }"
+                          :aria-pressed="weeklyMode === 'bars' ? 'true' : 'false'"
+                          @click="setWeeklyMode('bars')">柱状</button>
+                  <button type="button" :class="{ on: weeklyMode === 'heat' }"
+                          :aria-pressed="weeklyMode === 'heat' ? 'true' : 'false'"
+                          @click="setWeeklyMode('heat')">热力图</button>
+                </span>
+              </div>
+              <div class="week-chart" v-show="weeklyMode === 'bars'" role="group" aria-label="近 7 天每日提交">
                 <button type="button" class="week-col"
                         v-for="day in weeklyView.days" :key="day.date"
                         :class="{ today: day.isToday, 'has-commits': day.total > 0 }"
@@ -326,6 +336,40 @@
                   <span class="week-today-tag" v-if="day.isToday">今天</span>
                   <span class="week-today-spacer" v-else aria-hidden="true"></span>
                 </button>
+              </div>
+              <!-- 热力图：项目 × 7 天提交矩阵，行序行色与「最近推进」一致；点格子跳当日明细 -->
+              <div class="week-heat" v-if="weeklyMode === 'heat' && weeklyHeat"
+                   role="group" aria-label="近 7 天项目乘日期的提交热力图">
+                <div class="week-heat-row week-heat-head" aria-hidden="true">
+                  <span class="week-heat-name"></span>
+                  <span class="week-heat-day" v-for="d in weeklyHeat.days" :key="d.date"
+                        :class="{ today: d.isToday }">{{ d.label }}</span>
+                </div>
+                <div class="week-heat-row" v-for="r in weeklyHeat.rows" :key="r.id">
+                  <button type="button" class="week-heat-name"
+                          :title="'打开项目「' + r.name + '」'" @click="openWeeklyProject(r.id)">
+                    {{ r.name }}
+                  </button>
+                  <button type="button" class="week-heat-cell" v-for="(c, ci) in r.cells" :key="ci"
+                          :class="{ empty: !c }"
+                          :style="c ? { background: weekHeatColor(r.color, c), color: r.color } : null"
+                          :title="weeklyHeat.days[ci].label + ' · ' + r.name + '：' + c + ' 次'"
+                          :aria-label="weeklyHeat.days[ci].label + ' ' + r.name + ' ' + c + ' 次提交'"
+                          @click="c && openDayDetail(weeklyHeat.days[ci].date)">
+                    <span class="week-heat-num" v-if="c">{{ c }}</span>
+                  </button>
+                </div>
+                <div class="week-heat-row week-heat-total">
+                  <span class="week-heat-name">合计</span>
+                  <button type="button" class="week-heat-cell" v-for="(t, ti) in weeklyHeat.totals" :key="ti"
+                          :class="{ empty: !t }"
+                          :style="t ? { background: weekHeatColor('#2F81F7', t, weeklyHeat.maxTotal), color: '#2F81F7' } : null"
+                          :title="weeklyHeat.days[ti].label + ' · 合计 ' + t + ' 次'"
+                          :aria-label="weeklyHeat.days[ti].label + ' 合计 ' + t + ' 次提交'"
+                          @click="t && openDayDetail(weeklyHeat.days[ti].date)">
+                    <span class="week-heat-num" v-if="t">{{ t }}</span>
+                  </button>
+                </div>
               </div>
               <div class="week-empty-note" v-if="!weeklyView.total">近 7 天还没有本人的提交。</div>
             </div>

@@ -62,7 +62,7 @@
      顶栏 / 目录树 / toast 的 sticky 偏移都按「标签栏 + 顶栏」两段算，见下文。 */
   --tabbar-h: 0px;
 }
-html.has-tabbar { --tabbar-h: 40px; }
+html.has-tabbar { --tabbar-h: 44px; }
 [data-theme="dark"] {
   --bg: #0a0d12;
   --panel: #11151c;
@@ -175,7 +175,7 @@ a:hover { text-decoration: underline; }
 
 /* 标签栏挂载点：位于 #app 之外的常驻容器。
    display:contents 让 .tabbar 在布局上等同于 body 的直接子元素——
-   否则这层只有 40px 高的包裹元素会把 position:sticky 的可移动范围压成 0，
+   否则这层只有标签栏同高的包裹元素会把 position:sticky 的可移动范围压成 0，
    标签栏会跟着页面一起滚走。 */
 .tabbar-slot { display: contents; }
 
@@ -902,6 +902,48 @@ button.week-project-name:hover { color: var(--accent); text-decoration: underlin
   background: var(--panel-2); border-radius: 999px; overflow: hidden;
 }
 .week-fill { display: block; height: 100%; min-width: 0; border-radius: 999px; }
+/* ---- 每日节奏：柱状 / 热力图切换 + 热力矩阵 ---- */
+.week-mode-toggle {
+  display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px;
+}
+.week-mode-toggle button {
+  border: none; background: none; padding: 2px 9px; border-radius: 5px;
+  font: 12px var(--sans); color: var(--muted); cursor: pointer;
+}
+.week-mode-toggle button.on {
+  background: var(--panel); color: var(--accent); font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+.week-heat { display: flex; flex-direction: column; gap: 4px; }
+.week-heat-row {
+  display: grid; grid-template-columns: clamp(84px, 24%, 150px) repeat(7, minmax(0, 1fr));
+  gap: 4px; align-items: stretch; min-width: 0;
+}
+.week-heat-name {
+  padding: 0; border: none; background: none; text-align: left;
+  font: 12.5px var(--sans); color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+button.week-heat-name { cursor: pointer; }
+button.week-heat-name:hover { color: var(--accent); text-decoration: underline; }
+.week-heat-head .week-heat-day {
+  text-align: center; font-size: 11.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums; align-self: end; padding-bottom: 1px;
+}
+.week-heat-head .week-heat-day.today { color: var(--accent); font-weight: 700; }
+.week-heat-cell {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 24px; padding: 2px; border: none; border-radius: 6px;
+  background: var(--panel-2); cursor: default;
+  font-variant-numeric: tabular-nums;
+  transition: filter .15s;
+}
+button.week-heat-cell { cursor: pointer; }
+button.week-heat-cell:not(.empty):hover { filter: brightness(.94); }
+[data-theme="dark"] button.week-heat-cell:not(.empty):hover { filter: brightness(1.25); }
+.week-heat-cell.empty { cursor: default; }
+.week-heat-num { font-size: 11.5px; font-weight: 700; }
 /* 悬浮/键盘聚焦提示：显示日期、总数与项目明细 */
 .week-tip {
   position: fixed; z-index: 130;
