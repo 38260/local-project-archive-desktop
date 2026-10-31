@@ -939,11 +939,12 @@
     name: "TlTabbar",
     data() {
       return {
-        tabs: [],                       // 已打开的项目标签 [{id, name, alias}]，数组顺序 = 显示顺序
+        tabs: [],                       // 已打开的项目标签 [{id, name, alias, pinned}]，数组顺序 = 显示顺序
         recent: [],                     // 后端「最近开发」列表（▾ 下拉用）
         names: {},                      // id → {name, alias} 字典（/api/projects/brief）
         visible: tabbarVisible(),
         moreOpen: false,
+        menu: null,                     // 标签右键菜单 {tabId, x, y}，null = 关闭
         curId: currentProjectId(),
         dragId: null,                   // 正在拖拽的标签 id（null = 没在拖）
         xPressed: false,                // 从 × 起手 → 本次不启动拖拽
@@ -951,6 +952,8 @@
     },
     computed: {
       hasTabs() { return this.tabs.length > 0; },
+      // 右键菜单指向的标签；标签被并发操作摘掉时返回 null（模板据此关菜单）
+      menuTab() { return this.menu ? (this.tabs.find(t => t.id === this.menu.tabId) || null) : null; },
     },
     methods: {
       go(url) { window.tlNavigate(url); },
@@ -998,6 +1001,56 @@
         toast("已关闭全部项目标签", "ok");
         if (onProject) this.go("/");
       },
+      // ---- 标签右键菜单（Chrome 标签页同款：固定 / 关闭 / 关闭其他 / 关闭右侧） ----
+      // 固定只是保护性标记：位置不动、防误关，与「项目置顶/取消置顶」完全无关；
+      // 已固定的标签会被「关闭其他 / 关闭右侧」跳过，右键里的「关闭标签页」仍可显式关闭。
+      openMenu(t, ev) {
+        // 预估菜单尺寸做窗口边缘收敛，渲染后不再二次测量（误差个位像素，可接受）
+        const mw = 172, mh = 4 * 30 + 10;
+        const x = Math.max(8, Math.min(ev.clientX, window.innerWidth - mw - 8));
+        const y = Math.max(8, Math.min(ev.clientY, window.innerHeight - mh - 8));
+        this.moreOpen = false;
+        this.menu = { tabId: t.id, x, y };
+      },
+      closeMenu() { this.menu = null; },
+      togglePin(tabId) {
+        const t = this.tabs.find(x => x.id === tabId);
+        if (t) { t.pinned = !t.pinned; this.persist(); }
+        this.closeMenu();
+      },
+      closeTabById(tabId) {
+        const t = this.tabs.find(x => x.id === tabId);
+        if (t) this.closeTab(t);
+        this.closeMenu();
+      },
+      canCloseOthers(tabId) {
+        return this.tabs.some(x => x.id !== tabId && !x.pinned);
+      },
+      canCloseRight(tabId) {
+        const idx = this.tabs.findIndex(x => x.id === tabId);
+        return this.tabs.slice(idx + 1).some(x => !x.pinned);
+      },
+      closeOthers(tabId) {
+        this.tabs = this.tabs.filter(x => x.id === tabId || x.pinned);
+        this.persist();
+        this.afterBatchClose(tabId);
+        this.closeMenu();
+      },
+      closeRight(tabId) {
+        const idx = this.tabs.findIndex(x => x.id === tabId);
+        if (idx >= 0) this.tabs = this.tabs.filter((x, i) => i <= idx || x.pinned);
+        this.persist();
+        this.afterBatchClose(tabId);
+        this.closeMenu();
+      },
+      // 批量关闭后的落点：当前项目标签还在就原地不动；
+      // 被关掉了则优先落到右键的那个标签（它一定还在），否则第一个剩余标签，再否则回首页
+      afterBatchClose(keepId) {
+        this.afterTabsChange();
+        if (this.curId === null || this.hasTab(this.curId)) return;
+        const next = this.tabs.find(t => t.id === keepId) || this.tabs[0] || null;
+        this.go(next ? "/project/" + next.id : "/");
+      },
       afterTabsChange() { this.$nextTick(() => this.scrollActiveIntoView()); },
       // 滚轮直接横向滚动标签条（浏览器标签栏同款手感）；
       // 标签没溢出时不动手，让页面正常滚动。
@@ -1007,9 +1060,20 @@
         e.preventDefault();
         el.scrollLeft += (e.deltaY || e.deltaX);
       },
-      onDocClick(e) { if (!this.$el.contains(e.target)) this.moreOpen = false; },
-      // Esc 关闭「最近项目」下拉：与弹窗/菜单的 Esc 语义保持一致（此前只认外部点击）
-      onDocKey(e) { if (e.key === "Escape" && this.moreOpen) { this.moreOpen = false; e.stopPropagation(); } },
+      onDocClick(e) {
+        if (!this.$el.contains(e.target)) { this.moreOpen = false; this.menu = null; return; }
+        // 点在菜单外（含标签条其他位置）→ 收起右键菜单；菜单项自身的 click 先于文档级触发，不受影响
+        const inMenu = e.target.closest && e.target.closest(".tab-ctx");
+        if (!inMenu) this.menu = null;
+      },
+      // Esc 关闭「最近项目」下拉 / 右键菜单：与弹窗的 Esc 语义保持一致
+      onDocKey(e) {
+        if (e.key !== "Escape") return;
+        if (this.menu) { this.menu = null; e.stopPropagation(); return; }
+        if (this.moreOpen) { this.moreOpen = false; e.stopPropagation(); }
+      },
+      // 右键菜单是 fixed 定位：页面滚动/窗口缩放会与锚点脱节，直接收起（浏览器同款行为）
+      onViewportChange() { if (this.menu) this.menu = null; },
       onDocMouseUp() { this.xPressed = false; },
       onPrefsChanged() {
         this.visible = tabbarVisible();
@@ -1033,6 +1097,7 @@
             id: Number(t.id),
             name: String(t.name || ("项目 #" + t.id)),
             alias: String(t.alias || ""),
+            pinned: !!t.pinned,       // 旧记录没有该字段 → 未固定
           }));
         } catch (e) { return []; }
       },
@@ -1172,6 +1237,9 @@
       document.addEventListener("click", this.onDocClick);
       document.addEventListener("keydown", this.onDocKey);
       document.addEventListener("mouseup", this.onDocMouseUp);
+      // capture=true：标签条自身的横向滚动也要接住，否则固定定位的菜单会漂移
+      document.addEventListener("scroll", this.onViewportChange, true);
+      window.addEventListener("resize", this.onViewportChange);
       window.addEventListener("tl-prefs-changed", this.onPrefsChanged);
       window.addEventListener("tl-route-changed", this.onRouteChanged);
       window.addEventListener("tl-project-updated", this.onProjectUpdated);
@@ -1181,6 +1249,8 @@
       document.removeEventListener("click", this.onDocClick);
       document.removeEventListener("keydown", this.onDocKey);
       document.removeEventListener("mouseup", this.onDocMouseUp);
+      document.removeEventListener("scroll", this.onViewportChange, true);
+      window.removeEventListener("resize", this.onViewportChange);
       window.removeEventListener("tl-prefs-changed", this.onPrefsChanged);
       window.removeEventListener("tl-route-changed", this.onRouteChanged);
       window.removeEventListener("tl-project-updated", this.onProjectUpdated);
@@ -1203,7 +1273,7 @@
                它的 FLIP 位移就是拖拽时「旁边标签滑开让位」的动画来源（见 .tab-move-move）。 -->
           <transition-group name="tab-move">
             <div class="tab" role="tab" tabindex="0" v-for="t in tabs" :key="t.id"
-                 :class="{ on: t.id === curId, dragging: t.id === dragId }"
+                 :class="{ on: t.id === curId, dragging: t.id === dragId, pinned: t.pinned }"
                  :aria-selected="t.id === curId ? 'true' : 'false'"
                  :title="tabTitle(t)"
                  :data-project-id="t.id"
@@ -1212,6 +1282,7 @@
                  @keydown.alt.left.prevent.stop="moveTab(t, -1)"
                  @keydown.alt.right.prevent.stop="moveTab(t, 1)"
                  @auxclick.middle.prevent="closeTab(t)"
+                 @contextmenu.prevent="openMenu(t, $event)"
                  @dragover="onDragOver(t, $event)"
                  @drop.prevent="onDragEnd">
               <!-- 只有手柄可拖动：标签名称保持可拖选复制，拖整块标签不会误触发排序 -->
@@ -1220,7 +1291,11 @@
                 <tl-icon name="folder" :size="13"></tl-icon>
               </span>
               <span class="tab-label">{{ t.name }}</span>
-              <span class="tab-x" role="button" tabindex="0"
+              <!-- 固定标记：位置不动、防误关（取消固定走右键菜单） -->
+              <span class="tab-pin" v-if="t.pinned" title="已固定：不会被「关闭其他/右侧」误关">
+                <tl-icon name="pin" :size="12"></tl-icon>
+              </span>
+              <span class="tab-x" role="button" tabindex="0" v-if="!t.pinned"
                     :aria-label="'关闭 ' + t.name + ' 标签'"
                     @mousedown="xPressed = true"
                     @click.stop="closeTab(t)" @keydown.enter.stop.prevent="closeTab(t)"
@@ -1254,6 +1329,25 @@
             </button>
           </span>
         </span>
+        <!-- 项目标签右键菜单（首页标签不参与）：固定仅保护，不挪位、与项目置顶无关 -->
+        <span class="tab-ctx" v-if="menu && menuTab" role="menu"
+              :style="{ left: menu.x + 'px', top: menu.y + 'px' }"
+              @contextmenu.prevent @click.stop>
+          <button type="button" class="tab-ctx-item" role="menuitem" @click="togglePin(menu.tabId)">
+            <tl-icon name="pin" :size="13"></tl-icon>{{ menuTab.pinned ? "取消固定" : "固定" }}
+          </button>
+          <button type="button" class="tab-ctx-item" role="menuitem" @click="closeTabById(menu.tabId)">
+            <tl-icon name="x" :size="13"></tl-icon>关闭标签页
+          </button>
+          <button type="button" class="tab-ctx-item" role="menuitem" :disabled="!canCloseOthers(menu.tabId)"
+                  @click="canCloseOthers(menu.tabId) && closeOthers(menu.tabId)">
+            <tl-icon name="x" :size="13"></tl-icon>关闭其他标签页
+          </button>
+          <button type="button" class="tab-ctx-item" role="menuitem" :disabled="!canCloseRight(menu.tabId)"
+                  @click="canCloseRight(menu.tabId) && closeRight(menu.tabId)">
+            <tl-icon name="x" :size="13"></tl-icon>关闭右侧标签页
+          </button>
+        </span>
       </nav>
     `,
   };
@@ -1268,6 +1362,8 @@
     app.component("tl-icon", window.TlIcon);
     Object.assign(app.config.globalProperties, window.TL_HELPERS);
     const vm = app.mount(slot);
+    // 调试/回归脚本用的全局句柄（与 __tlHomeVM / __tlProjectVM 同惯例）
+    window.__tlTabbarVM = vm;
     // 详情页删档后调用，同步摘掉对应标签（否则会留下一个点不开的死标签）
     window.tlForgetTab = function (id) {
       if (vm && typeof vm.forget === "function") vm.forget(Number(id));

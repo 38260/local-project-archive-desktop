@@ -222,6 +222,33 @@ a:hover { text-decoration: underline; }
   opacity: 0; transition: opacity .15s, background .15s, color .15s;
 }
 .tab:hover .tab-x, .tab.on .tab-x, .tab-x:focus-visible { opacity: 1; }
+/* 固定标记：替位 × 常驻显示（取消固定走右键菜单） */
+.tab-pin {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto; width: 16px; height: 16px;
+  border-radius: var(--r-sm); color: var(--accent);
+}
+/* ---- 标签右键菜单（Chrome 同款）：固定 / 关闭 / 关闭其他 / 关闭右侧 ---- */
+.tab-ctx {
+  position: fixed; z-index: 110; min-width: 168px;
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 5px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--r-md); box-shadow: var(--shadow);
+}
+.tab-ctx-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border: none; border-radius: var(--r-sm);
+  background: none; color: var(--text);
+  font: 13px var(--sans); text-align: left; cursor: pointer;
+  white-space: nowrap;
+}
+.tab-ctx-item .licon { flex: none; color: var(--muted); }
+.tab-ctx-item:hover { background: var(--panel-2); color: var(--accent); }
+.tab-ctx-item:hover .licon { color: var(--accent); }
+.tab-ctx-item:disabled { opacity: .45; cursor: default; }
+.tab-ctx-item:disabled:hover { background: none; color: var(--text); }
+.tab-ctx-item:disabled:hover .licon { color: var(--muted); }
 .tab-x:hover { background: var(--border); color: var(--text); }
 
 /* ---- 标签拖拽排序（浏览器标签同款手感，未引入任何拖拽库） ----
